@@ -1,0 +1,27 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://main:5432/flexmalipo
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - HIKARI_MAX_POOL=10
+      - HIKARI_MIN_IDLE=5
+      - HIKARI_IDLE_TIMEOUT=300000
+      - HIKARI_CONN_TIMEOUT=20000
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_SHOW_SQL=true
+      - SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.PostgreSQLDialect
+
+    volumes:
+      - ./src:/app/src
+      - ./build/classes/java/main:/app/extracted/WEB-INF/classes
+
+networks:
+  default:
+    external: true
+    name: local-docker-network
