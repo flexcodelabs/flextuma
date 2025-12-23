@@ -11,6 +11,15 @@ import lombok.*;
 @AllArgsConstructor
 public class SmsTemplateEntity extends BaseEntity {
 
+	public static final String PLURAL = "smsTemplates";
+	public static final String NAME_PLURAL = "SMS Templates";
+	public static final String NAME_SINGULAR = "SMS Template";
+
+	public static final String READ = "READ_SMS_TEMPLATES";
+	public static final String ADD = "ADD_SMS_TEMPLATES";
+	public static final String DELETE = "DELETE_SMS_TEMPLATES";
+	public static final String UPDATE = "UPDATE_SMS_TEMPLATES";
+
 	@Column(name = "name", nullable = false, updatable = true)
 	private String name;
 
