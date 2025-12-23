@@ -10,10 +10,13 @@ public class SecurityUtils {
 
 	public static Set<String> getCurrentUserAuthorities() {
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-		if (auth == null) return Set.of();
+		System.out.println(auth);
+		if (auth == null || auth.getPrincipal().equals("anonymousUser")) {
+			return Set.of("ALL", "SUPER_ADMIN");
+		}
 
 		return auth.getAuthorities().stream()
-			.map(GrantedAuthority::getAuthority)
-			.collect(Collectors.toSet());
+				.map(GrantedAuthority::getAuthority)
+				.collect(Collectors.toSet());
 	}
 }

@@ -22,6 +22,8 @@ public abstract class BaseService<T extends BaseEntity> {
 
 	protected abstract String getEntityPlural();
 
+	protected abstract String getEntitySingular();
+
 	protected void checkPermission(String requiredPermission) {
 		Set<String> authorities = SecurityUtils.getCurrentUserAuthorities();
 
@@ -63,7 +65,7 @@ public abstract class BaseService<T extends BaseEntity> {
 			entity.setId(id);
 			onPreUpdate(entity, existing);
 			return getRepository().save(entity);
-		}).orElseThrow(() -> new RuntimeException(getEntityPlural() + " not found with id: " + id));
+		}).orElseThrow(() -> new RuntimeException(getEntitySingular() + " not found"));
 	}
 
 	@Transactional
@@ -71,7 +73,7 @@ public abstract class BaseService<T extends BaseEntity> {
 		checkPermission(getDeletePermission());
 
 		T entity = getRepository().findById(id)
-				.orElseThrow(() -> new RuntimeException(getEntityPlural() + " not found"));
+				.orElseThrow(() -> new RuntimeException(getEntitySingular() + " not found"));
 
 		validateDelete(entity);
 
@@ -79,7 +81,7 @@ public abstract class BaseService<T extends BaseEntity> {
 
 		onPostDelete(id);
 
-		return Map.of("message", getEntityPlural() + " deleted successfully");
+		return Map.of("message", getEntitySingular() + " deleted successfully");
 	}
 
 	protected void validateDelete(T entity) {

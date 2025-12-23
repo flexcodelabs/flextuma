@@ -9,7 +9,7 @@ import lombok.*;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class SmsTemplateEntity extends BaseEntity {
+public class SmsTemplate extends BaseEntity {
 
 	public static final String PLURAL = "smsTemplates";
 	public static final String NAME_PLURAL = "SMS Templates";
