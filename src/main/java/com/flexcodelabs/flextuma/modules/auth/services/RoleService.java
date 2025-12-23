@@ -3,6 +3,7 @@ package com.flexcodelabs.flextuma.modules.auth.services;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
 
 import com.flexcodelabs.flextuma.core.entities.auth.Role;
@@ -58,8 +59,13 @@ public class RoleService extends BaseService<Role> {
     }
 
     @Override
+    protected JpaSpecificationExecutor<Role> getRepositoryAsExecutor() {
+        return repository;
+    }
+
+    @Override
     protected void validateDelete(Role role) {
-        if (role.isSystem()) {
+        if (role.getSystem()) {
             throw new IllegalStateException("System roles cannot be deleted");
         }
     }

@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -24,11 +25,12 @@ public abstract class BaseController<T extends BaseEntity, S extends BaseService
     @GetMapping
     public ResponseEntity<Map<String, Object>> getAll(
             @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer pageSize) {
+            @RequestParam(required = false) Integer pageSize,
+            @RequestParam(required = false) List<String> filter) {
 
         Pageable pageable = PaginationHelper.getPageable(page, pageSize);
 
-        Pagination<T> response = service.findAllPaginated(pageable);
+        Pagination<T> response = service.findAllPaginated(pageable, filter);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("page", response.getPage());

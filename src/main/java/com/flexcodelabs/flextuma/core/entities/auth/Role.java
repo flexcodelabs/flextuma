@@ -26,9 +26,16 @@ public class Role extends BaseEntity {
 	private String name;
 
 	@Column(name = "system", nullable = false)
-	private boolean system = false;
+	private Boolean system = false;
 
 	@ManyToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
 	@JoinTable(name = "userprivilege", joinColumns = @JoinColumn(name = "role", referencedColumnName = "id"), inverseJoinColumns = @JoinColumn(name = "privilege", referencedColumnName = "id"))
 	private Set<Privilege> privileges;
+
+	@PrePersist
+	public void ensureSystemValue() {
+		if (this.system == null) {
+			this.system = false;
+		}
+	}
 }

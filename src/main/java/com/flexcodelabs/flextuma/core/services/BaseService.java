@@ -2,11 +2,14 @@ package com.flexcodelabs.flextuma.core.services;
 
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
 import com.flexcodelabs.flextuma.core.entities.BaseEntity;
+import com.flexcodelabs.flextuma.core.helpers.GenericSpecification;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +33,8 @@ public abstract class BaseService<T extends BaseEntity> {
 
 	protected abstract String getEntitySingular();
 
+	protected abstract JpaSpecificationExecutor<T> getRepositoryAsExecutor();
+
 	protected void checkPermission(String requiredPermission) {
 		Set<String> authorities = SecurityUtils.getCurrentUserAuthorities();
 
@@ -43,11 +48,22 @@ public abstract class BaseService<T extends BaseEntity> {
 	}
 
 	@Transactional(readOnly = true)
-	public Pagination<T> findAllPaginated(Pageable pageable) {
+	public Pagination<T> findAllPaginated(Pageable pageable, List<String> filters) {
 		checkPermission(getReadPermission());
-
+		if (filters != null && !filters.isEmpty()) {
+			Specification<T> spec = null;
+			for (String filterStr : filters) {
+				Specification<T> currentFilter = new GenericSpecification<>(filterStr);
+				spec = (spec == null) ? Specification.where(currentFilter) : spec.and(currentFilter);
+			}
+			Page<T> resultPage = getRepositoryAsExecutor().findAll(spec, pageable);
+			return buildPaginatedResponse(resultPage, pageable);
+		}
 		Page<T> resultPage = getRepository().findAll(pageable);
+		return buildPaginatedResponse(resultPage, pageable);
+	}
 
+	private Pagination<T> buildPaginatedResponse(Page<T> resultPage, Pageable pageable) {
 		return Pagination.<T>builder()
 				.page(pageable.getPageNumber() + 1)
 				.total(resultPage.getTotalElements())

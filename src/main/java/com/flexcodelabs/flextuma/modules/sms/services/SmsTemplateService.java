@@ -3,6 +3,7 @@ package com.flexcodelabs.flextuma.modules.sms.services;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
 
 import com.flexcodelabs.flextuma.core.entities.SmsTemplate;
@@ -55,6 +56,11 @@ public class SmsTemplateService extends BaseService<SmsTemplate> {
     @Override
     public String getPropertyName() {
         return SmsTemplate.PLURAL;
+    }
+
+    @Override
+    protected JpaSpecificationExecutor<SmsTemplate> getRepositoryAsExecutor() {
+        return repository;
     }
 
     @Override
