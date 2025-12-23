@@ -43,13 +43,18 @@ public class SmsTemplateService extends BaseService<SmsTemplate> {
     }
 
     @Override
-    protected String getEntityPlural() {
+    public String getEntityPlural() {
         return SmsTemplate.NAME_PLURAL;
     }
 
     @Override
     protected String getEntitySingular() {
         return SmsTemplate.NAME_SINGULAR;
+    }
+
+    @Override
+    public String getPropertyName() {
+        return SmsTemplate.PLURAL;
     }
 
     @Override

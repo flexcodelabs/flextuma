@@ -43,8 +43,13 @@ public class RoleService extends BaseService<Role> {
     }
 
     @Override
-    protected String getEntityPlural() {
+    public String getEntityPlural() {
         return Role.NAME_PLURAL;
+    }
+
+    @Override
+    public String getPropertyName() {
+        return Role.PLURAL;
     }
 
     @Override

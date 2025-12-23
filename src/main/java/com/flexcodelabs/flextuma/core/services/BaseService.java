@@ -1,7 +1,11 @@
 package com.flexcodelabs.flextuma.core.services;
 
+import com.flexcodelabs.flextuma.core.dtos.Pagination;
 import com.flexcodelabs.flextuma.core.entities.BaseEntity;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +24,9 @@ public abstract class BaseService<T extends BaseEntity> {
 
 	protected abstract String getDeletePermission();
 
-	protected abstract String getEntityPlural();
+	public abstract String getEntityPlural();
+
+	public abstract String getPropertyName();
 
 	protected abstract String getEntitySingular();
 
@@ -34,6 +40,20 @@ public abstract class BaseService<T extends BaseEntity> {
 		if (!isAuthorized) {
 			throw new AccessDeniedException("You have no permission to access " + getEntityPlural());
 		}
+	}
+
+	@Transactional(readOnly = true)
+	public Pagination<T> findAllPaginated(Pageable pageable) {
+		checkPermission(getReadPermission());
+
+		Page<T> resultPage = getRepository().findAll(pageable);
+
+		return Pagination.<T>builder()
+				.page(pageable.getPageNumber() + 1)
+				.total(resultPage.getTotalElements())
+				.pageSize(pageable.getPageSize())
+				.data(resultPage.getContent())
+				.build();
 	}
 
 	@Transactional(readOnly = true)
