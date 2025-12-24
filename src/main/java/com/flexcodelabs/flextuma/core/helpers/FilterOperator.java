@@ -7,6 +7,7 @@ public enum FilterOperator {
     EQ("eq"),
     NE("ne"),
     LIKE("like"),
+    ILIKE("ilike"),
     GT("gt"),
     LT("lt"),
     IN("in");

@@ -5,6 +5,7 @@ import jakarta.persistence.criteria.*;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.Arrays;
+import java.util.UUID;
 
 public class GenericSpecification<T extends BaseEntity> implements Specification<T> {
 
@@ -21,22 +22,46 @@ public class GenericSpecification<T extends BaseEntity> implements Specification
 
     @Override
     public Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-        return switch (operator) {
-            case EQ -> cb.equal(root.get(field), castValue(root, field, value));
-            case NE -> cb.notEqual(root.get(field), castValue(root, field, value));
-            case LIKE -> cb.like(cb.lower(root.get(field)), "%" + value.toLowerCase() + "%");
-            case GT -> cb.greaterThan(root.get(field), value);
-            case LT -> cb.lessThan(root.get(field), value);
-            case IN -> root.get(field).in(Arrays.asList(value.split(",")));
-        };
+        try {
+            Path<?> path = root.get(field);
+            Class<?> type = path.getJavaType();
+
+            return switch (operator) {
+                case EQ -> cb.equal(path, castValue(type, value));
+                case NE -> cb.notEqual(path, castValue(type, value));
+                case LIKE -> cb.like(cb.lower(path.as(String.class)), "%" + value.toLowerCase() + "%");
+                case IN -> path.in(Arrays.stream(value.split(",")).map(v -> castValue(type, v)).toList());
+                case GT -> cb.greaterThan(path.as(String.class), value);
+                case LT -> cb.lessThan(path.as(String.class), value);
+                case ILIKE -> cb.like(cb.lower(path.as(String.class)), "%" + value.toLowerCase() + "%");
+
+            };
+        } catch (IllegalArgumentException e) {
+            return cb.conjunction();
+        }
     }
 
-    private Object castValue(Root<T> root, String field, String value) {
-        Class<?> type = root.get(field).getJavaType();
+    private Object castValue(Class<?> type, String value) {
+        if (value == null || "null".equalsIgnoreCase(value))
+            return null;
+        if (type.equals(UUID.class))
+            return UUID.fromString(value);
+        if (type.isEnum()) {
+            return stringToEnum(type, value);
+        }
         if (type.equals(Boolean.class) || type.equals(boolean.class))
             return Boolean.valueOf(value);
         if (type.equals(Integer.class) || type.equals(int.class))
             return Integer.valueOf(value);
         return value;
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private Object stringToEnum(Class<?> type, String value) {
+        try {
+            return Enum.valueOf((Class<Enum>) type, value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

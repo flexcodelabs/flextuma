@@ -5,6 +5,8 @@ import com.flexcodelabs.flextuma.core.entities.BaseEntity;
 import com.flexcodelabs.flextuma.core.helpers.GenericSpecification;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
 
+import jakarta.persistence.criteria.JoinType;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -48,18 +50,28 @@ public abstract class BaseService<T extends BaseEntity> {
 	}
 
 	@Transactional(readOnly = true)
-	public Pagination<T> findAllPaginated(Pageable pageable, List<String> filters) {
+	public Pagination<T> findAllPaginated(Pageable pageable, List<String> filter, String fields) {
 		checkPermission(getReadPermission());
-		if (filters != null && !filters.isEmpty()) {
-			Specification<T> spec = null;
-			for (String filterStr : filters) {
-				Specification<T> currentFilter = new GenericSpecification<>(filterStr);
-				spec = (spec == null) ? Specification.where(currentFilter) : spec.and(currentFilter);
+		Specification<T> spec = (root, query, cb) -> {
+			boolean isCountQuery = query.getResultType() == Long.class || query.getResultType() == long.class;
+
+			if (!isCountQuery && fields != null && !fields.isBlank()) {
+				root.getModel().getAttributes().forEach(attr -> {
+					if (attr.isAssociation() && fields.contains(attr.getName())) {
+						root.fetch(attr.getName(), JoinType.LEFT);
+					}
+				});
+				query.distinct(true);
 			}
-			Page<T> resultPage = getRepositoryAsExecutor().findAll(spec, pageable);
-			return buildPaginatedResponse(resultPage, pageable);
+			return null;
+		};
+
+		if (filter != null && !filter.isEmpty()) {
+			for (String filterStr : filter) {
+				spec = spec.and(new GenericSpecification<>(filterStr));
+			}
 		}
-		Page<T> resultPage = getRepository().findAll(pageable);
+		Page<T> resultPage = getRepositoryAsExecutor().findAll(spec, pageable);
 		return buildPaginatedResponse(resultPage, pageable);
 	}
 
