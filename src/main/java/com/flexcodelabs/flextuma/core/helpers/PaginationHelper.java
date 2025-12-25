@@ -17,7 +17,7 @@ public class PaginationHelper {
 		if (page == null || page < 1) {
 			return 0;
 		}
-		return page - 1;
+		return page;
 	}
 
 	private static int getPageSize(Integer pageSize) {

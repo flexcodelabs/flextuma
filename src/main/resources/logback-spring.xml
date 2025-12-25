@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+<property name="CLEAN_NEST_PATTERN" 
+          value="%d{yyyy-MM-dd HH:mm:ss.SSS} %clr(%5p) %clr([%logger{0}]){cyan} : %m%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CLEAN_NEST_PATTERN}</pattern>
+            <pattern>%d %p --- [%t] %clr(%logger{0}){cyan} : %m%n</pattern>
+            <charset>utf8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Silence the noise from ExceptionResolver -->
+    <logger name="org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver" level="OFF" />
+    <logger name="org.springframework" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+</configuration>
