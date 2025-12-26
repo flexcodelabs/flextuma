@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
 
-import com.flexcodelabs.flextuma.core.entities.SmsTemplate;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 

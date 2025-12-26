@@ -1,6 +1,6 @@
 package com.flexcodelabs.flextuma.core.helpers;
 
-import com.flexcodelabs.flextuma.core.entities.BaseEntity;
+import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 import jakarta.persistence.criteria.*;
 import org.springframework.data.jpa.domain.Specification;
 

@@ -1,7 +1,7 @@
 package com.flexcodelabs.flextuma.core.services;
 
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
-import com.flexcodelabs.flextuma.core.entities.BaseEntity;
+import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 import com.flexcodelabs.flextuma.core.helpers.GenericSpecification;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
 

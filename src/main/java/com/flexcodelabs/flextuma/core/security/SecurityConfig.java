@@ -14,6 +14,12 @@ import org.springframework.session.data.redis.config.annotation.web.http.EnableR
 @EnableRedisHttpSession
 public class SecurityConfig {
 
+    private final CustomSecurityExceptionHandler securityExceptionHandler;
+
+    public SecurityConfig(CustomSecurityExceptionHandler securityExceptionHandler) {
+        this.securityExceptionHandler = securityExceptionHandler;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -23,6 +29,10 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .httpBasic(Customizer.withDefaults())
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(securityExceptionHandler)
+                .accessDeniedHandler(securityExceptionHandler)
+            )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 .maximumSessions(1) 

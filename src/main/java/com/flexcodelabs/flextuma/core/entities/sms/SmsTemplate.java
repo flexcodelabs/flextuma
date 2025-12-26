@@ -1,5 +1,6 @@
-package com.flexcodelabs.flextuma.core.entities;
+package com.flexcodelabs.flextuma.core.entities.sms;
 
+import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 

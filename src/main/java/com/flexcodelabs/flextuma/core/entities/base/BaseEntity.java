@@ -1,4 +1,4 @@
-package com.flexcodelabs.flextuma.core.entities;
+package com.flexcodelabs.flextuma.core.entities.base;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;

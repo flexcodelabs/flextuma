@@ -1,6 +1,6 @@
 package com.flexcodelabs.flextuma.core.entities.auth;
 
-import com.flexcodelabs.flextuma.core.entities.BaseEntity;
+import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.Set;
