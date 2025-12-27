@@ -13,7 +13,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-// REMOVE @Slf4j
 @Component
 public class RequestLoggingFilter extends OncePerRequestFilter {
 

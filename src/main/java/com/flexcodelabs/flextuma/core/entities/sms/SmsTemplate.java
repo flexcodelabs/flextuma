@@ -1,6 +1,7 @@
 package com.flexcodelabs.flextuma.core.entities.sms;
 
-import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
+import com.flexcodelabs.flextuma.core.entities.base.Owner;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -10,7 +11,7 @@ import lombok.*;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class SmsTemplate extends BaseEntity {
+public class SmsTemplate extends Owner {
 
 	public static final String PLURAL = "smsTemplates";
 	public static final String NAME_PLURAL = "SMS Templates";

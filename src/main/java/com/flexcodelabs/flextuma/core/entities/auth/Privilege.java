@@ -27,4 +27,7 @@ public class Privilege extends BaseEntity {
 
     @Column(unique = true, nullable = false)
     private String value;
+
+    @Column(name = "system", nullable = false)
+    private Boolean system = false;
 }

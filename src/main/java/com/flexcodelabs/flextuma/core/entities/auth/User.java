@@ -61,7 +61,7 @@ public class User extends NameEntity {
 	private Boolean system = false;
 
 	@ManyToMany(fetch = FetchType.LAZY)
-	@JoinTable(name = "userrole", joinColumns = @JoinColumn(name = "user", referencedColumnName = "id"), inverseJoinColumns = @JoinColumn(name = "role", referencedColumnName = "id"))
+	@JoinTable(name = "userrole", joinColumns = @JoinColumn(name = "owner", referencedColumnName = "id"), inverseJoinColumns = @JoinColumn(name = "role", referencedColumnName = "id"))
 	private Set<Role> roles;
 
 	@ManyToOne(fetch = FetchType.LAZY)
@@ -84,6 +84,11 @@ public class User extends NameEntity {
 		}
 
 		this.phoneNumber = validateUserPhone(this.phoneNumber);
+
+		if (this.password != null && this.salt == null) {
+			this.salt = BCrypt.gensalt();
+			this.password = BCrypt.hashpw(this.password, this.salt);
+		}
 	}
 
 	private String validateUserPhone(String phone) {

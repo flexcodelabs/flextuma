@@ -11,7 +11,6 @@ public class SecurityUtils {
 	public static Set<String> getCurrentUserAuthorities() {
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 		if (auth == null || auth.getPrincipal().equals("anonymousUser")) {
-			// return Set.of("ALL", "SUPER_ADMIN");
 			return Set.of();
 		}
 

@@ -28,7 +28,7 @@ public class Role extends BaseEntity {
 	@Column(name = "system", nullable = false)
 	private Boolean system = false;
 
-	@ManyToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+	@ManyToMany(fetch = FetchType.LAZY)
 	@JoinTable(name = "userprivilege", joinColumns = @JoinColumn(name = "role", referencedColumnName = "id"), inverseJoinColumns = @JoinColumn(name = "privilege", referencedColumnName = "id"))
 	private Set<Privilege> privileges;
 
