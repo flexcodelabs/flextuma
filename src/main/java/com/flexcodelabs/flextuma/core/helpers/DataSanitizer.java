@@ -1,52 +1,66 @@
 package com.flexcodelabs.flextuma.core.helpers;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class DataSanitizer {
-
-    private static final ObjectMapper mapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .setSerializationInclusion(JsonInclude.Include.NON_NULL)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);;
 
     public static <T> Map<String, Object> sanitize(Pagination<T> pagination, String fields, String propertyName) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("page", pagination.getPage());
         response.put("total", pagination.getTotal());
         response.put("pageSize", pagination.getPageSize());
+        response.put(propertyName, pagination.getData());
 
-        List<String> fieldList = (fields != null && !fields.isBlank())
-                ? Arrays.asList(fields.split(","))
-                : Collections.emptyList();
+        if (fields == null || fields.isBlank() || "*".equals(fields)) {
+            return response;
+        }
 
-        List<Map<String, Object>> sanitizedData = pagination.getData().stream()
-                .map(item -> {
-                    Map<String, Object> entityMap = mapper.convertValue(item, new TypeReference<Map<String, Object>>() {
-                    });
-                    entityMap.entrySet().removeIf(entry -> {
-                        boolean isNull = entry.getValue() == null;
-                        boolean isNotRequested = !fieldList.isEmpty() &&
-                                !fieldList.contains(entry.getKey()) &&
-                                !entry.getKey().equals("id");
+        Map<String, Object> fieldTree = parseFields(fields);
 
-                        return isNull || isNotRequested;
-                    });
+        fieldTree.put("page", new HashMap<>());
+        fieldTree.put("total", new HashMap<>());
+        fieldTree.put("pageSize", new HashMap<>());
+        fieldTree.put(propertyName, fieldTree.getOrDefault(propertyName, new HashMap<>()));
 
-                    return entityMap;
-                })
-                .collect(Collectors.toList());
+        SimpleFilterProvider filterProvider = new SimpleFilterProvider()
+                .addFilter("CustomFilter", new DynamicPropertyFilter());
 
-        response.put(propertyName, sanitizedData);
+        response.put("_filterProvider", filterProvider);
+        response.put("_fieldTree", fieldTree);
+
         return response;
+    }
+
+    private static Map<String, Object> parseFields(String fields) {
+        Map<String, Object> root = new HashMap<>();
+        Stack<Map<String, Object>> stack = new Stack<>();
+        stack.push(root);
+        StringBuilder buffer = new StringBuilder();
+
+        for (char c : fields.toCharArray()) {
+            if (c == '[') {
+                String key = buffer.toString().trim();
+                Map<String, Object> child = new HashMap<>();
+                stack.peek().put(key, child);
+                stack.push(child);
+                buffer.setLength(0);
+            } else if (c == ']') {
+                stack.pop();
+                buffer.setLength(0);
+            } else if (c == ',') {
+                String key = buffer.toString().trim();
+                if (!key.isEmpty())
+                    stack.peek().put(key, new HashMap<>());
+                buffer.setLength(0);
+            } else {
+                buffer.append(c);
+            }
+        }
+        String lastKey = buffer.toString().trim();
+        if (!lastKey.isEmpty())
+            root.put(lastKey, new HashMap<>());
+        return root;
     }
 }

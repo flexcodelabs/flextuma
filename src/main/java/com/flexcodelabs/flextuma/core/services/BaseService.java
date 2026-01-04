@@ -5,8 +5,6 @@ import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 import com.flexcodelabs.flextuma.core.helpers.GenericSpecification;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
 
-import jakarta.persistence.criteria.JoinType;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -52,25 +50,18 @@ public abstract class BaseService<T extends BaseEntity> {
 	@Transactional(readOnly = true)
 	public Pagination<T> findAllPaginated(Pageable pageable, List<String> filter, String fields) {
 		checkPermission(getReadPermission());
-		Specification<T> spec = (root, query, cb) -> {
-			boolean isCountQuery = query.getResultType() == Long.class || query.getResultType() == long.class;
 
-			if (!isCountQuery && fields != null && !fields.isBlank()) {
-				root.getModel().getAttributes().forEach(attr -> {
-					if (attr.isAssociation() && fields.contains(attr.getName())) {
-						root.fetch(attr.getName(), JoinType.LEFT);
-					}
-				});
-				query.distinct(true);
-			}
-			return null;
-		};
+		Specification<T> spec = (root, query, cb) -> cb.conjunction();
 
+		// 2. Add your filters
 		if (filter != null && !filter.isEmpty()) {
 			for (String filterStr : filter) {
+				// .and() creates a new non-null Specification object
 				spec = spec.and(new GenericSpecification<>(filterStr));
 			}
 		}
+
+		// 3. Execution: This now runs clean SQL (LIMIT/OFFSET) in the database.
 		Page<T> resultPage = getRepositoryAsExecutor().findAll(spec, pageable);
 		return buildPaginatedResponse(resultPage, pageable);
 	}

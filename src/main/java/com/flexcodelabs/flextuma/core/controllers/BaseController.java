@@ -2,13 +2,13 @@ package com.flexcodelabs.flextuma.core.controllers;
 
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
 import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
-import com.flexcodelabs.flextuma.core.helpers.DataSanitizer;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,12 +24,18 @@ public abstract class BaseController<T extends BaseEntity, S extends BaseService
     @GetMapping
     public Map<String, Object> getAll(
             Pageable pageable,
-            @RequestParam(required = false) List<String> filter,
+            @RequestParam(required = false, name = "filter") List<String> filters,
             @RequestParam(required = false) String fields) {
 
-        Pagination<T> result = service.findAllPaginated(pageable, filter, fields);
+        Pagination<T> result = service.findAllPaginated(pageable, filters, fields);
 
-        return DataSanitizer.sanitize(result, fields, service.getPropertyName());
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("page", result.getPage());
+        response.put("total", result.getTotal());
+        response.put("pageSize", result.getPageSize());
+        response.put(service.getPropertyName(), result.getData());
+
+        return response;
     }
 
     @GetMapping("/{id}")
