@@ -53,15 +53,12 @@ public abstract class BaseService<T extends BaseEntity> {
 
 		Specification<T> spec = (root, query, cb) -> cb.conjunction();
 
-		// 2. Add your filters
 		if (filter != null && !filter.isEmpty()) {
 			for (String filterStr : filter) {
-				// .and() creates a new non-null Specification object
 				spec = spec.and(new GenericSpecification<>(filterStr));
 			}
 		}
 
-		// 3. Execution: This now runs clean SQL (LIMIT/OFFSET) in the database.
 		Page<T> resultPage = getRepositoryAsExecutor().findAll(spec, pageable);
 		return buildPaginatedResponse(resultPage, pageable);
 	}

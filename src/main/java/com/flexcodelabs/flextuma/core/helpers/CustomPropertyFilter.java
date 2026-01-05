@@ -44,8 +44,6 @@ public class CustomPropertyFilter extends SimpleBeanPropertyFilter {
 
         JsonStreamContext parent = context.getParent();
         while (parent != null && parent.getCurrentName() != null) {
-            // We ignore keys like "users" (the root array) to keep paths clean:
-            // "roles.privileges"
             String parentName = parent.getCurrentName();
             if (!isTechnical(parentName)) {
                 segments.addFirst(parentName);

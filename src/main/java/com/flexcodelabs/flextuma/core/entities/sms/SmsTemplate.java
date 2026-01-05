@@ -28,7 +28,7 @@ public class SmsTemplate extends Owner {
 	@Column(name = "description", nullable = true, updatable = true)
 	private String description;
 
-	@Column(name = "content", columnDefinition = "TEXT")
+	@Column(name = "content", columnDefinition = "TEXT", nullable = false)
 	private String content;
 
 	@Column(name = "category", nullable = true, updatable = true)

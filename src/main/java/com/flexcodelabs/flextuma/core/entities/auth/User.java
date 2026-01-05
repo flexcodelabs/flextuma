@@ -1,16 +1,30 @@
 package com.flexcodelabs.flextuma.core.entities.auth;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.time.LocalDateTime;
+import java.util.Set;
+
+import org.springframework.security.crypto.bcrypt.BCrypt;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flexcodelabs.flextuma.core.entities.base.NameEntity;
 import com.flexcodelabs.flextuma.core.enums.UserType;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotEmpty;
-import lombok.*;
-import org.springframework.security.crypto.bcrypt.BCrypt;
-
-import java.time.LocalDateTime;
-import java.util.Set;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "\"user\"", schema = "public")
@@ -44,10 +58,10 @@ public class User extends NameEntity {
 	private String username;
 
 	@NotEmpty(message = "Password is required")
-	@JsonIgnore
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String password;
 
-	@JsonIgnore
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String salt;
 
 	private LocalDateTime expires;
@@ -84,11 +98,6 @@ public class User extends NameEntity {
 		}
 
 		this.phoneNumber = validateUserPhone(this.phoneNumber);
-
-		if (this.password != null && this.salt == null) {
-			this.salt = BCrypt.gensalt();
-			this.password = BCrypt.hashpw(this.password, this.salt);
-		}
 	}
 
 	private String validateUserPhone(String phone) {
