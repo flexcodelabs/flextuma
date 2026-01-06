@@ -1,5 +1,7 @@
 package com.flexcodelabs.flextuma.core.entities.sms;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
 
 import jakarta.persistence.*;
@@ -11,6 +13,8 @@ import lombok.*;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class SmsTemplate extends Owner {
 
 	public static final String PLURAL = "smsTemplates";

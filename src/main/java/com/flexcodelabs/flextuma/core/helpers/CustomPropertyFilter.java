@@ -13,29 +13,63 @@ import java.util.*;
 
 public class CustomPropertyFilter extends SimpleBeanPropertyFilter {
 
+    private static final ThreadLocal<Set<Integer>> SERIALIZING = ThreadLocal.withInitial(HashSet::new);
+
     @Override
     public void serializeAsField(Object pojo, JsonGenerator jgen, SerializerProvider provider, PropertyWriter writer)
             throws Exception {
-        HttpServletRequest request = getCurrentRequest();
-        String fieldsParam = (request != null) ? request.getParameter("fields") : null;
 
-        // 1. Technical fields and ID are always allowed
-        String name = writer.getName();
-        if (fieldsParam == null || fieldsParam.isBlank() || fieldsParam.equals("*") || isTechnical(name)) {
-            writer.serializeAsField(pojo, jgen, provider);
-            return;
+        // Detect circular references
+        int pojoId = System.identityHashCode(pojo);
+        Set<Integer> currentlySerializing = SERIALIZING.get();
+
+        if (currentlySerializing.contains(pojoId)) {
+            return; // Skip to prevent circular reference
         }
 
-        // 2. Get the allowed paths (cached per request)
-        Set<String> allowedPaths = getAllowedPaths(request, fieldsParam);
+        currentlySerializing.add(pojoId);
+        try {
+            // Prevent infinite recursion - check depth
+            int depth = getDepth(jgen.getOutputContext());
+            if (depth > 10) {
+                return; // Skip serialization if too deep
+            }
 
-        // 3. Build the current path (e.g., "roles.privileges")
-        String currentPath = constructPath(jgen.getOutputContext(), name);
+            HttpServletRequest request = getCurrentRequest();
+            String fieldsParam = (request != null) ? request.getParameter("fields") : null;
 
-        // 4. Logic: Allow if the path is explicitly requested
-        if (allowedPaths.contains(currentPath)) {
-            writer.serializeAsField(pojo, jgen, provider);
+            // 1. Technical fields and ID are always allowed
+            String name = writer.getName();
+            if (fieldsParam == null || fieldsParam.isBlank() || fieldsParam.equals("*") || isTechnical(name)) {
+                writer.serializeAsField(pojo, jgen, provider);
+                return;
+            }
+
+            // 2. Get the allowed paths (cached per request)
+            Set<String> allowedPaths = getAllowedPaths(request, fieldsParam);
+
+            // 3. Build the current path (e.g., "roles.privileges")
+            String currentPath = constructPath(jgen.getOutputContext(), name);
+
+            // 4. Logic: Allow if the path is explicitly requested
+            if (allowedPaths.contains(currentPath)) {
+                writer.serializeAsField(pojo, jgen, provider);
+            }
+        } finally {
+            currentlySerializing.remove(pojoId);
+            if (currentlySerializing.isEmpty()) {
+                SERIALIZING.remove();
+            }
         }
+    }
+
+    private int getDepth(JsonStreamContext context) {
+        int depth = 0;
+        while (context != null) {
+            depth++;
+            context = context.getParent();
+        }
+        return depth;
     }
 
     private String constructPath(JsonStreamContext context, String currentField) {

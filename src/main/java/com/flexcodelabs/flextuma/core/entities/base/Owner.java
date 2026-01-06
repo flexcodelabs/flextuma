@@ -1,5 +1,9 @@
 package com.flexcodelabs.flextuma.core.entities.base;
 
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
@@ -15,12 +19,15 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @MappedSuperclass
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 public class Owner extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "creator", referencedColumnName = "id", nullable = false)
+    @CreatedBy
     private User createdBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updator", referencedColumnName = "id")
+    @LastModifiedBy
     private User updatedBy;
 }

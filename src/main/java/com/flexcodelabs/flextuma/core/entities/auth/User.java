@@ -3,10 +3,15 @@ package com.flexcodelabs.flextuma.core.entities.auth;
 import java.time.LocalDateTime;
 import java.util.Set;
 
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.flexcodelabs.flextuma.core.entities.base.NameEntity;
+import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 import com.flexcodelabs.flextuma.core.enums.UserType;
 
 import jakarta.persistence.Column;
@@ -32,7 +37,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class User extends NameEntity {
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class User extends BaseEntity {
 
 	public static final String PLURAL = "users";
 
@@ -54,7 +61,12 @@ public class User extends NameEntity {
 	@Column(unique = true)
 	private String email;
 
+	@Column(nullable = false)
+	@NotEmpty(message = "Name is required")
+	private String name;
+
 	@Column(unique = true)
+	@NotEmpty(message = "Username is required")
 	private String username;
 
 	@NotEmpty(message = "Password is required")
@@ -69,9 +81,9 @@ public class User extends NameEntity {
 	@Enumerated(EnumType.STRING)
 	private UserType type = UserType.SYSTEM;
 
-	private boolean verified = false;
+	private Boolean verified = false;
 
-	@Column(name = "system", nullable = false)
+	@Column(name = "system", nullable = true)
 	private Boolean system = false;
 
 	@ManyToMany(fetch = FetchType.LAZY)
@@ -79,18 +91,29 @@ public class User extends NameEntity {
 	private Set<Role> roles;
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "creator", referencedColumnName = "id")
+	@JoinColumn(name = "creator", referencedColumnName = "id", nullable = true)
+	@CreatedBy
+	@JsonIgnore
 	private User createdBy;
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "updator", referencedColumnName = "id")
+	@JoinColumn(name = "updator", referencedColumnName = "id", nullable = true)
+	@LastModifiedBy
+	@JsonIgnore
 	private User updatedBy;
 
 	@PrePersist
 	public void onPrePersist() {
-		if (this.createdBy != null) {
-			this.setActive(true);
+		if (this.system == null) {
+			this.system = false;
 		}
+		if (this.verified == null) {
+			this.verified = false;
+		}
+		if (this.type == null) {
+			this.type = UserType.SYSTEM;
+		}
+		this.setActive(true);
 
 		if (this.password != null && (this.salt == null)) {
 			this.salt = BCrypt.gensalt();

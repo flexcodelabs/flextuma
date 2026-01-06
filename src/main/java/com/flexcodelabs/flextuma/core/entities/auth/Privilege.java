@@ -1,5 +1,7 @@
 package com.flexcodelabs.flextuma.core.entities.auth;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 
 import jakarta.persistence.*;
@@ -11,6 +13,8 @@ import lombok.*;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class Privilege extends BaseEntity {
 
     public static final String PLURAL = "privileges";
