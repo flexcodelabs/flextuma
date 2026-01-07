@@ -3,6 +3,7 @@ package com.flexcodelabs.flextuma.core.entities.sms;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
+import com.flexcodelabs.flextuma.core.enums.CategoryEnum;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -36,5 +37,9 @@ public class SmsTemplate extends Owner {
 	private String content;
 
 	@Column(name = "category", nullable = true, updatable = true)
-	private String category;
+	@Enumerated(EnumType.STRING)
+	private CategoryEnum category = CategoryEnum.PROMOTIONAL;
+
+	@Column(name = "system", nullable = true, updatable = true)
+	private Boolean system = false;
 }

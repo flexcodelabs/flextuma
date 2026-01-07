@@ -1,18 +1,16 @@
 package com.flexcodelabs.flextuma.core.exceptions;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.transaction.TransactionSystemException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,20 +20,6 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    @ExceptionHandler(TransactionSystemException.class)
-    public ResponseEntity<Object> handleTransactionException(TransactionSystemException ex) {
-        Throwable cause = ex.getRootCause();
-        if (cause instanceof ConstraintViolationException) {
-            ConstraintViolationException cve = (ConstraintViolationException) cause;
-            String message = cve.getConstraintViolations().stream()
-                    .map(ConstraintViolation::getMessage)
-                    .collect(Collectors.joining(", "));
-            return buildResponse(message, HttpStatus.BAD_REQUEST);
-        }
-        String detail = cause != null ? cause.getMessage() : ex.getMessage();
-        return buildResponse(sanitizeDatabaseError(detail), HttpStatus.INTERNAL_SERVER_ERROR);
-    }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Object> handleDatabaseError(DataIntegrityViolationException ex) {
@@ -63,6 +47,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({ NoResourceFoundException.class, HttpRequestMethodNotSupportedException.class })
     public ResponseEntity<Object> handleNotFound() {
         return buildResponse("Oops 😢! Route not available.", HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler({ InvalidEnumValueException.class })
+    public ResponseEntity<Object> handleEnumDeserializationError(InvalidEnumValueException ex) {
+        String message = String.format("Invalid value provided for '%s'. Allowed values are: %s.",
+                ex.getFieldName(), String.join(", ", ex.getEnumValues()));
+        return buildResponse(message, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(JsonMappingException.class)
+    public ResponseEntity<Object> handleJsonMappingException(JsonMappingException ex) {
+        Throwable cause = ex.getCause();
+        if (cause instanceof InvalidEnumValueException) {
+            return handleEnumDeserializationError((InvalidEnumValueException) cause);
+        }
+        return buildResponse("Invalid request format", HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(Exception.class)

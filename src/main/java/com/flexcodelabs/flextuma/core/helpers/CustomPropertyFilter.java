@@ -98,10 +98,10 @@ public class CustomPropertyFilter extends SimpleBeanPropertyFilter {
 
     @SuppressWarnings("unchecked")
     private Set<String> getAllowedPaths(HttpServletRequest request, String fields) {
-        Set<String> paths = (Set<String>) request.getAttribute("DHIS2_PATHS");
+        Set<String> paths = (Set<String>) request.getAttribute("TUMA_PATHS");
         if (paths == null) {
             paths = FieldParser.parse(fields);
-            request.setAttribute("DHIS2_PATHS", paths);
+            request.setAttribute("TUMA_PATHS", paths);
         }
         return paths;
     }
