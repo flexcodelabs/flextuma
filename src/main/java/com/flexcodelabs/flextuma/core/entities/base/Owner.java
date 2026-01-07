@@ -22,7 +22,7 @@ import lombok.Setter;
 @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 public class Owner extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "creator", referencedColumnName = "id", nullable = false)
+    @JoinColumn(name = "creator", referencedColumnName = "id", nullable = false, updatable = false)
     @CreatedBy
     private User createdBy;
 

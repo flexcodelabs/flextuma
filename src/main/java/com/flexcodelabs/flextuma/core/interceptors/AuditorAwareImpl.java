@@ -2,6 +2,8 @@ package com.flexcodelabs.flextuma.core.interceptors;
 
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.FlushModeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.security.core.Authentication;
@@ -16,6 +18,7 @@ import java.util.Optional;
 public class AuditorAwareImpl implements AuditorAware<User> {
 
     private final UserRepository userRepository;
+    private final EntityManager entityManager;
 
     @Override
     public Optional<User> getCurrentAuditor() {
@@ -30,7 +33,14 @@ public class AuditorAwareImpl implements AuditorAware<User> {
 
         if (principal instanceof UserDetails userDetails) {
             String username = userDetails.getUsername();
-            return userRepository.findByIdentifier(username);
+
+            FlushModeType originalFlushMode = entityManager.getFlushMode();
+            try {
+                entityManager.setFlushMode(FlushModeType.COMMIT);
+                return userRepository.findByIdentifier(username);
+            } finally {
+                entityManager.setFlushMode(originalFlushMode);
+            }
         }
 
         return Optional.empty();

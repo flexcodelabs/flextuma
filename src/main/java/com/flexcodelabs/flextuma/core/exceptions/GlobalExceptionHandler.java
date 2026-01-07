@@ -65,8 +65,34 @@ public class GlobalExceptionHandler {
         return buildResponse("Invalid request format", HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(org.springframework.transaction.TransactionSystemException.class)
+    public ResponseEntity<Object> handleTransactionException(
+            org.springframework.transaction.TransactionSystemException ex) {
+        System.out.println("TRANSACTION EXCEPTION: " + ex.getMessage());
+        Throwable cause = ex.getCause();
+        if (cause != null) {
+            System.out.println("CAUSE: " + cause.getClass().getName() + ": " + cause.getMessage());
+            Throwable rootCause = cause.getCause();
+            if (rootCause != null) {
+                System.out.println("ROOT CAUSE: " + rootCause.getClass().getName() + ": " + rootCause.getMessage());
+                rootCause.printStackTrace();
+            }
+        }
+        ex.printStackTrace();
+        return buildResponse("Could not commit jpa transaction", HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleGeneral(Exception ex) {
+        System.out.println("EXCEPTION: " + ex.getClass().getName() + ": " + ex.getMessage());
+        if (ex.getCause() != null) {
+            System.out.println("CAUSE: " + ex.getCause().getClass().getName() + ": " + ex.getCause().getMessage());
+            if (ex.getCause().getCause() != null) {
+                System.out.println("ROOT CAUSE: " + ex.getCause().getCause().getClass().getName() + ": "
+                        + ex.getCause().getCause().getMessage());
+            }
+        }
+        ex.printStackTrace();
         return buildResponse(sanitizeGeneralMessage(ex.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 

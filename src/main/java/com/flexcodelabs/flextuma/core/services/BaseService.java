@@ -5,6 +5,8 @@ import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 import com.flexcodelabs.flextuma.core.helpers.GenericSpecification;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -16,6 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 
 public abstract class BaseService<T extends BaseEntity> {
+
+	@PersistenceContext
+	protected EntityManager entityManager;
 
 	protected abstract JpaRepository<T, UUID> getRepository();
 
@@ -96,12 +101,39 @@ public abstract class BaseService<T extends BaseEntity> {
 	@Transactional
 	public T update(UUID id, T entity) {
 		checkPermission(getUpdatePermission());
+		T existing = getRepository().findById(id)
+				.orElseThrow(() -> new RuntimeException(getEntitySingular() + " not found"));
+		onPreUpdate(entity, existing);
+		String[] excludedFields = getNullPropertyNames(entity, existing);
+		try {
+			org.springframework.beans.BeanUtils.copyProperties(entity, existing, excludedFields);
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw e;
+		}
+		return existing;
+	}
 
-		return getRepository().findById(id).map(existing -> {
-			entity.setId(id);
-			onPreUpdate(entity, existing);
-			return getRepository().save(entity);
-		}).orElseThrow(() -> new RuntimeException(getEntitySingular() + " not found"));
+	private String[] getNullPropertyNames(T source, T target) {
+		final org.springframework.beans.BeanWrapper src = new org.springframework.beans.BeanWrapperImpl(source);
+		java.beans.PropertyDescriptor[] pds = src.getPropertyDescriptors();
+
+		java.util.Set<String> emptyNames = new java.util.HashSet<>();
+
+		emptyNames.add("id");
+		emptyNames.add("created");
+		emptyNames.add("createdBy");
+		emptyNames.add("new");
+		emptyNames.add("class");
+
+		for (java.beans.PropertyDescriptor pd : pds) {
+			Object srcValue = src.getPropertyValue(pd.getName());
+			if (srcValue == null) {
+				emptyNames.add(pd.getName());
+			}
+		}
+
+		return emptyNames.toArray(new String[0]);
 	}
 
 	@Transactional
@@ -132,6 +164,7 @@ public abstract class BaseService<T extends BaseEntity> {
 	protected void onPostSave(T entity) {
 	}
 
-	protected void onPreUpdate(T newEntity, T oldEntity) {
+	protected T onPreUpdate(T newEntity, T oldEntity) {
+		return newEntity;
 	}
 }

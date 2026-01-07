@@ -25,11 +25,13 @@ public abstract class BaseEntity implements Persistable<UUID> {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(nullable = false, updatable = false)
     @CreatedDate
-    private LocalDateTime created = LocalDateTime.now();
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    private LocalDateTime created;
 
     @LastModifiedDate
-    private LocalDateTime updated = LocalDateTime.now();
+    private LocalDateTime updated;
 
     private Boolean active = true;
 
