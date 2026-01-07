@@ -18,7 +18,7 @@ import lombok.*;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SmsTemplate extends Owner {
 
-	public static final String PLURAL = "smsTemplates";
+	public static final String PLURAL = "templates";
 	public static final String NAME_PLURAL = "SMS Templates";
 	public static final String NAME_SINGULAR = "SMS Template";
 
