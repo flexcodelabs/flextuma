@@ -18,6 +18,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -77,5 +78,12 @@ public class Contact extends Owner {
     public void addToTag(Tag tag) {
         this.tags.add(tag);
         tag.getContacts().add(this);
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.status == null) {
+            this.status = StatusEnum.ACTIVE;
+        }
     }
 }

@@ -86,6 +86,17 @@ public class GlobalExceptionHandler {
         return buildResponse(sanitizeGeneralMessage(ex.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Object> handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        String name = ex.getName();
+        String type = ex.getRequiredType().getSimpleName();
+        Object value = ex.getValue();
+        String message = String.format("Parameter '%s' must be a valid %s. Received: '%s'", name, type, value);
+
+        return buildResponse(message, HttpStatus.BAD_REQUEST);
+    }
+
     private String sanitizeDatabaseError(String message) {
         if (message == null)
             return "Request failed";
