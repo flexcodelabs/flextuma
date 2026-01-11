@@ -82,4 +82,10 @@ public class UserService extends BaseService<User> {
         return user;
     }
 
+    public User findByUsername(String username) {
+        return repository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "User with username " + username + " not found"));
+    }
+
 }

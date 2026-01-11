@@ -3,6 +3,8 @@ package com.flexcodelabs.flextuma.modules.auth.controllers;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,9 +29,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<User> login(@Valid @RequestBody LoginDto request) {
         User user = userService.login(request.getUsername(), request.getPassword());
-
         ResponseCookie cookie = cookieService.createAuthCookie();
-
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(user);
@@ -40,5 +40,13 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookieService.deleteAuthCookie().toString())
                 .build();
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<User> me() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userService.findByUsername(username);
+        return ResponseEntity.ok()
+                .body(user);
     }
 }
