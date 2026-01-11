@@ -19,7 +19,7 @@ public class Privilege extends BaseEntity {
 
     public static final String PLURAL = "privileges";
     public static final String NAME_PLURAL = "Privileges";
-    public static final String NAME_SINGULAR = "PrivilegeContoller";
+    public static final String NAME_SINGULAR = "Privilege";
 
     public static final String READ = "READ_PRIVILEGES";
     public static final String ADD = "ADD_PRIVILEGES";
