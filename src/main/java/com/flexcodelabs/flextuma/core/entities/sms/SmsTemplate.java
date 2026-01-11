@@ -9,7 +9,9 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "smstemplate")
+@Table(name = "smstemplate", uniqueConstraints = {
+		@UniqueConstraint(name = "unique_name_content", columnNames = { "name", "content", "creator" })
+})
 @Getter
 @Setter
 @NoArgsConstructor

@@ -4,7 +4,9 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
@@ -69,4 +71,15 @@ public class UserService extends BaseService<User> {
             throw new IllegalStateException("System users cannot be deleted");
         }
     }
+
+    public User login(String username, String password) {
+        User user = repository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Invalid username or password"));
+        if (!user.validatePassword(password)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
+        }
+        return user;
+    }
+
 }

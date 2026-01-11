@@ -5,10 +5,12 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.TransactionSystemException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
@@ -21,9 +23,15 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Object> handleResponseStatusException(ResponseStatusException ex) {
+        return buildResponse(ex.getReason(), (HttpStatus) ex.getStatusCode());
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Object> handleDatabaseError(DataIntegrityViolationException ex) {
-        String detail = ex.getRootCause() != null ? ex.getRootCause().getMessage() : ex.getMessage();
+        Throwable rootCause = ex.getRootCause();
+        String detail = (rootCause != null) ? rootCause.getMessage() : ex.getMessage();
         return buildResponse(sanitizeDatabaseError(detail), HttpStatus.CONFLICT);
     }
 
@@ -49,7 +57,7 @@ public class GlobalExceptionHandler {
         return buildResponse("Oops 😢! Route not available.", HttpStatus.NOT_FOUND);
     }
 
-    @ExceptionHandler({ InvalidEnumValueException.class })
+    @ExceptionHandler(InvalidEnumValueException.class)
     public ResponseEntity<Object> handleEnumDeserializationError(InvalidEnumValueException ex) {
         String message = String.format("Invalid value provided for '%s'. Allowed values are: %s.",
                 ex.getFieldName(), String.join(", ", ex.getEnumValues()));
@@ -58,54 +66,38 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(JsonMappingException.class)
     public ResponseEntity<Object> handleJsonMappingException(JsonMappingException ex) {
-        Throwable cause = ex.getCause();
-        if (cause instanceof InvalidEnumValueException) {
-            return handleEnumDeserializationError((InvalidEnumValueException) cause);
+        if (ex.getCause() instanceof InvalidEnumValueException cause) {
+            return handleEnumDeserializationError(cause);
         }
         return buildResponse("Invalid request format", HttpStatus.BAD_REQUEST);
     }
 
-    @ExceptionHandler(org.springframework.transaction.TransactionSystemException.class)
-    public ResponseEntity<Object> handleTransactionException(
-            org.springframework.transaction.TransactionSystemException ex) {
-        System.out.println("TRANSACTION EXCEPTION: " + ex.getMessage());
-        Throwable cause = ex.getCause();
+    @ExceptionHandler(TransactionSystemException.class)
+    public ResponseEntity<Object> handleTransactionException(TransactionSystemException ex) {
+        Throwable cause = ex.getRootCause();
         if (cause != null) {
-            System.out.println("CAUSE: " + cause.getClass().getName() + ": " + cause.getMessage());
-            Throwable rootCause = cause.getCause();
-            if (rootCause != null) {
-                System.out.println("ROOT CAUSE: " + rootCause.getClass().getName() + ": " + rootCause.getMessage());
-                rootCause.printStackTrace();
-            }
+            return buildResponse(sanitizeGeneralMessage(cause.getMessage()), HttpStatus.BAD_REQUEST);
         }
-        ex.printStackTrace();
-        return buildResponse("Could not commit jpa transaction", HttpStatus.INTERNAL_SERVER_ERROR);
+        return buildResponse("Could not commit database transaction", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleGeneral(Exception ex) {
-        System.out.println("EXCEPTION: " + ex.getClass().getName() + ": " + ex.getMessage());
-        if (ex.getCause() != null) {
-            System.out.println("CAUSE: " + ex.getCause().getClass().getName() + ": " + ex.getCause().getMessage());
-            if (ex.getCause().getCause() != null) {
-                System.out.println("ROOT CAUSE: " + ex.getCause().getCause().getClass().getName() + ": "
-                        + ex.getCause().getCause().getMessage());
-            }
-        }
-        ex.printStackTrace();
         return buildResponse(sanitizeGeneralMessage(ex.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     private String sanitizeDatabaseError(String message) {
         if (message == null)
             return "Request failed";
-
-        if (message.contains("duplicate key value violates unique constraint")) {
+        if (message.contains("unique constraint") || message.contains("Duplicate entry")
+                || message.contains("Unique index")) {
             Pattern pattern = Pattern.compile("Key \\((.*?)\\)=\\((.*?)\\) already exists");
             Matcher matcher = pattern.matcher(message);
-            if (matcher.find())
-                return capitalize(matcher.group(1)) + " already exists";
-            return "Resource already exists";
+            if (matcher.find()) {
+                String fields = matcher.group(1).replace("_", " ").replace(",", " and");
+                return capitalize(fields) + " combination already exists";
+            }
+            return "A record with these details already exists";
         }
 
         if (message.contains("null value in column")) {
@@ -113,19 +105,14 @@ public class GlobalExceptionHandler {
             Matcher matcher = pattern.matcher(message);
             if (matcher.find())
                 return capitalize(matcher.group(1)) + " cannot be null";
-            return "Field cannot be null";
+            return "Required field is missing";
         }
 
         if (message.contains("is not present in table")) {
-            return "Referenced resource could not be found";
+            return "The referenced related resource was not found";
         }
 
-        if (message.contains("data and salt arguments required"))
-            return "Password is required";
-        if (message.contains("Internal Server Error(DB)"))
-            return "Internal Server Error(DB)";
-
-        return "Database operation failed";
+        return "Database integrity violation";
     }
 
     private String sanitizeGeneralMessage(String message) {
@@ -134,7 +121,7 @@ public class GlobalExceptionHandler {
         if (message.contains("Could not find any entity"))
             return "Resource could not be found";
         if (message.contains("no such file"))
-            return "Asset missing";
+            return "Asset is missing";
         return message;
     }
 
@@ -142,13 +129,35 @@ public class GlobalExceptionHandler {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now());
         body.put("status", status.value());
-        body.put("message", capitalize(message));
-        return new ResponseEntity<>(body, status);
+        body.put("error", status.getReasonPhrase());
+        body.put("message", message != null ? capitalize(message) : "No message available");
+        return new ResponseEntity<>(body, getResponseStatus(message, status));
     }
 
     private String capitalize(String str) {
         if (str == null || str.isEmpty())
             return str;
-        return str.substring(0, 1).toUpperCase() + str.substring(1).toLowerCase();
+        String result = str.substring(0, 1).toUpperCase() + str.substring(1).toLowerCase();
+        return result.replace("_", " ");
+    }
+
+    private HttpStatus getResponseStatus(String message, HttpStatus defaultStatus) {
+        if (message == null) {
+            return defaultStatus;
+        }
+        if (message.contains("cannot be null") || message.contains("invalid") || message.contains("missing")) {
+            return HttpStatus.BAD_REQUEST;
+        }
+
+        if (message.contains("already exists")) {
+            return HttpStatus.CONFLICT;
+        }
+        if (message.contains("permission")) {
+            return HttpStatus.FORBIDDEN;
+        }
+        if (message.contains("not found") || message.contains("could not be found")) {
+            return HttpStatus.NOT_FOUND;
+        }
+        return defaultStatus;
     }
 }
