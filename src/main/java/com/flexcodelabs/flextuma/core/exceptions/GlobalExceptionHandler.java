@@ -120,7 +120,12 @@ public class GlobalExceptionHandler {
         }
 
         if (message.contains("is not present in table")) {
-            return "The referenced related resource was not found";
+            Pattern fkMissingPattern = Pattern.compile("is not present in table \"(.*?)\"");
+            Matcher fkMissingMatcher = fkMissingPattern.matcher(message);
+            if (fkMissingMatcher.find()) {
+                String tableName = fkMissingMatcher.group(1);
+                return (capitalize(tableName) + " could not be found");
+            }
         }
 
         return "Database integrity violation";
