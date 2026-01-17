@@ -32,7 +32,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Object> handleDatabaseError(DataIntegrityViolationException ex) {
         Throwable rootCause = ex.getRootCause();
         String detail = (rootCause != null) ? rootCause.getMessage() : ex.getMessage();
-        return buildResponse(sanitizeDatabaseError(detail), HttpStatus.CONFLICT);
+        return buildResponse(sanitizeDatabaseError(detail), HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -144,7 +144,6 @@ public class GlobalExceptionHandler {
     private ResponseEntity<Object> buildResponse(String message, HttpStatus status) {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now());
-        body.put("status", status.value());
         body.put("error", status.getReasonPhrase());
         body.put("message", message != null ? capitalize(message) : "No message available");
         return new ResponseEntity<>(body, getResponseStatus(message, status));

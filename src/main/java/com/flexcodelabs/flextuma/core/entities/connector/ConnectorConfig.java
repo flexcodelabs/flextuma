@@ -30,16 +30,16 @@ public class ConnectorConfig extends Owner {
     public static final String DELETE = "DELETE_CONNECTOR_CONFIGS";
     public static final String UPDATE = "UPDATE_CONNECTOR_CONFIGS";
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, name = "tenantid")
     private String tenantId;
 
-    @Column(nullable = false)
-    private String baseUrl;
+    @Column(nullable = false, name = "url")
+    private String url;
 
-    @Column(nullable = false)
+    @Column(nullable = false, name = "memberendpoint")
     private String memberEndpoint;
 
-    @Column()
+    @Column(name = "searchendpoint", nullable = true)
     private String searchEndpoint;
 
     @Enumerated(EnumType.STRING)
@@ -59,6 +59,8 @@ public class ConnectorConfig extends Owner {
 
     @PrePersist
     private void prePersist() {
+        // validate url
+
         if (authType == AuthType.BASIC && (username == null || password == null)) {
             throw new IllegalStateException("Username and password must be provided for BASIC authentication");
         }
