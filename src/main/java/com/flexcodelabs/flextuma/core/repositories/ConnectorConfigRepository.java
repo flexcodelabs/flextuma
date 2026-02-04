@@ -1,5 +1,6 @@
 package com.flexcodelabs.flextuma.core.repositories;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,4 +12,7 @@ import com.flexcodelabs.flextuma.core.entities.connector.ConnectorConfig;
 @Repository
 public interface ConnectorConfigRepository extends JpaRepository<ConnectorConfig, UUID>,
 		JpaSpecificationExecutor<ConnectorConfig> {
+
+	Optional<ConnectorConfig> findByTenantId(String tenantId);
+
 }
