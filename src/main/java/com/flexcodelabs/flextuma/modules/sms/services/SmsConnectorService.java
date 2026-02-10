@@ -6,67 +6,67 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
 
-import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
-import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
+import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class SmsTemplateService extends BaseService<SmsTemplate> {
+public class SmsConnectorService extends BaseService<SmsConnector> {
 
-    private final SmsTemplateRepository repository;
+    private final SmsConnectorRepository repository;
 
     @Override
-    protected JpaRepository<SmsTemplate, UUID> getRepository() {
+    protected JpaRepository<SmsConnector, UUID> getRepository() {
         return repository;
     }
 
     @Override
     protected String getReadPermission() {
-        return SmsTemplate.READ;
+        return SmsConnector.READ;
     }
 
     @Override
     protected String getAddPermission() {
-        return SmsTemplate.ADD;
+        return SmsConnector.ADD;
     }
 
     @Override
     protected String getUpdatePermission() {
-        return SmsTemplate.UPDATE;
+        return SmsConnector.UPDATE;
     }
 
     @Override
     protected String getDeletePermission() {
-        return SmsTemplate.DELETE;
+        return SmsConnector.DELETE;
     }
 
     @Override
     public String getEntityPlural() {
-        return SmsTemplate.NAME_PLURAL;
+        return SmsConnector.NAME_PLURAL;
     }
 
     @Override
     protected String getEntitySingular() {
-        return SmsTemplate.NAME_SINGULAR;
+        return SmsConnector.NAME_SINGULAR;
     }
 
     @Override
     public String getPropertyName() {
-        return SmsTemplate.PLURAL;
+        return SmsConnector.PLURAL;
     }
 
     @Override
-    protected JpaSpecificationExecutor<SmsTemplate> getRepositoryAsExecutor() {
+    protected JpaSpecificationExecutor<SmsConnector> getRepositoryAsExecutor() {
         return repository;
     }
 
     @Override
-    protected void validateDelete(SmsTemplate entity) {
+    protected void validateDelete(SmsConnector entity) {
         if (Boolean.TRUE.equals(entity.getActive())) {
-            throw new IllegalStateException("You cannot delete an active template");
+            throw new IllegalStateException("You cannot delete an active connector");
         }
     }
 }

@@ -5,9 +5,9 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
-import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 
 @Repository
-public interface SmsTemplateRepository extends BaseRepository<SmsTemplate, UUID>,
-		JpaSpecificationExecutor<SmsTemplate> {
+public interface SmsConnectorRepository extends BaseRepository<SmsConnector, UUID>,
+		JpaSpecificationExecutor<SmsConnector> {
 }

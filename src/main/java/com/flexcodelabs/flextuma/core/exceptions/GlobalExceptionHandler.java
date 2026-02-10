@@ -1,6 +1,8 @@
 package com.flexcodelabs.flextuma.core.exceptions;
 
 import com.fasterxml.jackson.databind.JsonMappingException;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +12,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -26,6 +29,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Object> handleResponseStatusException(ResponseStatusException ex) {
         return buildResponse(ex.getReason(), (HttpStatus) ex.getStatusCode());
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Object> handleConstraintViolationException(ConstraintViolationException ex) {
+        String message = ex.getConstraintViolations().stream()
+                .map(ConstraintViolation::getMessage)
+                .collect(Collectors.joining(", "));
+        return buildResponse(message, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -75,10 +86,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TransactionSystemException.class)
     public ResponseEntity<Object> handleTransactionException(TransactionSystemException ex) {
         Throwable cause = ex.getRootCause();
+        if (cause instanceof ConstraintViolationException constraintEx) {
+            return handleConstraintViolationException(constraintEx);
+        }
+
         if (cause != null) {
             return buildResponse(sanitizeGeneralMessage(cause.getMessage()), HttpStatus.BAD_REQUEST);
         }
         return buildResponse("Could not commit database transaction", HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Object> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String name = ex.getName();
+        String type = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
+        Object value = ex.getValue();
+        String message = String.format("Parameter '%s' must be a valid %s. Received: '%s'", name, type, value);
+        return buildResponse(message, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(Exception.class)
@@ -86,20 +110,10 @@ public class GlobalExceptionHandler {
         return buildResponse(sanitizeGeneralMessage(ex.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<Object> handleTypeMismatch(
-            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
-        String name = ex.getName();
-        String type = ex.getRequiredType().getSimpleName();
-        Object value = ex.getValue();
-        String message = String.format("Parameter '%s' must be a valid %s. Received: '%s'", name, type, value);
-
-        return buildResponse(message, HttpStatus.BAD_REQUEST);
-    }
-
     private String sanitizeDatabaseError(String message) {
         if (message == null)
             return "Request failed";
+
         if (message.contains("unique constraint") || message.contains("Duplicate entry")
                 || message.contains("Unique index")) {
             Pattern pattern = Pattern.compile("Key \\((.*?)\\)=\\((.*?)\\) already exists");
@@ -120,12 +134,10 @@ public class GlobalExceptionHandler {
         }
 
         if (message.contains("is not present in table")) {
-            Pattern fkMissingPattern = Pattern.compile("is not present in table \"(.*?)\"");
-            Matcher fkMissingMatcher = fkMissingPattern.matcher(message);
-            if (fkMissingMatcher.find()) {
-                String tableName = fkMissingMatcher.group(1);
-                return (capitalize(tableName) + " could not be found");
-            }
+            Pattern pattern = Pattern.compile("is not present in table \"(.*?)\"");
+            Matcher matcher = pattern.matcher(message);
+            if (matcher.find())
+                return capitalize(matcher.group(1)) + " could not be found";
         }
 
         return "Database integrity violation";
@@ -146,6 +158,7 @@ public class GlobalExceptionHandler {
         body.put("timestamp", LocalDateTime.now());
         body.put("error", status.getReasonPhrase());
         body.put("message", message != null ? capitalize(message) : "No message available");
+
         return new ResponseEntity<>(body, getResponseStatus(message, status));
     }
 
@@ -157,22 +170,19 @@ public class GlobalExceptionHandler {
     }
 
     private HttpStatus getResponseStatus(String message, HttpStatus defaultStatus) {
-        if (message == null) {
+        if (message == null)
             return defaultStatus;
-        }
-        if (message.contains("cannot be null") || message.contains("invalid") || message.contains("missing")) {
+        String lower = message.toLowerCase();
+        if (lower.contains("cannot be null") || lower.contains("invalid") || lower.contains("missing")
+                || lower.contains("required")) {
             return HttpStatus.BAD_REQUEST;
         }
-
-        if (message.contains("already exists")) {
+        if (lower.contains("already exists"))
             return HttpStatus.CONFLICT;
-        }
-        if (message.contains("permission")) {
+        if (lower.contains("permission"))
             return HttpStatus.FORBIDDEN;
-        }
-        if (message.contains("not found") || message.contains("could not be found")) {
+        if (lower.contains("not found") || lower.contains("could not be found"))
             return HttpStatus.NOT_FOUND;
-        }
         return defaultStatus;
     }
 }
