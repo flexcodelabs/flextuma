@@ -14,6 +14,6 @@ public class BeamSender implements SmsSender {
 
     @Override
     public String sendSms(SmsConnector config, String to, String message) {
-        return "SUCCESS";
+        return "Message sent to " + to + " with content: " + message;
     }
 }

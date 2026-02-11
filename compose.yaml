@@ -3,6 +3,7 @@ services:
     build: .
     ports:
       - "8080:8080"
+    restart: always
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://main:5432/flexmalipo
       - SPRING_DATASOURCE_USERNAME=postgres

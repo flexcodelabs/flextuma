@@ -1,4 +1,4 @@
-package com.flexcodelabs.flextuma.modules.sms.services;
+package com.flexcodelabs.flextuma.modules.notification.services;
 
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
@@ -14,7 +14,7 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-public class SmsNotificationService {
+public class NotificationService {
 
     private final SmsTemplateRepository templateRepository;
     private final SmsLogRepository logRepository;
@@ -29,21 +29,18 @@ public class SmsNotificationService {
 
         SmsLog log = new SmsLog();
         log.setRecipient(phoneNumber);
-        log.setSentContent(finalMessage);
+        log.setContent(finalMessage);
         log.setTemplate(template);
         log.setStatus("PENDING");
         log = logRepository.save(log);
-
         try {
             String providerId = smsSender.sendSms(null, phoneNumber, finalMessage);
-
             log.setStatus("SENT");
             log.setProviderResponse(providerId);
         } catch (Exception e) {
             log.setStatus("FAILED");
-            log.setProviderResponse(e.getMessage());
+            log.setError(e.getMessage());
         }
-
         logRepository.save(log);
     }
 }

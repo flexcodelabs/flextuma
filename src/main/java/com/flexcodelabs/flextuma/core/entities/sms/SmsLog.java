@@ -2,7 +2,7 @@ package com.flexcodelabs.flextuma.core.entities.sms;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
+import com.flexcodelabs.flextuma.core.entities.base.Owner;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,7 +24,7 @@ import lombok.Setter;
 @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 @JsonInclude(JsonInclude.Include.NON_NULL)
 
-public class SmsLog extends BaseEntity {
+public class SmsLog extends Owner {
 
     public static final String PLURAL = "smsLogs";
     public static final String NAME_PLURAL = "SMS Logs";
@@ -36,14 +36,17 @@ public class SmsLog extends BaseEntity {
 
     private String recipient;
 
-    @Column(columnDefinition = "TEXT", name = "sentcontent")
-    private String sentContent;
+    @Column(columnDefinition = "TEXT")
+    private String content;
 
     @Column(columnDefinition = "TEXT", name = "status")
     private String status;
 
-    @Column(columnDefinition = "TEXT", name = "providerresponse")
+    @Column(columnDefinition = "TEXT", name = "providerresponse", nullable = true)
     private String providerResponse;
+
+    @Column(columnDefinition = "TEXT", nullable = true)
+    private String error;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template")
