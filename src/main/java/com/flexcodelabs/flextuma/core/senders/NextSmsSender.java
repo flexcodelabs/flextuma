@@ -9,16 +9,16 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-public class BeamSender implements SmsSender {
+public class NextSmsSender implements SmsSender {
     @Override
     public String getProvider() {
-        return "BEAM";
+        return "NEXT";
     }
 
     @Override
     public String sendSms(SmsConnector config, String to, String message) {
 
-        log.info("BEAM SMS SENDER: Sending SMS to {} with message: {}", to, message);
+        log.info("NEXT SMS  SENDER: Sending SMS to {} with message: {}", to, message);
 
         return "Message sent to " + to + " with content: " + message;
     }

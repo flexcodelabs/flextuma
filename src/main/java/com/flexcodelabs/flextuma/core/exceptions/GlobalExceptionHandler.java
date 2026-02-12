@@ -27,9 +27,6 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    /**
-     * 1. Captures "Required request body is missing" or malformed JSON.
-     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
         String message = "The request body is missing or the JSON format is invalid.";
@@ -39,18 +36,11 @@ public class GlobalExceptionHandler {
         return buildResponse(message, HttpStatus.BAD_REQUEST);
     }
 
-    /**
-     * 2. Captures manual status exceptions thrown in code.
-     */
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Object> handleResponseStatusException(ResponseStatusException ex) {
         return buildResponse(ex.getReason(), (HttpStatus) ex.getStatusCode());
     }
 
-    /**
-     * 3. Captures Jakarta Bean Validation errors thrown during Persist/Merge time.
-     * This handles the "interpolatedMessage" (e.g., 'provider name is required').
-     */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<Object> handleConstraintViolationException(ConstraintViolationException ex) {
         String message = ex.getConstraintViolations().stream()
@@ -59,9 +49,6 @@ public class GlobalExceptionHandler {
         return buildResponse(message, HttpStatus.BAD_REQUEST);
     }
 
-    /**
-     * 4. Captures Database Integrity errors (Unique Constraints, FK errors).
-     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Object> handleDatabaseError(DataIntegrityViolationException ex) {
         Throwable rootCause = ex.getRootCause();
@@ -69,9 +56,6 @@ public class GlobalExceptionHandler {
         return buildResponse(sanitizeDatabaseError(detail), HttpStatus.BAD_REQUEST);
     }
 
-    /**
-     * 5. Captures Validation errors from @Valid @RequestBody in Controllers.
-     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Object> handleValidationErrors(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
@@ -80,9 +64,6 @@ public class GlobalExceptionHandler {
         return buildResponse(message, HttpStatus.BAD_REQUEST);
     }
 
-    /**
-     * 6. Captures Spring Security Access Denied.
-     */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Object> handleAccessDenied(AccessDeniedException ex) {
         String message = ex.getMessage();
@@ -92,17 +73,11 @@ public class GlobalExceptionHandler {
         return buildResponse(message, HttpStatus.FORBIDDEN);
     }
 
-    /**
-     * 7. Captures 404 and 405 Errors.
-     */
     @ExceptionHandler({ NoResourceFoundException.class, HttpRequestMethodNotSupportedException.class })
     public ResponseEntity<Object> handleNotFound() {
         return buildResponse("Oops 😢! Route not available.", HttpStatus.NOT_FOUND);
     }
 
-    /**
-     * 8. Captures Enum conversion errors.
-     */
     @ExceptionHandler(InvalidEnumValueException.class)
     public ResponseEntity<Object> handleEnumDeserializationError(InvalidEnumValueException ex) {
         String message = String.format("Invalid value provided for '%s'. Allowed values are: %s.",
@@ -118,9 +93,6 @@ public class GlobalExceptionHandler {
         return buildResponse("Invalid request format", HttpStatus.BAD_REQUEST);
     }
 
-    /**
-     * 9. Unwraps Transaction errors to find hidden Validation errors.
-     */
     @ExceptionHandler(TransactionSystemException.class)
     public ResponseEntity<Object> handleTransactionException(TransactionSystemException ex) {
         Throwable cause = ex.getRootCause();
@@ -133,9 +105,6 @@ public class GlobalExceptionHandler {
         return buildResponse("Could not commit database transaction", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    /**
-     * 10. Captures URL parameter type mismatches.
-     */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Object> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         String name = ex.getName();
@@ -145,15 +114,10 @@ public class GlobalExceptionHandler {
         return buildResponse(message, HttpStatus.BAD_REQUEST);
     }
 
-    /**
-     * 11. Catch-all for any other unhandled exception.
-     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleGeneral(Exception ex) {
         return buildResponse(sanitizeGeneralMessage(ex.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
     }
-
-    // --- HELPER METHODS ---
 
     private String sanitizeDatabaseError(String message) {
         if (message == null)
@@ -164,8 +128,8 @@ public class GlobalExceptionHandler {
             Pattern pattern = Pattern.compile("Key \\((.*?)\\)=\\((.*?)\\) already exists");
             Matcher matcher = pattern.matcher(message);
             if (matcher.find()) {
-                String fields = matcher.group(1).replace("_", " ").replace(",", " and");
-                return capitalize(fields) + " combination already exists";
+                String fields = matcher.group(1).replace("_", " ");
+                return fields + " combination already exists";
             }
             return "A record with these details already exists";
         }
@@ -174,7 +138,7 @@ public class GlobalExceptionHandler {
             Pattern pattern = Pattern.compile("column \"(.*?)\"");
             Matcher matcher = pattern.matcher(message);
             if (matcher.find())
-                return capitalize(matcher.group(1)) + " cannot be null";
+                return matcher.group(1).replace("_", " ") + " cannot be null";
             return "Required field is missing";
         }
 
@@ -182,7 +146,7 @@ public class GlobalExceptionHandler {
             Pattern pattern = Pattern.compile("is not present in table \"(.*?)\"");
             Matcher matcher = pattern.matcher(message);
             if (matcher.find())
-                return capitalize(matcher.group(1)) + " could not be found";
+                return matcher.group(1).replace("_", " ") + " could not be found";
         }
 
         return "Database integrity violation";
@@ -207,11 +171,40 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, getResponseStatus(message, status));
     }
 
+    /**
+     * Capitalizes the first letter, lowercases the rest,
+     * but IGNORES anything inside [square brackets].
+     */
     private String capitalize(String str) {
         if (str == null || str.isEmpty())
             return str;
-        String result = str.substring(0, 1).toUpperCase() + str.substring(1).toLowerCase();
-        return result.replace("_", " ");
+
+        StringBuilder result = new StringBuilder();
+        boolean insideBrackets = false;
+        boolean firstCharFound = false;
+
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+
+            if (c == '[')
+                insideBrackets = true;
+
+            if (insideBrackets) {
+                result.append(c);
+            } else {
+                if (!firstCharFound && Character.isLetterOrDigit(c)) {
+                    result.append(Character.toUpperCase(c));
+                    firstCharFound = true;
+                } else {
+                    result.append(Character.toLowerCase(c));
+                }
+            }
+
+            if (c == ']')
+                insideBrackets = false;
+        }
+
+        return result.toString().replace("_", " ");
     }
 
     private HttpStatus getResponseStatus(String message, HttpStatus defaultStatus) {

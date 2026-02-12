@@ -10,7 +10,8 @@ import lombok.*;
 
 @Entity
 @Table(name = "smstemplate", uniqueConstraints = {
-		@UniqueConstraint(name = "unique_name_content", columnNames = { "name", "content", "creator" })
+		@UniqueConstraint(name = "unique_name_content", columnNames = { "name", "content", "creator" }),
+		@UniqueConstraint(name = "unique_code_creator", columnNames = { "code", "creator" })
 })
 @Getter
 @Setter
@@ -29,19 +30,22 @@ public class SmsTemplate extends Owner {
 	public static final String DELETE = "DELETE_SMS_TEMPLATES";
 	public static final String UPDATE = "UPDATE_SMS_TEMPLATES";
 
-	@Column(name = "name", nullable = false, updatable = true)
+	@Column(nullable = true, unique = false)
+	private String code;
+
+	@Column(nullable = false, updatable = true)
 	private String name;
 
-	@Column(name = "description", nullable = true, updatable = true)
+	@Column( nullable = true, updatable = true)
 	private String description;
 
-	@Column(name = "content", columnDefinition = "TEXT", nullable = false)
+	@Column( columnDefinition = "TEXT", nullable = false)
 	private String content;
 
-	@Column(name = "category", nullable = true, updatable = true)
+	@Column(nullable = true, updatable = true)
 	@Enumerated(EnumType.STRING)
 	private CategoryEnum category = CategoryEnum.PROMOTIONAL;
 
-	@Column(name = "system", nullable = true, updatable = true)
+	@Column(nullable = true, updatable = true)
 	private Boolean system = false;
 }

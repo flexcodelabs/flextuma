@@ -23,7 +23,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         @Transactional(readOnly = true)
         public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
 
-                User user = userRepository.findByIdentifier(username)
+                User user = userRepository.findByUsername(username)
                                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
                 Set<SimpleGrantedAuthority> authorities = user.getRoles().stream()

@@ -17,10 +17,12 @@ public class NotificationController {
 
     @PostMapping("")
     public ResponseEntity<Map<String, String>> sendSms(
-            @RequestParam String templateCode,
-            @RequestParam String phone,
-            @RequestBody Map<String, String> variables) {
-        notificationService.sendTemplatedSms(templateCode, phone, variables);
+
+            @RequestBody Map<String, String> variables,
+            java.security.Principal principal) {
+
+        notificationService.sendTemplatedSms(variables, principal.getName());
+
         return ResponseEntity.ok(Map.of("message", "SMS request queued successfully"));
     }
 }
