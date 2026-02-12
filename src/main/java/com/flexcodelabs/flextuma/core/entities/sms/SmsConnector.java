@@ -1,5 +1,6 @@
 package com.flexcodelabs.flextuma.core.entities.sms;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -30,9 +31,14 @@ public class SmsConnector extends Owner {
     private String url;
 
     @Column(nullable = true)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String key;
 
+    @Column(name = "isdefault")
+    private Boolean isDefault = true;
+
     @Column(nullable = true)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String secret;
 
     @Column(name = "senderid", nullable = true)
@@ -40,4 +46,14 @@ public class SmsConnector extends Owner {
 
     @Column(columnDefinition = "TEXT", name = "extrasettings", nullable = true)
     private String extraSettings;
+
+    @JsonProperty("key")
+    public String getMaskedKey() {
+        return (this.key != null && !this.key.isEmpty()) ? "****" : null;
+    }
+
+    @JsonProperty("secret")
+    public String getMaskedSecret() {
+        return (this.secret != null && !this.secret.isEmpty()) ? "****" : null;
+    }
 }
