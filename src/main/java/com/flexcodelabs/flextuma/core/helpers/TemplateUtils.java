@@ -10,6 +10,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class TemplateUtils {
+    private TemplateUtils() {
+    }
+
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{(.+?)\\}\\}");
 
     public static String fillTemplate(String template, Map<String, String> values) {

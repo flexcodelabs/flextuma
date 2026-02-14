@@ -3,6 +3,8 @@ package com.flexcodelabs.flextuma.modules.auth.controllers;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,8 +46,14 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<User> me() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userService.findByUsername(username);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null ||
+                !auth.isAuthenticated() ||
+                auth instanceof AnonymousAuthenticationToken) {
+            return ResponseEntity.status(401).build();
+        }
+        User user = userService.findByUsername(auth.getName());
         return ResponseEntity.ok()
                 .body(user);
     }

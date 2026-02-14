@@ -1,5 +1,6 @@
 package com.flexcodelabs.flextuma.core.security;
 
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.GrantedAuthority;
@@ -8,9 +9,16 @@ import java.util.stream.Collectors;
 
 public class SecurityUtils {
 
+	private SecurityUtils() {
+
+	}
+
 	public static Set<String> getCurrentUserAuthorities() {
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-		if (auth == null || auth.getPrincipal().equals("anonymousUser")) {
+
+		if (auth == null ||
+				!auth.isAuthenticated() ||
+				auth instanceof AnonymousAuthenticationToken) {
 			return Set.of();
 		}
 

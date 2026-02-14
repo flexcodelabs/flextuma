@@ -6,6 +6,10 @@ import org.springframework.data.domain.Sort;
 
 public class PaginationHelper {
 
+	private PaginationHelper() {
+
+	}
+
 	public static Pageable getPageable(Integer page, Integer pageSize) {
 		int p = getPage(page);
 		int s = getPageSize(pageSize);

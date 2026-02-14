@@ -6,6 +6,9 @@ import java.util.*;
 
 public class DataSanitizer {
 
+    private DataSanitizer() {
+    }
+
     public static <T> Map<String, Object> sanitize(Pagination<T> pagination, String fields, String propertyName) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("page", pagination.getPage());
@@ -35,7 +38,7 @@ public class DataSanitizer {
 
     private static Map<String, Object> parseFields(String fields) {
         Map<String, Object> root = new HashMap<>();
-        Stack<Map<String, Object>> stack = new Stack<>();
+        Deque<Map<String, Object>> stack = new ArrayDeque<>();
         stack.push(root);
         StringBuilder buffer = new StringBuilder();
 

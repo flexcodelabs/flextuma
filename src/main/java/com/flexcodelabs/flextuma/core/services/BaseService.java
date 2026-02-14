@@ -1,5 +1,7 @@
 package com.flexcodelabs.flextuma.core.services;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
 import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 import com.flexcodelabs.flextuma.core.helpers.GenericSpecification;
@@ -104,17 +106,12 @@ public abstract class BaseService<T extends BaseEntity> {
 		T existing = getRepository().findById(id)
 				.orElseThrow(() -> new RuntimeException(getEntitySingular() + " not found"));
 		onPreUpdate(entity, existing);
-		String[] excludedFields = getNullPropertyNames(entity, existing);
-		try {
-			org.springframework.beans.BeanUtils.copyProperties(entity, existing, excludedFields);
-		} catch (Exception e) {
-			e.printStackTrace();
-			throw e;
-		}
+		String[] excludedFields = getNullPropertyNames(entity);
+		org.springframework.beans.BeanUtils.copyProperties(entity, existing, excludedFields);
 		return existing;
 	}
 
-	private String[] getNullPropertyNames(T source, T target) {
+	private String[] getNullPropertyNames(T source) {
 		final org.springframework.beans.BeanWrapper src = new org.springframework.beans.BeanWrapperImpl(source);
 		java.beans.PropertyDescriptor[] pds = src.getPropertyDescriptors();
 
@@ -164,7 +161,14 @@ public abstract class BaseService<T extends BaseEntity> {
 	protected void onPostSave(T entity) {
 	}
 
+	private final ObjectMapper objectMapper = new ObjectMapper()
+			.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
 	protected T onPreUpdate(T newEntity, T oldEntity) {
-		return newEntity;
+		try {
+			return objectMapper.updateValue(oldEntity, newEntity);
+		} catch (Exception e) {
+			return newEntity;
+		}
 	}
 }

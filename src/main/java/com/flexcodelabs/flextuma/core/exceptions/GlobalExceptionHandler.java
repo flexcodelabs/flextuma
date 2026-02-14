@@ -1,7 +1,6 @@
 package com.flexcodelabs.flextuma.core.exceptions;
 
 import com.fasterxml.jackson.databind.JsonMappingException;
-import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -27,6 +26,16 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    // S5852 Fix: Use negated character classes [^)]+ and [^\"]+ instead of .*? to
+    // prevent ReDoS
+    // Also pre-compiling for performance
+    private static final Pattern UNIQUE_CONSTRAINT_PATTERN = Pattern
+            .compile("Key \\(([^)]+)\\)=\\(([^)]+)\\) already exists");
+
+    private static final Pattern NULL_COLUMN_PATTERN = Pattern.compile("column \"([^\"]+)\"");
+
+    private static final Pattern MISSING_TABLE_ENTRY_PATTERN = Pattern.compile("is not present in table \"([^\"]+)\"");
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
         String message = "The request body is missing or the JSON format is invalid.";
@@ -38,13 +47,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Object> handleResponseStatusException(ResponseStatusException ex) {
-        return buildResponse(ex.getReason(), (HttpStatus) ex.getStatusCode());
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        if (status == null)
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        return buildResponse(ex.getReason(), status);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<Object> handleConstraintViolationException(ConstraintViolationException ex) {
         String message = ex.getConstraintViolations().stream()
-                .map(ConstraintViolation::getMessage)
+                .map(violation -> violation.getMessage() != null ? violation.getMessage() : "Invalid constraint")
                 .collect(Collectors.joining(", "));
         return buildResponse(message, HttpStatus.BAD_REQUEST);
     }
@@ -59,7 +71,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Object> handleValidationErrors(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
-                .map(error -> error.getField() + " " + error.getDefaultMessage())
+                .map(error -> {
+                    String field = error.getField();
+                    String defaultMsg = error.getDefaultMessage();
+                    return (field != null ? field : "Field") + " " + (defaultMsg != null ? defaultMsg : "is invalid");
+                })
                 .collect(Collectors.joining(", "));
         return buildResponse(message, HttpStatus.BAD_REQUEST);
     }
@@ -108,7 +124,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Object> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         String name = ex.getName();
-        String type = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
+        Class<?> requiredType = ex.getRequiredType();
+        String type = (requiredType != null) ? requiredType.getSimpleName() : "unknown";
         Object value = ex.getValue();
         String message = String.format("Parameter '%s' must be a valid %s. Received: '%s'", name, type, value);
         return buildResponse(message, HttpStatus.BAD_REQUEST);
@@ -125,8 +142,7 @@ public class GlobalExceptionHandler {
 
         if (message.contains("unique constraint") || message.contains("Duplicate entry")
                 || message.contains("Unique index")) {
-            Pattern pattern = Pattern.compile("Key \\((.*?)\\)=\\((.*?)\\) already exists");
-            Matcher matcher = pattern.matcher(message);
+            Matcher matcher = UNIQUE_CONSTRAINT_PATTERN.matcher(message);
             if (matcher.find()) {
                 String fields = matcher.group(1).replace("_", " ");
                 return fields + " combination already exists";
@@ -135,16 +151,14 @@ public class GlobalExceptionHandler {
         }
 
         if (message.contains("null value in column")) {
-            Pattern pattern = Pattern.compile("column \"(.*?)\"");
-            Matcher matcher = pattern.matcher(message);
+            Matcher matcher = NULL_COLUMN_PATTERN.matcher(message);
             if (matcher.find())
                 return matcher.group(1).replace("_", " ") + " cannot be null";
             return "Required field is missing";
         }
 
         if (message.contains("is not present in table")) {
-            Pattern pattern = Pattern.compile("is not present in table \"(.*?)\"");
-            Matcher matcher = pattern.matcher(message);
+            Matcher matcher = MISSING_TABLE_ENTRY_PATTERN.matcher(message);
             if (matcher.find())
                 return matcher.group(1).replace("_", " ") + " could not be found";
         }
@@ -171,10 +185,6 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, getResponseStatus(message, status));
     }
 
-    /**
-     * Capitalizes the first letter, lowercases the rest,
-     * but IGNORES anything inside [square brackets].
-     */
     private String capitalize(String str) {
         if (str == null || str.isEmpty())
             return str;
@@ -185,7 +195,6 @@ public class GlobalExceptionHandler {
 
         for (int i = 0; i < str.length(); i++) {
             char c = str.charAt(i);
-
             if (c == '[')
                 insideBrackets = true;
 
@@ -199,11 +208,9 @@ public class GlobalExceptionHandler {
                     result.append(Character.toLowerCase(c));
                 }
             }
-
             if (c == ']')
                 insideBrackets = false;
         }
-
         return result.toString().replace("_", " ");
     }
 

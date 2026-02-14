@@ -8,8 +8,10 @@ import com.jayway.jsonpath.JsonPath;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -39,7 +41,7 @@ public class DataHydratorService {
             return applyMappings(rawJsonResponse, config.getMappings());
         } catch (Exception e) {
             log.error("Failed to hydrate data for member {}: {}", memberId, e.getMessage());
-            throw new RuntimeException("External API call failed", e);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "External API call failed");
         }
     }
 
@@ -69,7 +71,8 @@ public class DataHydratorService {
             case API_KEY -> headers.set("X-API-KEY", config.getToken());
             case BASIC -> headers.setBasicAuth(config.getUsername(), config.getPassword());
             case NONE -> {
-                }
+                // No auth needed
+            }
             default -> throw new IllegalArgumentException("Unsupported auth type: " + config.getAuthType());
         }
     }

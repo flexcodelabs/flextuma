@@ -6,6 +6,9 @@ import java.util.UUID;
 
 public class TokenGenerator {
 
+    private TokenGenerator() {
+    }
+
     private static final SecureRandom secureRandom = new SecureRandom();
 
     private static final String ALPHANUMERIC = "_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.0123456789!";
