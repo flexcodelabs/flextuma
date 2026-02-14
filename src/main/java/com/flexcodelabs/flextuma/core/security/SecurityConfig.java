@@ -31,34 +31,19 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    /**
-     * Fixes java:S3330
-     * Explicitly configures the Session Cookie to be HttpOnly.
-     */
     @Bean
     public CookieSerializer cookieSerializer() {
         DefaultCookieSerializer serializer = new DefaultCookieSerializer();
         serializer.setCookieName("SESSION");
         serializer.setUseHttpOnlyCookie(true);
-        // If using HTTPS, uncomment the line below:
         serializer.setSameSite("Lax");
         return serializer;
     }
 
-    /**
-     * Fixes java:S1130, java:S112 (Exception handling)
-     * and java:S4502 (CSRF protection)
-     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
         try {
             http
-                    /*
-                     * FIX java:S4502: Enabled CSRF using a Cookie-based repository.
-                     * This is the secure approach for Web/SPA applications using sessions.
-                     * withHttpOnlyFalse() allows modern frontends (Angular/React) to read the
-                     * token.
-                     */
                     .csrf(csrf -> csrf
                             .csrfTokenRepository(
                                     new org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository())
@@ -77,11 +62,6 @@ public class SecurityConfig {
             return http.build();
 
         } catch (Exception e) {
-            /*
-             * FIX java:S1130 & java:S112:
-             * We catch the generic Exception thrown by http.build()
-             * and wrap it in a specific RuntimeException.
-             */
             throw new BeanCreationException("Security Filter Chain creation failed", e);
         }
     }

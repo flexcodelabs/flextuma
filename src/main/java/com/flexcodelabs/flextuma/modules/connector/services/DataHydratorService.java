@@ -23,7 +23,12 @@ import java.util.Map;
 public class DataHydratorService {
 
     private final ConnectorConfigRepository repository;
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
+
+    public DataHydratorService(ConnectorConfigRepository repository, RestClient.Builder restClientBuilder) {
+        this.repository = repository;
+        this.restClient = restClientBuilder.build();
+    }
 
     public Map<String, String> getMemberData(String tenantId, String memberId) {
         ConnectorConfig config = repository.findByTenantId(tenantId)

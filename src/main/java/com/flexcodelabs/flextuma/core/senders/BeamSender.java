@@ -20,7 +20,11 @@ import java.util.List;
 @Service
 public class BeamSender implements SmsSender {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    public BeamSender(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     @Override
     public String getProvider() {
@@ -33,7 +37,6 @@ public class BeamSender implements SmsSender {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            // Set API keys in headers as per original logic
             headers.set("api_key", config.getKey());
             headers.set("secret_key", config.getSecret());
 
@@ -41,7 +44,6 @@ public class BeamSender implements SmsSender {
             String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
             headers.set("Authorization", "Basic " + encodedAuth);
 
-            // Populate Request Body using new camelCase setters
             BeamSmsRequest requestBody = new BeamSmsRequest();
             requestBody.setSourceAddr(config.getSenderId());
             requestBody.setMessage(message);
@@ -77,7 +79,7 @@ public class BeamSender implements SmsSender {
     }
 
     @Data
-    private static class BeamSmsRequest {
+    static class BeamSmsRequest {
         @JsonProperty("source_addr")
         private String sourceAddr;
 
@@ -90,7 +92,7 @@ public class BeamSender implements SmsSender {
     }
 
     @Data
-    private static class Recipient {
+    static class Recipient {
         @JsonProperty("dest_addr")
         private String destAddr;
 
@@ -101,7 +103,7 @@ public class BeamSender implements SmsSender {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    private static class BeamSmsResponse {
+    static class BeamSmsResponse {
         private boolean valid;
         private String message;
         private int code;
