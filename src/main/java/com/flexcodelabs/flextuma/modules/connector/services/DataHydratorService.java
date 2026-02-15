@@ -5,7 +5,7 @@ import com.flexcodelabs.flextuma.core.helpers.FieldMapping;
 import com.flexcodelabs.flextuma.core.repositories.ConnectorConfigRepository;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
-import lombok.RequiredArgsConstructor;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -19,7 +19,6 @@ import java.util.Map;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DataHydratorService {
 
     private final ConnectorConfigRepository repository;

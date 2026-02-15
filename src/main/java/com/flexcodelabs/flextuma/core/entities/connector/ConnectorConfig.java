@@ -8,6 +8,8 @@ import org.hibernate.type.SqlTypes;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.flexcodelabs.flextuma.core.helpers.MaskingUtil;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
 import com.flexcodelabs.flextuma.core.enums.AuthType;
 import com.flexcodelabs.flextuma.core.helpers.FieldMapping;
@@ -43,6 +45,7 @@ public class ConnectorConfig extends Owner {
     public static final String UPDATE = "UPDATE_CONNECTOR_CONFIGS";
 
     @Column(nullable = false, unique = true, name = "tenantid")
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String tenantId;
 
     @Column(nullable = false, name = "url")
@@ -58,16 +61,50 @@ public class ConnectorConfig extends Owner {
     private AuthType authType;
 
     @Column(nullable = true)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String token;
 
     @Column(nullable = true, name = "apikey")
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String apiKey;
 
     @Column(nullable = true)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String username;
 
     @Column(nullable = true)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
+
+    @JsonProperty("tenantId")
+    public String getMaskedTenantId() {
+        return MaskingUtil.mask(this.tenantId);
+    }
+
+    @JsonProperty("token")
+    public String getMaskedToken() {
+        return MaskingUtil.mask(this.token);
+    }
+
+    @JsonProperty("apiKey")
+    public String getMaskedApiKey() {
+        return MaskingUtil.mask(this.apiKey);
+    }
+
+    @JsonProperty("username")
+    public String getMaskedUsername() {
+        return MaskingUtil.mask(this.username);
+    }
+
+    @JsonProperty("password")
+    public String getMaskedPassword() {
+        return MaskingUtil.mask(this.password);
+    }
+
+    @JsonProperty("url")
+    public String getMaskedUrl() {
+        return MaskingUtil.mask(this.url);
+    }
 
     @JdbcTypeCode(SqlTypes.JSON)
     private List<FieldMapping> mappings = new ArrayList<>();

@@ -1,6 +1,7 @@
 package com.flexcodelabs.flextuma.core.entities.sms;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.flexcodelabs.flextuma.core.helpers.MaskingUtil;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -49,11 +50,11 @@ public class SmsConnector extends Owner {
 
     @JsonProperty("key")
     public String getMaskedKey() {
-        return (this.key != null && !this.key.isEmpty()) ? "****" : null;
+        return MaskingUtil.mask(this.key);
     }
 
     @JsonProperty("secret")
     public String getMaskedSecret() {
-        return (this.secret != null && !this.secret.isEmpty()) ? "****" : null;
+        return MaskingUtil.mask(this.secret);
     }
 }
