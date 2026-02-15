@@ -28,6 +28,6 @@ class ConnectorConfigSerializationTest {
         assertTrue(json.contains("\"apiKey\":\"******\""), "apiKey should be masked");
         assertTrue(json.contains("\"username\":\"******\""), "username should be masked");
         assertTrue(json.contains("\"password\":\"******\""), "password should be masked");
-        assertTrue(json.contains("\"url\":\"http://example.com\""), "url should be visible");
+        assertTrue(json.contains("\"url\":\"******\""), "url should be masked");
     }
 }

@@ -33,7 +33,7 @@ class SmsConnectorTest {
 
         String masked = connector.getMaskedKey();
 
-        assertEquals("****", masked);
+        assertEquals("******", masked);
     }
 
     @Test
@@ -63,7 +63,7 @@ class SmsConnectorTest {
 
         String masked = connector.getMaskedSecret();
 
-        assertEquals("****", masked);
+        assertEquals("******", masked);
     }
 
     @Test
