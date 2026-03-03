@@ -21,10 +21,6 @@ import com.flexcodelabs.flextuma.core.repositories.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
-/**
- * Handles message queuing only. Actual dispatch is done by
- * {@link com.flexcodelabs.flextuma.modules.notification.services.SmsDispatchWorker}.
- */
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
@@ -34,11 +30,6 @@ public class NotificationService {
         private final UserRepository userRepository;
         private final SmsConnectorRepository connectorRepository;
 
-        /**
-         * Validates the request, resolves template + connector, renders the message,
-         * and persists a {@code PENDING} {@link SmsLog}. The dispatch worker picks it
-         * up asynchronously — the caller returns immediately after the log is saved.
-         */
         @Transactional
         public SmsLog queueTemplatedSms(Map<String, String> placeholders, String username) {
 

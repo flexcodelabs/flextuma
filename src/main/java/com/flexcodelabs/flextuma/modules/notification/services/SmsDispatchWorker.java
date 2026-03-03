@@ -15,27 +15,6 @@ import com.flexcodelabs.flextuma.core.services.SmsSender;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Polls the database every 5 seconds for {@code PENDING} SMS logs and
- * dispatches them
- * via the appropriate {@link SmsSender}.
- *
- * <p>
- * Status lifecycle:
- * 
- * <pre>
- *   PENDING → PROCESSING → SENT
- *                       ↘ PENDING  (on failure, retries &lt; 3)
- *                       ↘ FAILED   (on failure, retries &gt;= 3)
- * </pre>
- *
- * <p>
- * The {@code PROCESSING} intermediate status prevents a second worker cycle
- * from
- * picking up a log that is already mid-send (safe for single-instance
- * deployments;
- * for multi-instance, pair with a distributed lock or a message broker).
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor

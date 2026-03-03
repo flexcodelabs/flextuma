@@ -93,7 +93,7 @@ src/main/java/com/flexcodelabs/flextuma/
 │   ├── interceptors/    # Entity audit interceptor
 │   ├── repositories/    # BaseRepository + all JPA repositories
 │   ├── security/        # SecurityConfig, SecurityUtils, CustomSecurityExceptionHandler
-│   ├── senders/         # SmsSender interface + BeamSender, NextSmsSender
+│   ├── senders/         # SmsSender interface + BeemSender, NextSmsSender
 │   └── services/        # BaseService<T>, SmsSenderRegistry, DataSeederService
 └── modules/
     ├── auth/            # User, Role, Privilege, Organisation controllers & services
@@ -268,7 +268,7 @@ Two concrete `SmsSender` implementations:
 
 | Provider | Class | Auth Method |
 |---|---|---|
-| **Beem** | `BeamSender` | API key + secret (Basic Auth header) |
+| **Beem** | `BeemSender` | API key + secret (Basic Auth header) |
 | **NextSMS** | `NextSmsSender` | Stub (logs output — for local testing) |
 
 Adding a new provider: implement `SmsSender`, annotate with `@Service`, and set the matching `provider` string on the `SmsConnector` record.

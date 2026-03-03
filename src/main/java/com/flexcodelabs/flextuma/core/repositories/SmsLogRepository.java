@@ -1,6 +1,7 @@
 package com.flexcodelabs.flextuma.core.repositories;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -14,4 +15,6 @@ public interface SmsLogRepository extends BaseRepository<SmsLog, UUID>,
 		JpaSpecificationExecutor<SmsLog> {
 
 	List<SmsLog> findTop50ByStatusOrderByCreatedAsc(SmsLogStatus status);
+
+	Optional<SmsLog> findByProviderResponse(String providerResponse);
 }

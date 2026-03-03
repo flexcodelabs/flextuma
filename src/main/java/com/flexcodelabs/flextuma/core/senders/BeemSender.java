@@ -18,17 +18,17 @@ import java.util.List;
 
 @Slf4j
 @Service
-public class BeamSender implements SmsSender {
+public class BeemSender implements SmsSender {
 
     private final RestTemplate restTemplate;
 
-    public BeamSender(RestTemplate restTemplate) {
+    public BeemSender(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 
     @Override
     public String getProvider() {
-        return "BEAM";
+        return "BEEM";
     }
 
     @Override
@@ -44,7 +44,7 @@ public class BeamSender implements SmsSender {
             String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
             headers.set("Authorization", "Basic " + encodedAuth);
 
-            BeamSmsRequest requestBody = new BeamSmsRequest();
+            BeemSmsRequest requestBody = new BeemSmsRequest();
             requestBody.setSourceAddr(config.getSenderId());
             requestBody.setMessage(message);
             requestBody.setScheduleTime("");
@@ -55,31 +55,31 @@ public class BeamSender implements SmsSender {
             recipient.setRecipientId("1");
             requestBody.setRecipients(Collections.singletonList(recipient));
 
-            HttpEntity<BeamSmsRequest> entity = new HttpEntity<>(requestBody, headers);
+            HttpEntity<BeemSmsRequest> entity = new HttpEntity<>(requestBody, headers);
 
-            ResponseEntity<BeamSmsResponse> response = restTemplate.postForEntity(
+            ResponseEntity<BeemSmsResponse> response = restTemplate.postForEntity(
                     config.getUrl(),
                     entity,
-                    BeamSmsResponse.class);
+                    BeemSmsResponse.class);
 
-            BeamSmsResponse responseBody = response.getBody();
+            BeemSmsResponse responseBody = response.getBody();
 
             if (responseBody != null && !responseBody.isValid()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Beem API Error: " + responseBody.getMessage());
             }
 
-            log.info("BEAM: SMS sent successfully to {}", to);
+            log.info("BEEM: SMS sent successfully to {}", to);
             return responseBody != null ? responseBody.getMessage() : "SUCCESS";
 
         } catch (Exception e) {
-            log.error("BEAM Error: {}", e.getMessage());
+            log.error("BEEM Error: {}", e.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to send via Beem: " + e.getMessage());
         }
     }
 
     @Data
-    static class BeamSmsRequest {
+    static class BeemSmsRequest {
         @JsonProperty("source_addr")
         private String sourceAddr;
 
@@ -103,7 +103,7 @@ public class BeamSender implements SmsSender {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    static class BeamSmsResponse {
+    static class BeemSmsResponse {
         private boolean valid;
         private String message;
         private int code;

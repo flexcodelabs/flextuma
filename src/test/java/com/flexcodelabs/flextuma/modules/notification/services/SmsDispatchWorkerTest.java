@@ -74,14 +74,14 @@ class SmsDispatchWorkerTest {
 
         worker.dispatch();
 
-        assertEquals(SmsLogStatus.PENDING, log.getStatus()); // re-queued
+        assertEquals(SmsLogStatus.PENDING, log.getStatus());
         assertEquals(1, log.getRetries());
     }
 
     @Test
     void dispatch_shouldMarkFailed_whenMaxRetriesReached() {
         SmsLog log = pendingLog("beem");
-        log.setRetries(2); // one more will exceed the limit
+        log.setRetries(2);
 
         when(smsSender.getProvider()).thenReturn("beem");
         when(logRepository.findTop50ByStatusOrderByCreatedAsc(SmsLogStatus.PENDING))
