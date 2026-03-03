@@ -3,9 +3,12 @@ package com.flexcodelabs.flextuma.core.entities.sms;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
+import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -40,7 +43,15 @@ public class SmsLog extends Owner {
     private String content;
 
     @Column(columnDefinition = "TEXT", name = "status")
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private SmsLogStatus status;
+
+    @Column(name = "retries", nullable = false)
+    private int retries = 0;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "connector", nullable = true)
+    private SmsConnector connector;
 
     @Column(columnDefinition = "TEXT", name = "providerresponse", nullable = true)
     private String providerResponse;
