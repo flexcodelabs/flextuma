@@ -34,6 +34,7 @@ dependencies {
     implementation 'org.springframework.session:spring-session-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.aspectj:aspectjweaver'
 	implementation 'org.glassfish:jakarta.el:4.0.2'
 	implementation 'com.jayway.jsonpath:json-path'
 	compileOnly 'org.projectlombok:lombok'
@@ -69,7 +70,7 @@ sonarqube {
 	properties {
 		property "sonar.projectKey", "flexcodelabs_flextuma"
 		property "sonar.organization", "flexcodelabs"
-		property "sonar.host.url", "https://sonarcloud.io"
+		property "sonar.host.url", "https://sonar.flexcodelabs.com"
 		property "sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml"
 	}
 }

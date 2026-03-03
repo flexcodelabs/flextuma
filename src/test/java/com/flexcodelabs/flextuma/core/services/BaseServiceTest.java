@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -48,6 +49,9 @@ class BaseServiceTest {
     private EntityManager entityManager;
 
     @Mock
+    private CurrentUserResolver currentUserResolver;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock
@@ -59,6 +63,9 @@ class BaseServiceTest {
     void setUp() {
         service = new TestService(repository, specificationExecutor);
         service.entityManager = entityManager;
+        service.setCurrentUserResolver(currentUserResolver);
+
+        when(currentUserResolver.getCurrentUser()).thenReturn(Optional.empty());
 
         securityContextHolderMock = Mockito.mockStatic(SecurityContextHolder.class);
         securityContextHolderMock.when(SecurityContextHolder::getContext).thenReturn(securityContext);
@@ -218,7 +225,6 @@ class BaseServiceTest {
 
     @Test
     void onPreUpdate_shouldReturnNewEntity_whenExceptionOccurs() {
-        // We need to inject a mock ObjectMapper to force an exception
         com.fasterxml.jackson.databind.ObjectMapper mockMapper = mock(
                 com.fasterxml.jackson.databind.ObjectMapper.class);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "objectMapper", mockMapper);

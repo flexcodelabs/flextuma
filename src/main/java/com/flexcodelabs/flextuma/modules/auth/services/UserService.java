@@ -67,14 +67,14 @@ public class UserService extends BaseService<User> {
 
     @Override
     protected void validateDelete(User user) {
-        if (user.getSystem()) {
+        if (Boolean.TRUE.equals(user.getSystem())) {
             throw new IllegalStateException("System users cannot be deleted");
         }
     }
 
     public User login(String username, String password) {
         User user = repository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
                         "Invalid username or password"));
         if (!user.validatePassword(password)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
