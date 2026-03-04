@@ -39,6 +39,7 @@ public class NotificationService {
         private final SmsConnectorRepository connectorRepository;
         private final WalletService walletService;
         private final RateLimiterService rateLimiterService;
+        private final SmsSegmentCalculator segmentCalculator;
 
         @Value("${flextuma.sms.price-per-segment:1.0}")
         private BigDecimal pricePerSegment;
@@ -81,7 +82,7 @@ public class NotificationService {
 
                 String finalMessage = TemplateUtils.fillTemplate(template.getContent(), placeholders);
 
-                SmsSegmentResult segmentResult = SmsSegmentCalculator.calculate(finalMessage);
+                SmsSegmentResult segmentResult = segmentCalculator.calculate(finalMessage);
                 BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
 
                 walletService.debit(currentUser, cost, "SMS send to " + phoneNumber, null);

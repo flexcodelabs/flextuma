@@ -19,15 +19,19 @@ import com.flexcodelabs.flextuma.core.helpers.TemplateUtils;
 @RequestMapping("/api/" + SmsTemplate.PLURAL)
 public class SmsTemplateController extends BaseController<SmsTemplate, SmsTemplateService> {
 
-	public SmsTemplateController(SmsTemplateService service) {
+	private final SmsSegmentCalculator segmentCalculator;
+
+	public SmsTemplateController(SmsTemplateService service, SmsSegmentCalculator segmentCalculator) {
 		super(service);
+		this.segmentCalculator = segmentCalculator;
 	}
 
 	@PostMapping("/preview")
 	public ResponseEntity<PreviewResponse> preview(@RequestBody PreviewRequest request) {
 		String rendered = TemplateUtils.fillTemplate(request.template(), request.variables());
-		SmsSegmentResult segments = SmsSegmentCalculator.calculate(rendered);
+		SmsSegmentResult segments = segmentCalculator.calculate(rendered);
 		String encoding = segments.isGsm7() ? "GSM-7" : "UCS-2";
-		return ResponseEntity.ok(new PreviewResponse(rendered, segments.segments(), encoding));
+		return ResponseEntity
+				.ok(new PreviewResponse(rendered, segments.segments(), encoding, segments.charactersRemaining()));
 	}
 }

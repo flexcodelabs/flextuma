@@ -376,7 +376,7 @@ See [`ROADMAP/roadmap.md`](ROADMAP/roadmap.md) for the full development roadmap,
 - [x] Async SMS dispatch worker (`@Scheduled` + `SmsLog` status lifecycle)
 - [x] Rate Limiter (Bucket4j per-tenant quotas)
 - [x] Webhook DLR receiver & Recipient Resolver Trigger API (`/api/webhooks...`)
-- [x] Character Count & Preview API (`/api/smsTemplates/preview`)
+- [x] Character Count & Preview API (`/api/smsTemplates/preview` returning segment counts and `charactersRemaining` budget)
 
 **Immediate next steps:**
 - [ ] Admin Monitoring API enhancements (query by status, retry endpoint)

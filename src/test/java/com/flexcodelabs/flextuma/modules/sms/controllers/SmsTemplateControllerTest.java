@@ -12,6 +12,7 @@ import com.flexcodelabs.flextuma.core.controllers.BaseController;
 import com.flexcodelabs.flextuma.core.controllers.BaseControllerTest;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
 import com.flexcodelabs.flextuma.modules.sms.services.SmsTemplateService;
+import com.flexcodelabs.flextuma.core.helpers.SmsSegmentCalculator;
 
 import java.util.Map;
 
@@ -25,7 +26,8 @@ class SmsTemplateControllerTest extends BaseControllerTest<SmsTemplate, SmsTempl
     @Override
     protected BaseController<SmsTemplate, SmsTemplateService> getController() {
         if (controller == null) {
-            controller = new SmsTemplateController(service);
+            SmsSegmentCalculator calculator = new SmsSegmentCalculator();
+            controller = new SmsTemplateController(service, calculator);
         }
         return controller;
     }
@@ -58,6 +60,7 @@ class SmsTemplateControllerTest extends BaseControllerTest<SmsTemplate, SmsTempl
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.renderedContent").value("Hello Alice, your code is 1234"))
                 .andExpect(jsonPath("$.segmentCount").value(1))
-                .andExpect(jsonPath("$.encoding").value("GSM-7"));
+                .andExpect(jsonPath("$.encoding").value("GSM-7"))
+                .andExpect(jsonPath("$.charactersRemaining").value(130));
     }
 }

@@ -32,7 +32,7 @@ public class SmsLog extends Owner {
     public static final String PLURAL = "smsLogs";
     public static final String NAME_PLURAL = "SMS Logs";
     public static final String NAME_SINGULAR = "SMS Log";
-    public static final String READ = "READ_SMS_TEMPLATES";
+    public static final String READ = "READ_SMS_LOGS";
     public static final String ADD = "ADD_SMS_LOGS";
     public static final String DELETE = "DELETE_SMS_LOGS";
     public static final String UPDATE = "UPDATE_SMS_LOGS";

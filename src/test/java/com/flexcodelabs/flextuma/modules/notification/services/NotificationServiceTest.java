@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -24,6 +25,8 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.test.util.ReflectionTestUtils;
 import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
 import com.flexcodelabs.flextuma.core.services.RateLimiterService;
+import com.flexcodelabs.flextuma.core.helpers.SmsSegmentCalculator;
+import com.flexcodelabs.flextuma.core.helpers.SmsSegmentResult;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -37,141 +40,147 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
-    @Mock
-    private SmsTemplateRepository templateRepository;
+        @Mock
+        private SmsTemplateRepository templateRepository;
 
-    @Mock
-    private SmsLogRepository logRepository;
+        @Mock
+        private SmsLogRepository logRepository;
 
-    @Mock
-    private UserRepository userRepository;
+        @Mock
+        private UserRepository userRepository;
 
-    @Mock
-    private SmsConnectorRepository connectorRepository;
+        @Mock
+        private SmsConnectorRepository connectorRepository;
 
-    @Mock
-    private WalletService walletService;
+        @Mock
+        private WalletService walletService;
 
-    @Mock
-    private RateLimiterService rateLimiterService;
+        @Mock
+        private RateLimiterService rateLimiterService;
 
-    @InjectMocks
-    private NotificationService notificationService;
+        @Mock
+        private SmsSegmentCalculator segmentCalculator;
 
-    @Captor
-    private ArgumentCaptor<SmsLog> smsLogCaptor;
+        @InjectMocks
+        private NotificationService notificationService;
 
-    private User testUser;
-    private Map<String, String> validPlaceholders;
+        @Captor
+        private ArgumentCaptor<SmsLog> smsLogCaptor;
 
-    @BeforeEach
-    void setUp() {
-        testUser = new User();
-        testUser.setUsername("testuser");
+        private User testUser;
+        private Map<String, String> validPlaceholders;
 
-        validPlaceholders = new HashMap<>();
-        validPlaceholders.put("provider", "Twilio");
-        validPlaceholders.put("templateCode", "WELCOME");
-        validPlaceholders.put("phoneNumber", "+1234567890");
-        validPlaceholders.put("name", "John Doe"); // Custom placeholder
+        @BeforeEach
+        void setUp() {
+                testUser = new User();
+                testUser.setUsername("testuser");
 
-        ReflectionTestUtils.setField(notificationService, "pricePerSegment", BigDecimal.valueOf(20.0));
-    }
+                validPlaceholders = new HashMap<>();
+                validPlaceholders.put("provider", "Twilio");
+                validPlaceholders.put("templateCode", "WELCOME");
+                validPlaceholders.put("phoneNumber", "+1234567890");
+                validPlaceholders.put("name", "John Doe"); // Custom placeholder
 
-    @Test
-    void queueTemplatedSms_shouldThrowWhenUsernameIsNull() {
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> notificationService.queueTemplatedSms(validPlaceholders, null));
+                ReflectionTestUtils.setField(notificationService, "pricePerSegment", BigDecimal.valueOf(20.0));
+        }
 
-        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
-        assertTrue(ex.getReason().contains("User not authenticated"));
-    }
+        @Test
+        void queueTemplatedSms_shouldThrowWhenUsernameIsNull() {
+                ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                                () -> notificationService.queueTemplatedSms(validPlaceholders, null));
 
-    @Test
-    void queueTemplatedSms_shouldThrowWhenUserNotFound() {
-        when(userRepository.findByUsername("unknown")).thenReturn(Optional.empty());
+                assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
+                assertTrue(ex.getReason().contains("User not authenticated"));
+        }
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> notificationService.queueTemplatedSms(validPlaceholders, "unknown"));
+        @Test
+        void queueTemplatedSms_shouldThrowWhenUserNotFound() {
+                when(userRepository.findByUsername("unknown")).thenReturn(Optional.empty());
 
-        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
-        assertTrue(ex.getReason().contains("User not found"));
-    }
+                ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                                () -> notificationService.queueTemplatedSms(validPlaceholders, "unknown"));
 
-    @ParameterizedTest
-    @CsvSource({
-            "provider, SMS provider is missing",
-            "templateCode, Template is missing",
-            "phoneNumber, Phone number is missing"
-    })
-    void queueTemplatedSms_shouldThrowWhenRequiredPlaceholderMissing(String missingKey, String expectedMessage) {
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        validPlaceholders.remove(missingKey);
+                assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
+                assertTrue(ex.getReason().contains("User not found"));
+        }
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> notificationService.queueTemplatedSms(validPlaceholders, "testuser"));
+        @ParameterizedTest
+        @CsvSource({
+                        "provider, SMS provider is missing",
+                        "templateCode, Template is missing",
+                        "phoneNumber, Phone number is missing"
+        })
+        void queueTemplatedSms_shouldThrowWhenRequiredPlaceholderMissing(String missingKey, String expectedMessage) {
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                validPlaceholders.remove(missingKey);
 
-        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        assertTrue(ex.getReason().contains(expectedMessage));
-    }
+                ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                                () -> notificationService.queueTemplatedSms(validPlaceholders, "testuser"));
 
-    @Test
-    void queueTemplatedSms_shouldThrowWhenTemplateNotFound() {
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        when(templateRepository.findByCreatedByAndCode(testUser, "WELCOME")).thenReturn(Optional.empty());
+                assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+                assertTrue(ex.getReason().contains(expectedMessage));
+        }
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> notificationService.queueTemplatedSms(validPlaceholders, "testuser"));
+        @Test
+        void queueTemplatedSms_shouldThrowWhenTemplateNotFound() {
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(templateRepository.findByCreatedByAndCode(testUser, "WELCOME")).thenReturn(Optional.empty());
 
-        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-        assertTrue(ex.getReason().contains("Template not found or you don't have access to it"));
-    }
+                ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                                () -> notificationService.queueTemplatedSms(validPlaceholders, "testuser"));
 
-    @Test
-    void queueTemplatedSms_shouldThrowWhenConnectorNotFound() {
-        SmsTemplate template = new SmsTemplate();
-        template.setContent("Hello {{name}}");
+                assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+                assertTrue(ex.getReason().contains("Template not found or you don't have access to it"));
+        }
 
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        when(templateRepository.findByCreatedByAndCode(testUser, "WELCOME")).thenReturn(Optional.of(template));
-        when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "Twilio"))
-                .thenReturn(Optional.empty());
+        @Test
+        void queueTemplatedSms_shouldThrowWhenConnectorNotFound() {
+                SmsTemplate template = new SmsTemplate();
+                template.setContent("Hello {{name}}");
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> notificationService.queueTemplatedSms(validPlaceholders, "testuser"));
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(templateRepository.findByCreatedByAndCode(testUser, "WELCOME")).thenReturn(Optional.of(template));
+                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "Twilio"))
+                                .thenReturn(Optional.empty());
 
-        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        assertTrue(ex.getReason().contains("No active SMS connector found"));
-    }
+                ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                                () -> notificationService.queueTemplatedSms(validPlaceholders, "testuser"));
 
-    @Test
-    void queueTemplatedSms_shouldQueueSmsSuccessfully() {
-        SmsTemplate template = new SmsTemplate();
-        template.setContent("Hello {{name}}");
+                assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+                assertTrue(ex.getReason().contains("No active SMS connector found"));
+        }
 
-        SmsConnector connector = new SmsConnector();
-        connector.setProvider("Twilio");
+        @Test
+        void queueTemplatedSms_shouldQueueSmsSuccessfully() {
+                SmsTemplate template = new SmsTemplate();
+                template.setContent("Hello {{name}}");
 
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        when(templateRepository.findByCreatedByAndCode(testUser, "WELCOME")).thenReturn(Optional.of(template));
-        when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "Twilio"))
-                .thenReturn(Optional.of(connector));
+                SmsConnector connector = new SmsConnector();
+                connector.setProvider("Twilio");
 
-        SmsLog expectedSavedLog = new SmsLog();
-        expectedSavedLog.setStatus(SmsLogStatus.PENDING);
-        when(logRepository.save(any(SmsLog.class))).thenReturn(expectedSavedLog);
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(templateRepository.findByCreatedByAndCode(testUser, "WELCOME")).thenReturn(Optional.of(template));
+                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "Twilio"))
+                                .thenReturn(Optional.of(connector));
 
-        SmsLog result = notificationService.queueTemplatedSms(validPlaceholders, "testuser");
+                SmsSegmentResult mockSegmentResult = new SmsSegmentResult(1, true, 14, 146);
+                when(segmentCalculator.calculate(anyString())).thenReturn(mockSegmentResult);
 
-        verify(logRepository).save(smsLogCaptor.capture());
-        SmsLog capturedLog = smsLogCaptor.getValue();
+                SmsLog expectedSavedLog = new SmsLog();
+                expectedSavedLog.setStatus(SmsLogStatus.PENDING);
+                when(logRepository.save(any(SmsLog.class))).thenReturn(expectedSavedLog);
 
-        assertEquals("+1234567890", capturedLog.getRecipient());
-        assertEquals("Hello John Doe", capturedLog.getContent());
-        assertEquals(template, capturedLog.getTemplate());
-        assertEquals(connector, capturedLog.getConnector());
-        assertEquals(SmsLogStatus.PENDING, capturedLog.getStatus());
+                SmsLog result = notificationService.queueTemplatedSms(validPlaceholders, "testuser");
 
-        assertNotNull(result);
-    }
+                verify(logRepository).save(smsLogCaptor.capture());
+                SmsLog capturedLog = smsLogCaptor.getValue();
+
+                assertEquals("+1234567890", capturedLog.getRecipient());
+                assertEquals("Hello John Doe", capturedLog.getContent());
+                assertEquals(template, capturedLog.getTemplate());
+                assertEquals(connector, capturedLog.getConnector());
+                assertEquals(SmsLogStatus.PENDING, capturedLog.getStatus());
+
+                assertNotNull(result);
+        }
 }
