@@ -64,6 +64,36 @@ public class SmsConnectorService extends BaseService<SmsConnector> {
     }
 
     @Override
+    protected void onPreSave(SmsConnector entity) {
+        validateProviderConfig(entity);
+    }
+
+    @Override
+    protected SmsConnector onPreUpdate(SmsConnector newEntity, SmsConnector oldEntity) {
+        SmsConnector merged = super.onPreUpdate(newEntity, oldEntity);
+        validateProviderConfig(merged);
+        return merged;
+    }
+
+    private void validateProviderConfig(SmsConnector entity) {
+        String provider = entity.getProvider();
+        if ("BEEM".equalsIgnoreCase(provider) || "NEXT".equalsIgnoreCase(provider)) {
+            if (entity.getUrl() == null || entity.getUrl().isBlank()) {
+                throw new IllegalArgumentException("URL is required for " + provider);
+            }
+            if (entity.getKey() == null || entity.getKey().isBlank()) {
+                throw new IllegalArgumentException("API Key is required for " + provider);
+            }
+            if (entity.getSecret() == null || entity.getSecret().isBlank()) {
+                throw new IllegalArgumentException("Secret Key is required for " + provider);
+            }
+            if (entity.getSenderId() == null || entity.getSenderId().isBlank()) {
+                throw new IllegalArgumentException("Sender ID is required for " + provider);
+            }
+        }
+    }
+
+    @Override
     protected void validateDelete(SmsConnector entity) {
         if (Boolean.TRUE.equals(entity.getActive())) {
             throw new IllegalStateException("You cannot delete an active connector");

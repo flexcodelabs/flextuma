@@ -4,9 +4,7 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.flexcodelabs.flextuma.core.entities.auth.PersonalAccessToken;
 import com.flexcodelabs.flextuma.core.repositories.PersonalAccessTokenRepository;
@@ -72,29 +70,12 @@ public class PersonalAccessTokenService extends BaseService<PersonalAccessToken>
 
     @Override
     protected void onPreSave(PersonalAccessToken entity) {
-        String rawToken = "ft_" + UUID.randomUUID().toString().replace("-", "");
-        entity.setRawToken(rawToken);
-        entity.setToken(hashToken(rawToken));
-
         if (entity.getUser() == null) {
             String currentUsername = com.flexcodelabs.flextuma.core.security.SecurityUtils.getCurrentUsername();
             if (currentUsername != null) {
                 userRepository.findByUsername(currentUsername).ifPresent(entity::setUser);
             }
         }
-
-        if (entity.getActive() == null) {
-            entity.setActive(true);
-        }
     }
 
-    private String hashToken(String token) {
-        try {
-            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(token.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            return java.util.HexFormat.of().formatHex(hash);
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "SHA-256 algorithm not found", e);
-        }
-    }
 }

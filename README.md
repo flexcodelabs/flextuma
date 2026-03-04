@@ -382,7 +382,7 @@ See [`ROADMAP/roadmap.md`](ROADMAP/roadmap.md) for the full development roadmap,
 - [x] Character Count & Preview API (`/api/smsTemplates/preview` returning segment counts and `charactersRemaining` budget)
 
 **Immediate next steps:**
-- [ ] Implement real HTTP logic for `NextSmsSender` (currently a stub)
+- [x] Implement real HTTP logic for `NextSmsSender`
 - [ ] Database Partitioning for `sms_log` table
 - [ ] Multi-channel support (WhatsApp/Email)
 

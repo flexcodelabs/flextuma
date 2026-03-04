@@ -11,6 +11,9 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
 @Entity
 @Table(name = "personalaccesstoken")
 @Getter
@@ -42,4 +45,24 @@ public class PersonalAccessToken extends BaseEntity {
     @Transient
     private String rawToken;
 
+    @PrePersist
+    public void generateToken() {
+        if (this.token == null) {
+            this.rawToken = "ft_" + java.util.UUID.randomUUID().toString().replace("-", "");
+            this.token = hashToken(this.rawToken);
+        }
+        if (this.getActive() == null) {
+            this.setActive(true);
+        }
+    }
+
+    private String hashToken(String token) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(hash);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "SHA-256 algorithm not found", e);
+        }
+    }
 }
