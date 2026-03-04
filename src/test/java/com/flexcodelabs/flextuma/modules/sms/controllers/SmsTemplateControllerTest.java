@@ -1,13 +1,21 @@
 package com.flexcodelabs.flextuma.modules.sms.controllers;
 
+import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
+import org.springframework.http.MediaType;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.flexcodelabs.flextuma.core.controllers.BaseController;
 import com.flexcodelabs.flextuma.core.controllers.BaseControllerTest;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
 import com.flexcodelabs.flextuma.modules.sms.services.SmsTemplateService;
 
-public class SmsTemplateControllerTest extends BaseControllerTest<SmsTemplate, SmsTemplateService> {
+import java.util.Map;
+
+class SmsTemplateControllerTest extends BaseControllerTest<SmsTemplate, SmsTemplateService> {
 
     @Mock
     private SmsTemplateService service;
@@ -37,5 +45,19 @@ public class SmsTemplateControllerTest extends BaseControllerTest<SmsTemplate, S
     @Override
     protected String getBaseUrl() {
         return "/api/templates";
+    }
+
+    @Test
+    void preview_shouldRenderContentAndCalculateSegments() throws Exception {
+        PreviewRequest req = new PreviewRequest("Hello {{name}}, your code is {{code}}",
+                Map.of("name", "Alice", "code", "1234"));
+
+        mockMvc.perform(post(getBaseUrl() + "/preview")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.renderedContent").value("Hello Alice, your code is 1234"))
+                .andExpect(jsonPath("$.segmentCount").value(1))
+                .andExpect(jsonPath("$.encoding").value("GSM-7"));
     }
 }

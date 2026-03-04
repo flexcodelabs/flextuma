@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,13 +43,16 @@ class DataHydratorServiceTest {
     @Mock
     private RestClient.ResponseSpec responseSpec;
 
+    @Mock
+    private ObjectMapper objectMapper;
+
     private DataHydratorService service;
 
     @BeforeEach
     void setUp() {
         // Mock the builder chain
         when(restClientBuilder.build()).thenReturn(restClient);
-        service = new DataHydratorService(repository, restClientBuilder);
+        service = new DataHydratorService(repository, restClientBuilder, objectMapper);
     }
 
     @Test

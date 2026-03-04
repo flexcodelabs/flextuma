@@ -10,8 +10,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
+import com.flexcodelabs.flextuma.core.entities.connector.ConnectorConfig;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
+import com.flexcodelabs.flextuma.modules.connector.services.ConnectorConfigService;
+import com.flexcodelabs.flextuma.modules.connector.services.DataHydratorService;
+import com.flexcodelabs.flextuma.modules.notification.services.NotificationService;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.webhooks.DlrParser;
@@ -36,15 +42,23 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/webhooks")
 public class SmsWebhookController {
 
     private final SmsLogRepository logRepository;
     private final List<DlrParser> dlrParsers;
+    private final ConnectorConfigService configService;
+    private final DataHydratorService hydratorService;
+    private final NotificationService notificationService;
 
-    public SmsWebhookController(SmsLogRepository logRepository, List<DlrParser> dlrParsers) {
+    public SmsWebhookController(SmsLogRepository logRepository, List<DlrParser> dlrParsers,
+            ConnectorConfigService configService, DataHydratorService hydratorService,
+            NotificationService notificationService) {
         this.logRepository = logRepository;
         this.dlrParsers = dlrParsers;
+        this.configService = configService;
+        this.hydratorService = hydratorService;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/{provider}")
@@ -96,5 +110,36 @@ public class SmsWebhookController {
         log.info("DLR: SmsLog [{}] updated to [{}] via provider [{}]", smsLog.getId(), result.status(), provider);
 
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/sms")
+    public ResponseEntity<Map<String, Object>> triggerDispatch(
+            @PathVariable java.util.UUID id,
+            @RequestBody DispatchRequest request) {
+
+        ConnectorConfig config = configService.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Connector config not found"));
+
+        List<Map<String, String>> recipients = hydratorService.getRecipients(config.getTenantId(),
+                request.getFilterQuery());
+
+        String username = config.getCreatedBy() != null ? config.getCreatedBy().getUsername() : "system";
+
+        int queuedCount = 0;
+        for (Map<String, String> recipient : recipients) {
+            recipient.put("templateCode", request.getTemplateCode());
+            recipient.put("provider", request.getProvider());
+            try {
+                notificationService.queueTemplatedSms(recipient, username);
+                queuedCount++;
+            } catch (Exception e) {
+                log.error("Failed to queue templated SMS for recipient via webhook trigger", e);
+            }
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Successfully queued messages",
+                "queued", queuedCount,
+                "totalFetched", recipients.size()));
     }
 }

@@ -373,12 +373,15 @@ See [`ROADMAP/roadmap.md`](ROADMAP/roadmap.md) for the full development roadmap,
 - [x] Template placeholder engine (`{{variable}}` syntax with missing-variable detection)
 - [x] SMS segment calculator (GSM-7 vs Unicode encoding)
 - [x] Wallet & ledger system with pre-flight balance checks
+- [x] Async SMS dispatch worker (`@Scheduled` + `SmsLog` status lifecycle)
+- [x] Rate Limiter (Bucket4j per-tenant quotas)
+- [x] Webhook DLR receiver & Recipient Resolver Trigger API (`/api/webhooks...`)
+- [x] Character Count & Preview API (`/api/smsTemplates/preview`)
 
 **Immediate next steps:**
-- [ ] Async SMS dispatch worker (`@Scheduled` + `SmsLog` status lifecycle)
+- [ ] Admin Monitoring API enhancements (query by status, retry endpoint)
+- [ ] Scheduling Engine (future-dated campaigns)
 - [ ] Personal Access Token (PAT) entity and filter for API / gateway access
-- [ ] DLR webhook receiver for delivery report tracking
-- [ ] Bulk campaign entity + contact list dispatch
 
 ---
 

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.eq;
 
 import java.util.HashMap;
 import java.util.List;
@@ -18,10 +19,18 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
+import com.flexcodelabs.flextuma.core.entities.connector.ConnectorConfig;
+import com.flexcodelabs.flextuma.core.entities.auth.User;
+import com.flexcodelabs.flextuma.modules.connector.services.ConnectorConfigService;
+import com.flexcodelabs.flextuma.modules.connector.services.DataHydratorService;
+import com.flexcodelabs.flextuma.modules.notification.services.NotificationService;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.webhooks.DlrParser;
 import com.flexcodelabs.flextuma.core.webhooks.DlrResult;
+import java.util.UUID;
+import org.springframework.http.ResponseEntity;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class SmsWebhookControllerTest {
@@ -32,8 +41,18 @@ class SmsWebhookControllerTest {
     @Mock
     private DlrParser dlrParser;
 
+    @Mock
+    private ConnectorConfigService configService;
+
+    @Mock
+    private DataHydratorService hydratorService;
+
+    @Mock
+    private NotificationService notificationService;
+
     private SmsWebhookController buildController() {
-        return new SmsWebhookController(logRepository, List.of(dlrParser));
+        return new SmsWebhookController(logRepository, List.of(dlrParser), configService, hydratorService,
+                notificationService);
     }
 
     private Map<String, Object> payload(String msgId, String status) {
@@ -117,5 +136,61 @@ class SmsWebhookControllerTest {
         buildController().deliveryReport("beem", payload("msg-001", "submitted"));
 
         verify(logRepository, never()).save(any());
+    }
+
+    @Test
+    void triggerDispatch_shouldCallHydratorAndQueueSms_systemUser() {
+        UUID id = UUID.randomUUID();
+        ConnectorConfig config = new ConnectorConfig();
+        config.setId(id);
+        config.setTenantId("tenant2");
+        // No createdBy, so it should fallback to "system"
+
+        when(configService.findById(id)).thenReturn(Optional.of(config));
+
+        List<Map<String, String>> mockRecipients = List.of(
+                new HashMap<>(Map.of("phoneNumber", "+254700000000")),
+                new HashMap<>(Map.of("phoneNumber", "+254711111111")));
+        when(hydratorService.getRecipients(eq("tenant2"), any())).thenReturn(mockRecipients);
+
+        DispatchRequest req = new DispatchRequest();
+        req.setTemplateCode("ALERT");
+        req.setProvider("beem");
+        req.setFilterQuery(Map.of("group", "ALL"));
+
+        ResponseEntity<Map<String, Object>> res = buildController().triggerDispatch(id, req);
+
+        assertEquals(200, res.getStatusCode().value());
+        assertEquals(2, res.getBody().get("queued"));
+        assertEquals(2, res.getBody().get("totalFetched"));
+
+        verify(notificationService, times(2)).queueTemplatedSms(any(), eq("system"));
+    }
+
+    @Test
+    void triggerDispatch_shouldCallHydratorAndQueueSms_withCreatedBy() {
+        UUID id = UUID.randomUUID();
+        ConnectorConfig config = new ConnectorConfig();
+        config.setId(id);
+        config.setTenantId("tenant3");
+        User creator = new User();
+        creator.setUsername("john_doe");
+        config.setCreatedBy(creator);
+
+        when(configService.findById(id)).thenReturn(Optional.of(config));
+
+        List<Map<String, String>> mockRecipients = List.of(
+                new HashMap<>(Map.of("phoneNumber", "+254999999999")));
+        when(hydratorService.getRecipients(eq("tenant3"), any())).thenReturn(mockRecipients);
+
+        DispatchRequest req = new DispatchRequest();
+        req.setTemplateCode("ALERT");
+
+        ResponseEntity<Map<String, Object>> res = buildController().triggerDispatch(id, req);
+
+        assertEquals(200, res.getStatusCode().value());
+        assertEquals(1, res.getBody().get("queued"));
+
+        verify(notificationService).queueTemplatedSms(any(), eq("john_doe"));
     }
 }

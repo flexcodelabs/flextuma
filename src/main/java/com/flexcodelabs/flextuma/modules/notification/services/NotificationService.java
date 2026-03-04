@@ -21,6 +21,8 @@ import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
 import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
+import com.flexcodelabs.flextuma.core.services.RateLimiterService;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import java.math.BigDecimal;
@@ -36,6 +38,7 @@ public class NotificationService {
         private final UserRepository userRepository;
         private final SmsConnectorRepository connectorRepository;
         private final WalletService walletService;
+        private final RateLimiterService rateLimiterService;
 
         @Value("${flextuma.sms.price-per-segment:1.0}")
         private BigDecimal pricePerSegment;
@@ -50,6 +53,10 @@ public class NotificationService {
                 User currentUser = userRepository.findByUsername(username)
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
                                                 "User not found"));
+
+                UUID tenantId = currentUser.getOrganisation() != null ? currentUser.getOrganisation().getId()
+                                : currentUser.getId();
+                rateLimiterService.checkRateLimit(tenantId);
 
                 String providerValue = Optional.ofNullable(placeholders.get("provider"))
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,

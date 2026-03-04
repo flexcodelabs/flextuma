@@ -23,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.test.util.ReflectionTestUtils;
 import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
+import com.flexcodelabs.flextuma.core.services.RateLimiterService;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -50,6 +51,9 @@ class NotificationServiceTest {
 
     @Mock
     private WalletService walletService;
+
+    @Mock
+    private RateLimiterService rateLimiterService;
 
     @InjectMocks
     private NotificationService notificationService;
