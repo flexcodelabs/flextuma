@@ -23,22 +23,44 @@ public class GenericSpecification<T extends BaseEntity> implements Specification
     @Override
     public Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
         try {
-            Path<?> path = root.get(field);
+            Path<?> path = resolvePath(root, field);
             Class<?> type = path.getJavaType();
 
             return switch (operator) {
                 case EQ -> cb.equal(path, castValue(type, value));
                 case NE -> cb.notEqual(path, castValue(type, value));
                 case LIKE -> cb.like(cb.lower(path.as(String.class)), "%" + value.toLowerCase() + "%");
+                case ILIKE -> cb.like(cb.lower(path.as(String.class)), "%" + value.toLowerCase() + "%");
+                case STARTS_WITH -> cb.like(cb.lower(path.as(String.class)), value.toLowerCase() + "%");
+                case ENDS_WITH -> cb.like(cb.lower(path.as(String.class)), "%" + value.toLowerCase());
                 case IN -> path.in(Arrays.stream(value.split(",")).map(v -> castValue(type, v)).toList());
                 case GT -> cb.greaterThan(path.as(String.class), value);
                 case LT -> cb.lessThan(path.as(String.class), value);
-                case ILIKE -> cb.like(cb.lower(path.as(String.class)), "%" + value.toLowerCase() + "%");
-
+                case GTE -> cb.greaterThanOrEqualTo(path.as(String.class), value);
+                case LTE -> cb.lessThanOrEqualTo(path.as(String.class), value);
+                case IS_TRUE -> cb.isTrue(path.as(Boolean.class));
+                case IS_FALSE -> cb.isFalse(path.as(Boolean.class));
+                case BTN -> {
+                    String[] range = value.split(",");
+                    if (range.length == 2) {
+                        yield cb.between(path.as(String.class), range[0], range[1]);
+                    }
+                    yield cb.conjunction();
+                }
+                default -> cb.conjunction();
             };
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
             return cb.conjunction();
         }
+    }
+
+    private Path<?> resolvePath(Root<T> root, String fieldPath) {
+        String[] parts = fieldPath.split("\\.");
+        Path<?> path = root;
+        for (String part : parts) {
+            path = path.get(part);
+        }
+        return path;
     }
 
     private Object castValue(Class<?> type, String value) {
