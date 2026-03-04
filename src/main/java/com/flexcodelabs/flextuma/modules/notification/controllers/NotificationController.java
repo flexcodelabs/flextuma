@@ -25,4 +25,14 @@ public class NotificationController {
 
         return ResponseEntity.ok(log);
     }
+
+    @PostMapping("/raw")
+    public ResponseEntity<SmsLog> sendRaw(
+            @RequestBody Map<String, String> payload,
+            java.security.Principal principal) {
+
+        SmsLog log = notificationService.queueRawSms(payload, principal.getName());
+
+        return ResponseEntity.ok(log);
+    }
 }

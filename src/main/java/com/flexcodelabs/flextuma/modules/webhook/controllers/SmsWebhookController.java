@@ -127,13 +127,18 @@ public class SmsWebhookController {
 
         int queuedCount = 0;
         for (Map<String, String> recipient : recipients) {
-            recipient.put("templateCode", request.getTemplateCode());
             recipient.put("provider", request.getProvider());
             try {
-                notificationService.queueTemplatedSms(recipient, username);
+                if (request.getContent() != null && !request.getContent().isBlank()) {
+                    recipient.put("content", request.getContent());
+                    notificationService.queueRawSms(recipient, username);
+                } else {
+                    recipient.put("templateCode", request.getTemplateCode());
+                    notificationService.queueTemplatedSms(recipient, username);
+                }
                 queuedCount++;
             } catch (Exception e) {
-                log.error("Failed to queue templated SMS for recipient via webhook trigger", e);
+                log.error("Failed to queue SMS for recipient via webhook trigger", e);
             }
         }
 

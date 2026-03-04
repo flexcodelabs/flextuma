@@ -46,57 +46,82 @@ public class NotificationService {
 
         @Transactional
         public SmsLog queueTemplatedSms(Map<String, String> placeholders, String username) {
+                User currentUser = getUser(username);
+                checkRateLimit(currentUser);
 
-                if (username == null) {
-                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
-                }
-
-                User currentUser = userRepository.findByUsername(username)
-                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
-                                                "User not found"));
-
-                UUID tenantId = currentUser.getOrganisation() != null ? currentUser.getOrganisation().getId()
-                                : currentUser.getId();
-                rateLimiterService.checkRateLimit(tenantId);
-
-                String providerValue = Optional.ofNullable(placeholders.get("provider"))
-                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                                "SMS provider is missing"));
-
-                String templateCode = Optional.ofNullable(placeholders.get("templateCode"))
-                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                                "Template is missing"));
-
-                String phoneNumber = Optional.ofNullable(placeholders.get("phoneNumber"))
-                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                                "Phone number is missing"));
+                String providerValue = getRequiredField(placeholders, "provider");
+                String templateCode = getRequiredField(placeholders, "templateCode");
+                String phoneNumber = getRequiredField(placeholders, "phoneNumber");
 
                 SmsTemplate template = templateRepository.findByCreatedByAndCode(currentUser, templateCode)
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "Template not found or you don't have access to it"));
 
-                SmsConnector connector = connectorRepository
-                                .findByCreatedByAndProviderAndActiveTrue(currentUser, providerValue)
-                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                                "No active SMS connector found for provider [" + providerValue + "]"));
+                SmsConnector connector = getConnector(currentUser, providerValue);
 
                 String finalMessage = TemplateUtils.fillTemplate(template.getContent(), placeholders);
 
-                SmsSegmentResult segmentResult = segmentCalculator.calculate(finalMessage);
+                return processAndSaveSms(currentUser, connector, phoneNumber, finalMessage, template, placeholders);
+        }
+
+        @Transactional
+        public SmsLog queueRawSms(Map<String, String> payload, String username) {
+                User currentUser = getUser(username);
+                checkRateLimit(currentUser);
+
+                String providerValue = getRequiredField(payload, "provider");
+                String content = getRequiredField(payload, "content");
+                String phoneNumber = getRequiredField(payload, "phoneNumber");
+
+                SmsConnector connector = getConnector(currentUser, providerValue);
+
+                return processAndSaveSms(currentUser, connector, phoneNumber, content, null, payload);
+        }
+
+        private User getUser(String username) {
+                if (username == null) {
+                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+                }
+                return userRepository.findByUsername(username)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                                                "User not found"));
+        }
+
+        private void checkRateLimit(User user) {
+                UUID tenantId = user.getOrganisation() != null ? user.getOrganisation().getId() : user.getId();
+                rateLimiterService.checkRateLimit(tenantId);
+        }
+
+        private String getRequiredField(Map<String, String> data, String key) {
+                return Optional.ofNullable(data.get(key))
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                                key + " is missing"));
+        }
+
+        private SmsConnector getConnector(User user, String provider) {
+                return connectorRepository.findByCreatedByAndProviderAndActiveTrue(user, provider)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                                "No active SMS connector found for provider [" + provider + "]"));
+        }
+
+        private SmsLog processAndSaveSms(User user, SmsConnector connector, String phoneNumber, String content,
+                        SmsTemplate template, Map<String, String> metadata) {
+                SmsSegmentResult segmentResult = segmentCalculator.calculate(content);
                 BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
 
-                walletService.debit(currentUser, cost, "SMS send to " + phoneNumber, null);
+                walletService.debit(user, cost, "SMS send to " + phoneNumber, null);
 
                 SmsLog log = new SmsLog();
                 log.setRecipient(phoneNumber);
-                log.setContent(finalMessage);
+                log.setContent(content);
                 log.setTemplate(template);
                 log.setConnector(connector);
                 log.setStatus(SmsLogStatus.PENDING);
+                log.setCreatedBy(user);
 
-                if (placeholders.containsKey("scheduledAt")) {
+                if (metadata.containsKey("scheduledAt")) {
                         try {
-                                log.setScheduledAt(java.time.LocalDateTime.parse(placeholders.get("scheduledAt")));
+                                log.setScheduledAt(java.time.LocalDateTime.parse(metadata.get("scheduledAt")));
                         } catch (Exception e) {
                                 // Ignore invalid date format and fallback to no-scheduling
                         }
