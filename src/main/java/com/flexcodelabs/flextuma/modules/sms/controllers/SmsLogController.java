@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/smsLogs")
+@RequestMapping("/api/" + SmsLog.PLURAL)
 public class SmsLogController extends BaseController<SmsLog, SmsLogService> {
 
     public SmsLogController(SmsLogService service) {

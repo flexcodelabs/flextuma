@@ -98,7 +98,7 @@ public class NotificationService {
                         try {
                                 log.setScheduledAt(java.time.LocalDateTime.parse(placeholders.get("scheduledAt")));
                         } catch (Exception e) {
-                                // Fallback or ignore invalid date format for now
+                                // Ignore invalid date format and fallback to no-scheduling
                         }
                 }
 

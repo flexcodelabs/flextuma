@@ -8,7 +8,7 @@ import com.flexcodelabs.flextuma.core.entities.auth.PersonalAccessToken;
 import com.flexcodelabs.flextuma.modules.auth.services.PersonalAccessTokenService;
 
 @RestController
-@RequestMapping("/api/tokens")
+@RequestMapping("/api/" + PersonalAccessToken.PLURAL)
 public class PersonalAccessTokenController extends BaseController<PersonalAccessToken, PersonalAccessTokenService> {
 
     public PersonalAccessTokenController(PersonalAccessTokenService service) {
