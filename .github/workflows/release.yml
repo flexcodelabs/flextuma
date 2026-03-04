@@ -13,12 +13,9 @@ jobs:
     if: |
       contains(github.event.head_commit.message, 'release') && github.event_name == 'push'
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [20.x]
     steps:
       - uses: actions/checkout@v4
-      - name: 🔀
+      - name: Create Pull Request
         uses: BaharaJr/create-pr@0.0.1
         with:
           GITHUB_TOKEN: ${{secrets.TOKEN}}
@@ -26,18 +23,17 @@ jobs:
           KEYWORD: release
 
   CHECK_MESSAGE:
-    if: |
-      github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request'
     name: COMMIT CHECK
     runs-on: ubuntu-latest
     outputs:
       sms: ${{ steps.sms_id.outputs.sms }}
     steps:
-      - name: 🚚
+      - name: Checkout PR Head
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-      - name: ❇️
+      - name: Get Commit Message
         id: sms_id
         run: echo "sms=$(git show -s --format=%s)" >> "$GITHUB_OUTPUT"
 
@@ -46,11 +42,14 @@ jobs:
     permissions:
       contents: write
     needs: CHECK_MESSAGE
+    # Only run if the PR commit message contains 'release'
     if: ${{ contains(needs.CHECK_MESSAGE.outputs.sms, 'release') }} 
     steps:
-      - name: Checkout code
+      - name: Checkout Source Branch
         uses: actions/checkout@v4
         with:
+          # Check out the actual branch (develop), not the merge commit
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
           token: ${{ secrets.TOKEN }}
 
@@ -100,8 +99,9 @@ jobs:
           git commit -m "Release v$NEW_VERSION [skip ci]"
           git tag "v$NEW_VERSION"
           
-          # 5. Push changes
-          git push origin main
+          # 5. Push changes back to the source branch (develop)
+          # Use HEAD:${{ github.head_ref }} to ensure it pushes to the PR source branch
+          git push origin HEAD:${{ github.head_ref }}
           git push origin "v$NEW_VERSION"
 
       - name: Build with Gradle
