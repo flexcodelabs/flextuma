@@ -26,4 +26,12 @@ public class SecurityUtils {
 				.map(GrantedAuthority::getAuthority)
 				.collect(Collectors.toSet());
 	}
+
+	public static String getCurrentUsername() {
+		Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+		if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+			return null;
+		}
+		return auth.getName();
+	}
 }

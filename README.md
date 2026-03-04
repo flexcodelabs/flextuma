@@ -367,6 +367,9 @@ Content-Type: application/json
 See [`ROADMAP/roadmap.md`](ROADMAP/roadmap.md) for the full development roadmap, [`ROADMAP/architecture.md`](ROADMAP/architecture.md) for the multi-channel notification architecture, and [`ROADMAP/roadmap-audit.md`](ROADMAP/roadmap-audit.md) for the current implementation status of each item.
 
 **Recently completed:**
+- [x] Admin Monitoring API enhancements (query by status, retry endpoint)
+- [x] Scheduling Engine (future-dated campaigns)
+- [x] Personal Access Token (PAT) entity and filter for API / gateway access
 - [x] Per-organisation feature flagging via `@FeatureGate` AOP annotation
 - [x] `TenantAwareSpecification` — automatic org-scoped data isolation
 - [x] `DataHydratorService` — external ERP integration with JSONPath field mapping
@@ -379,9 +382,9 @@ See [`ROADMAP/roadmap.md`](ROADMAP/roadmap.md) for the full development roadmap,
 - [x] Character Count & Preview API (`/api/smsTemplates/preview` returning segment counts and `charactersRemaining` budget)
 
 **Immediate next steps:**
-- [ ] Admin Monitoring API enhancements (query by status, retry endpoint)
-- [ ] Scheduling Engine (future-dated campaigns)
-- [ ] Personal Access Token (PAT) entity and filter for API / gateway access
+- [ ] Implement real HTTP logic for `NextSmsSender` (currently a stub)
+- [ ] Database Partitioning for `sms_log` table
+- [ ] Multi-channel support (WhatsApp/Email)
 
 ---
 

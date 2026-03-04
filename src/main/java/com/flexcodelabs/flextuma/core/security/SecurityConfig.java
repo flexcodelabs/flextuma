@@ -20,9 +20,12 @@ import org.springframework.session.web.http.DefaultCookieSerializer;
 public class SecurityConfig {
 
     private final CustomSecurityExceptionHandler securityExceptionHandler;
+    private final PatAuthenticationFilter patAuthenticationFilter;
 
-    public SecurityConfig(CustomSecurityExceptionHandler securityExceptionHandler) {
+    public SecurityConfig(CustomSecurityExceptionHandler securityExceptionHandler,
+            PatAuthenticationFilter patAuthenticationFilter) {
         this.securityExceptionHandler = securityExceptionHandler;
+        this.patAuthenticationFilter = patAuthenticationFilter;
     }
 
     @Bean
@@ -48,6 +51,8 @@ public class SecurityConfig {
                             .requestMatchers("/api/login").permitAll()
                             .anyRequest().authenticated())
                     .httpBasic(Customizer.withDefaults())
+                    .addFilterBefore(patAuthenticationFilter,
+                            org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                     .exceptionHandling(ex -> ex
                             .authenticationEntryPoint(securityExceptionHandler)
                             .accessDeniedHandler(securityExceptionHandler))
