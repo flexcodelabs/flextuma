@@ -36,13 +36,14 @@ import lombok.Setter;
 public class ConnectorConfig extends Owner {
 
     public static final String PLURAL = "connectorConfigs";
-    public static final String NAME_PLURAL = "Connector Configs";
-    public static final String NAME_SINGULAR = "Connector Config";
+    public static final String NAME_PLURAL = "ConnectorConfigs";
+    public static final String NAME_SINGULAR = "ConnectorConfig";
 
-    public static final String READ = "READ_CONNECTOR_CONFIGS";
-    public static final String ADD = "ADD_CONNECTOR_CONFIGS";
-    public static final String DELETE = "DELETE_CONNECTOR_CONFIGS";
-    public static final String UPDATE = "UPDATE_CONNECTOR_CONFIGS";
+    public static final String ALL = "ALL";
+    public static final String READ = ALL;
+    public static final String ADD = ALL;
+    public static final String DELETE = ALL;
+    public static final String UPDATE = ALL;
 
     @Column(nullable = false, unique = true, name = "tenantid")
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)

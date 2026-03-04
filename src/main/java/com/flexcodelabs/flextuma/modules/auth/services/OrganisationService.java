@@ -17,6 +17,11 @@ public class OrganisationService extends BaseService<Organisation> {
     private final OrganisationRepository repository;
 
     @Override
+    protected boolean isAdminEntity() {
+        return true;
+    }
+
+    @Override
     protected JpaRepository<Organisation, UUID> getRepository() {
         return repository;
     }

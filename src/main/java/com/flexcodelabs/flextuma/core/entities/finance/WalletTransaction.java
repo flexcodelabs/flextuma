@@ -17,6 +17,15 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class WalletTransaction extends BaseEntity {
+    public static final String PLURAL = "walletTransactions";
+    public static final String NAME_PLURAL = "WalletTransactions";
+    public static final String NAME_SINGULAR = "WalletTransaction";
+
+    public static final String ALL = "ALL";
+    public static final String READ = ALL;
+    public static final String ADD = ALL;
+    public static final String DELETE = ALL;
+    public static final String UPDATE = ALL;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "wallet", referencedColumnName = "id", nullable = false, updatable = false)

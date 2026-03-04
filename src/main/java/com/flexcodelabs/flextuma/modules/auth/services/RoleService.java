@@ -19,6 +19,11 @@ public class RoleService extends BaseService<Role> {
     private final RoleRepository repository;
 
     @Override
+    protected boolean isAdminEntity() {
+        return true;
+    }
+
+    @Override
     protected JpaRepository<Role, UUID> getRepository() {
         return repository;
     }
@@ -65,7 +70,7 @@ public class RoleService extends BaseService<Role> {
 
     @Override
     protected void validateDelete(Role role) {
-        if (role.getSystem()) {
+        if (Boolean.TRUE.equals(role.getSystem())) {
             throw new IllegalStateException("System roles cannot be deleted");
         }
     }

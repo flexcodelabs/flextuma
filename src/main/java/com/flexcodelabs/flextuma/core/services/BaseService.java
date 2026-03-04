@@ -51,12 +51,16 @@ public abstract class BaseService<T extends BaseEntity> {
 
 	protected abstract JpaSpecificationExecutor<T> getRepositoryAsExecutor();
 
+	protected boolean isAdminEntity() {
+		return false;
+	}
+
 	protected void checkPermission(String requiredPermission) {
 		Set<String> authorities = SecurityUtils.getCurrentUserAuthorities();
 
-		boolean isAuthorized = authorities.contains("ALL") ||
-				authorities.contains("SUPER_ADMIN") ||
-				authorities.contains(requiredPermission);
+		boolean isAuthorized = authorities.contains("SUPER_ADMIN") ||
+				authorities.contains(requiredPermission) ||
+				(!isAdminEntity() && authorities.contains("ALL"));
 
 		if (!isAuthorized) {
 			throw new AccessDeniedException("You have no permission to access " + getEntityPlural());

@@ -21,6 +21,11 @@ public class UserService extends BaseService<User> {
     private final UserRepository repository;
 
     @Override
+    protected boolean isAdminEntity() {
+        return true;
+    }
+
+    @Override
     protected JpaRepository<User, UUID> getRepository() {
         return repository;
     }

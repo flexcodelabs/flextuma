@@ -23,12 +23,14 @@ import java.time.LocalDateTime;
 public class SmsCampaign extends Owner {
 
     public static final String PLURAL = "campaigns";
-    public static final String NAME_PLURAL = "SMS Campaigns";
-    public static final String NAME_SINGULAR = "SMS Campaign";
-    public static final String READ = "READ_SMS_CAMPAIGNS";
-    public static final String ADD = "ADD_SMS_CAMPAIGNS";
-    public static final String DELETE = "DELETE_SMS_CAMPAIGNS";
-    public static final String UPDATE = "UPDATE_SMS_CAMPAIGNS";
+    public static final String NAME_PLURAL = "SmsCampaigns";
+    public static final String NAME_SINGULAR = "SmsCampaign";
+
+    public static final String ALL = "ALL";
+    public static final String READ = ALL;
+    public static final String ADD = ALL;
+    public static final String DELETE = ALL;
+    public static final String UPDATE = ALL;
 
     @Column(nullable = false)
     private String name;

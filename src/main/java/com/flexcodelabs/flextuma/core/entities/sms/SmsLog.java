@@ -30,12 +30,14 @@ import lombok.Setter;
 public class SmsLog extends Owner {
 
     public static final String PLURAL = "smsLogs";
-    public static final String NAME_PLURAL = "SMS Logs";
-    public static final String NAME_SINGULAR = "SMS Log";
-    public static final String READ = "READ_SMS_LOGS";
-    public static final String ADD = "ADD_SMS_LOGS";
-    public static final String DELETE = "DELETE_SMS_LOGS";
-    public static final String UPDATE = "UPDATE_SMS_LOGS";
+    public static final String NAME_PLURAL = "SmsLogs";
+    public static final String NAME_SINGULAR = "SmsLog";
+
+    public static final String ALL = "ALL";
+    public static final String READ = ALL;
+    public static final String ADD = ALL;
+    public static final String DELETE = ALL;
+    public static final String UPDATE = ALL;
 
     private String recipient;
 

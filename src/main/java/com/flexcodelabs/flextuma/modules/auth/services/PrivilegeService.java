@@ -19,6 +19,11 @@ public class PrivilegeService extends BaseService<Privilege> {
     private final PrivilegeRepository repository;
 
     @Override
+    protected boolean isAdminEntity() {
+        return true;
+    }
+
+    @Override
     protected JpaRepository<Privilege, UUID> getRepository() {
         return repository;
     }

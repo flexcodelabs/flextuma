@@ -19,6 +19,11 @@ public class TenantFeatureService extends BaseService<TenantFeature> {
     private final TenantFeatureRepository repository;
 
     @Override
+    protected boolean isAdminEntity() {
+        return true;
+    }
+
+    @Override
     protected JpaRepository<TenantFeature, UUID> getRepository() {
         return repository;
     }
