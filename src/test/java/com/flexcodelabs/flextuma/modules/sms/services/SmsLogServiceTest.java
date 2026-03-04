@@ -90,7 +90,7 @@ class SmsLogServiceTest {
             utils.when(com.flexcodelabs.flextuma.core.security.SecurityUtils::getCurrentUserAuthorities)
                     .thenReturn(Set.of(SmsLog.UPDATE));
 
-            smsLog.setStatus(SmsLogStatus.DELIVERED);
+            smsLog.setStatus(SmsLogStatus.SENT);
             when(smsLogRepository.findById(logId)).thenReturn(Optional.of(smsLog));
 
             ResponseStatusException ex = assertThrows(ResponseStatusException.class,

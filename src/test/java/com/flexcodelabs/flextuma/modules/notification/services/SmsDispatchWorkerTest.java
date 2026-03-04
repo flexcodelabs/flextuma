@@ -52,7 +52,8 @@ class SmsDispatchWorkerTest {
     void dispatch_shouldMarkSent_whenSendSucceeds() {
         SmsLog log = pendingLog("beem");
         when(smsSender.getProvider()).thenReturn("beem");
-        when(logRepository.findTop50ByStatusOrderByCreatedAsc(SmsLogStatus.PENDING))
+        when(logRepository.findDueMessages(eq(SmsLogStatus.PENDING), any(java.time.LocalDateTime.class),
+                any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(log));
         when(smsSender.sendSms(any(), any(), any())).thenReturn("provider-msg-id-123");
         when(logRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -67,7 +68,8 @@ class SmsDispatchWorkerTest {
     void dispatch_shouldRetry_whenSendFailsAndRetriesBelow3() {
         SmsLog log = pendingLog("beem");
         when(smsSender.getProvider()).thenReturn("beem");
-        when(logRepository.findTop50ByStatusOrderByCreatedAsc(SmsLogStatus.PENDING))
+        when(logRepository.findDueMessages(eq(SmsLogStatus.PENDING), any(java.time.LocalDateTime.class),
+                any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(log));
         when(smsSender.sendSms(any(), any(), any())).thenThrow(new RuntimeException("timeout"));
         when(logRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -84,7 +86,8 @@ class SmsDispatchWorkerTest {
         log.setRetries(2);
 
         when(smsSender.getProvider()).thenReturn("beem");
-        when(logRepository.findTop50ByStatusOrderByCreatedAsc(SmsLogStatus.PENDING))
+        when(logRepository.findDueMessages(eq(SmsLogStatus.PENDING), any(java.time.LocalDateTime.class),
+                any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(log));
         when(smsSender.sendSms(any(), any(), any())).thenThrow(new RuntimeException("timeout"));
         when(logRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -101,7 +104,8 @@ class SmsDispatchWorkerTest {
         log.setStatus(SmsLogStatus.PENDING);
         log.setConnector(null);
 
-        when(logRepository.findTop50ByStatusOrderByCreatedAsc(SmsLogStatus.PENDING))
+        when(logRepository.findDueMessages(eq(SmsLogStatus.PENDING), any(java.time.LocalDateTime.class),
+                any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(log));
         when(logRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -112,7 +116,8 @@ class SmsDispatchWorkerTest {
 
     @Test
     void dispatch_shouldDoNothing_whenNoPendingLogs() {
-        when(logRepository.findTop50ByStatusOrderByCreatedAsc(SmsLogStatus.PENDING))
+        when(logRepository.findDueMessages(eq(SmsLogStatus.PENDING), any(java.time.LocalDateTime.class),
+                any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(Collections.emptyList());
 
         worker.dispatch();

@@ -28,7 +28,10 @@ public class SmsDispatchWorker {
     @Scheduled(fixedDelay = 5000)
     @Transactional
     public void dispatch() {
-        List<SmsLog> pending = logRepository.findTop50ByStatusOrderByCreatedAsc(SmsLogStatus.PENDING);
+        List<SmsLog> pending = logRepository.findDueMessages(
+                SmsLogStatus.PENDING,
+                java.time.LocalDateTime.now(),
+                org.springframework.data.domain.PageRequest.of(0, 50));
 
         if (pending.isEmpty()) {
             return;

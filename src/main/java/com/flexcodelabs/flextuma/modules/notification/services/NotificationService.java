@@ -94,6 +94,14 @@ public class NotificationService {
                 log.setConnector(connector);
                 log.setStatus(SmsLogStatus.PENDING);
 
+                if (placeholders.containsKey("scheduledAt")) {
+                        try {
+                                log.setScheduledAt(java.time.LocalDateTime.parse(placeholders.get("scheduledAt")));
+                        } catch (Exception e) {
+                                // Fallback or ignore invalid date format for now
+                        }
+                }
+
                 return logRepository.save(log);
         }
 }

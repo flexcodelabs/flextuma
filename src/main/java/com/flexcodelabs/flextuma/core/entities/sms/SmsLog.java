@@ -63,4 +63,7 @@ public class SmsLog extends Owner {
     @JoinColumn(name = "template")
     private SmsTemplate template;
 
+    @Column(name = "scheduled_at", nullable = true)
+    private java.time.LocalDateTime scheduledAt;
+
 }
