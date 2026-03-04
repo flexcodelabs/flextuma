@@ -37,6 +37,7 @@ Create a `.env` file in the root directory or export the variables in your shell
 | `SPRING_DATA_REDIS_HOST` | ✅ | — | Redis hostname |
 | `SPRING_DATA_REDIS_PORT` | ❌ | `6379` | Redis port |
 | `HIKARI_MAX_POOL` | ❌ | `10` | Max JDBC connection pool size |
+| `SMS_PRICE_PER_SEGMENT` | ❌ | `20.0` | Price per SMS segment (in TZS) |
 
 ### 3. Build the application
 
@@ -370,11 +371,29 @@ See [`ROADMAP/roadmap.md`](ROADMAP/roadmap.md) for the full development roadmap,
 - [x] `TenantAwareSpecification` — automatic org-scoped data isolation
 - [x] `DataHydratorService` — external ERP integration with JSONPath field mapping
 - [x] Template placeholder engine (`{{variable}}` syntax with missing-variable detection)
+- [x] SMS segment calculator (GSM-7 vs Unicode encoding)
+- [x] Wallet & ledger system with pre-flight balance checks
 
 **Immediate next steps:**
 - [ ] Async SMS dispatch worker (`@Scheduled` + `SmsLog` status lifecycle)
-- [ ] SMS segment calculator (GSM-7 vs Unicode encoding)
-- [ ] Wallet & ledger system with pre-flight balance checks
 - [ ] Personal Access Token (PAT) entity and filter for API / gateway access
 - [ ] DLR webhook receiver for delivery report tracking
 - [ ] Bulk campaign entity + contact list dispatch
+
+---
+
+## Wallet Management Example
+The new `WalletService` handles crediting and debiting of accounts per organisation. 
+Currently, wallets must be topped up programmatically until an admin UI is built.
+
+Example of topping up an account with 100,000 TZS dynamically inside a Service:
+
+```java
+@Autowired
+private WalletService walletService;
+
+public void processManualTopup(User orgAdmin) {
+    BigDecimal amount = BigDecimal.valueOf(100000.00);
+    walletService.credit(orgAdmin, amount, "Manual Top Up", "REF-12345");
+}
+```

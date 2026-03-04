@@ -13,11 +13,17 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
+import com.flexcodelabs.flextuma.core.helpers.SmsSegmentResult;
+import com.flexcodelabs.flextuma.core.helpers.SmsSegmentCalculator;
 import com.flexcodelabs.flextuma.core.helpers.TemplateUtils;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
+import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
+
+import org.springframework.beans.factory.annotation.Value;
+import java.math.BigDecimal;
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,6 +35,10 @@ public class NotificationService {
         private final SmsLogRepository logRepository;
         private final UserRepository userRepository;
         private final SmsConnectorRepository connectorRepository;
+        private final WalletService walletService;
+
+        @Value("${flextuma.sms.price-per-segment:1.0}")
+        private BigDecimal pricePerSegment;
 
         @Transactional
         public SmsLog queueTemplatedSms(Map<String, String> placeholders, String username) {
@@ -63,6 +73,11 @@ public class NotificationService {
                                                 "No active SMS connector found for provider [" + providerValue + "]"));
 
                 String finalMessage = TemplateUtils.fillTemplate(template.getContent(), placeholders);
+
+                SmsSegmentResult segmentResult = SmsSegmentCalculator.calculate(finalMessage);
+                BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
+
+                walletService.debit(currentUser, cost, "SMS send to " + phoneNumber, null);
 
                 SmsLog log = new SmsLog();
                 log.setRecipient(phoneNumber);

@@ -75,7 +75,7 @@ public class DataHydratorService {
             case API_KEY -> headers.set("X-API-KEY", config.getToken());
             case BASIC -> headers.setBasicAuth(config.getUsername(), config.getPassword());
             case NONE -> {
-                // No auth needed
+                // Intentionally empty: no authentication required
             }
             default -> throw new IllegalArgumentException("Unsupported auth type: " + config.getAuthType());
         }
