@@ -8,7 +8,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "privilege", schema = "public")
+@Table(name = "privilege")
 @Getter
 @Setter
 @NoArgsConstructor

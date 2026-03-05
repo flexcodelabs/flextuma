@@ -22,13 +22,14 @@ import lombok.*;
 public class SmsTemplate extends Owner {
 
 	public static final String PLURAL = "templates";
-	public static final String NAME_PLURAL = "SMS Templates";
-	public static final String NAME_SINGULAR = "SMS Template";
+	public static final String NAME_PLURAL = "SmsTemplates";
+	public static final String NAME_SINGULAR = "SmsTemplate";
 
-	public static final String READ = "READ_SMS_TEMPLATES";
-	public static final String ADD = "ADD_SMS_TEMPLATES";
-	public static final String DELETE = "DELETE_SMS_TEMPLATES";
-	public static final String UPDATE = "UPDATE_SMS_TEMPLATES";
+	public static final String ALL = "ALL";
+	public static final String READ = ALL;
+	public static final String ADD = ALL;
+	public static final String DELETE = ALL;
+	public static final String UPDATE = ALL;
 
 	@Column(nullable = true, unique = false)
 	private String code;
@@ -36,10 +37,10 @@ public class SmsTemplate extends Owner {
 	@Column(nullable = false, updatable = true)
 	private String name;
 
-	@Column( nullable = true, updatable = true)
+	@Column(nullable = true, updatable = true)
 	private String description;
 
-	@Column( columnDefinition = "TEXT", nullable = false)
+	@Column(columnDefinition = "TEXT", nullable = false)
 	private String content;
 
 	@Column(nullable = true, updatable = true)

@@ -12,6 +12,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.HashMap;
 import java.util.List;
@@ -23,10 +27,13 @@ public class DataHydratorService {
 
     private final ConnectorConfigRepository repository;
     private final RestClient restClient;
+    private final ObjectMapper objectMapper;
 
-    public DataHydratorService(ConnectorConfigRepository repository, RestClient.Builder restClientBuilder) {
+    public DataHydratorService(ConnectorConfigRepository repository, RestClient.Builder restClientBuilder,
+            ObjectMapper objectMapper) {
         this.repository = repository;
         this.restClient = restClientBuilder.build();
+        this.objectMapper = objectMapper;
     }
 
     public Map<String, String> getMemberData(String tenantId, String memberId) {
@@ -45,6 +52,50 @@ public class DataHydratorService {
             return applyMappings(rawJsonResponse, config.getMappings());
         } catch (Exception e) {
             log.error("Failed to hydrate data for member {}: {}", memberId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "External API call failed");
+        }
+    }
+
+    public List<Map<String, String>> getRecipients(String tenantId, Map<String, String> filterQuery) {
+        ConnectorConfig config = repository.findByTenantId(tenantId)
+                .orElseThrow(() -> new RuntimeException("Connector not configured for tenant: " + tenantId));
+
+        if (config.getSearch() == null || config.getSearch().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Connector does not have a search endpoint configured");
+        }
+
+        UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromUriString(config.getUrl() + config.getSearch());
+        if (filterQuery != null) {
+            filterQuery.forEach(uriBuilder::queryParam);
+        }
+
+        try {
+            String rawJsonResponse = restClient.get()
+                    .uri(uriBuilder.build().toUri())
+                    .headers(h -> applyAuthentication(h, config))
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode rootNode = objectMapper.readTree(rawJsonResponse);
+
+            if (!rootNode.isArray()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Expected JSON array from external search endpoint");
+            }
+
+            java.util.List<Map<String, String>> recipients = new java.util.ArrayList<>();
+            for (JsonNode node : rootNode) {
+                // Apply mappings to each array element individually
+                Map<String, String> mappedItem = applyMappings(node.toString(), config.getMappings());
+                recipients.add(mappedItem);
+            }
+            return recipients;
+
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to fetch recipients for tenant {}: {}", tenantId, e.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "External API call failed");
         }
     }
@@ -75,7 +126,7 @@ public class DataHydratorService {
             case API_KEY -> headers.set("X-API-KEY", config.getToken());
             case BASIC -> headers.setBasicAuth(config.getUsername(), config.getPassword());
             case NONE -> {
-                // No auth needed
+                // Intentionally empty: no authentication required
             }
             default -> throw new IllegalArgumentException("Unsupported auth type: " + config.getAuthType());
         }

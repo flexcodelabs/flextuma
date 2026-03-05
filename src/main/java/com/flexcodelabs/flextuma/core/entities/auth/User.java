@@ -90,6 +90,10 @@ public class User extends BaseEntity {
 	private Set<Role> roles;
 
 	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "organisation", referencedColumnName = "id", nullable = true)
+	private Organisation organisation;
+
+	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "creator", referencedColumnName = "id", nullable = true)
 	@CreatedBy
 	private User createdBy;

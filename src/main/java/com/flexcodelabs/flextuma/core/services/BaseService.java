@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
 import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
+import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.helpers.GenericSpecification;
+import com.flexcodelabs.flextuma.core.helpers.TenantAwareSpecification;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
 
 import jakarta.persistence.EntityManager;
@@ -24,6 +26,13 @@ public abstract class BaseService<T extends BaseEntity> {
 	@PersistenceContext
 	protected EntityManager entityManager;
 
+	private CurrentUserResolver currentUserResolver;
+
+	@org.springframework.beans.factory.annotation.Autowired
+	public void setCurrentUserResolver(CurrentUserResolver currentUserResolver) {
+		this.currentUserResolver = currentUserResolver;
+	}
+
 	protected abstract JpaRepository<T, UUID> getRepository();
 
 	protected abstract String getReadPermission();
@@ -42,12 +51,16 @@ public abstract class BaseService<T extends BaseEntity> {
 
 	protected abstract JpaSpecificationExecutor<T> getRepositoryAsExecutor();
 
+	protected boolean isAdminEntity() {
+		return false;
+	}
+
 	protected void checkPermission(String requiredPermission) {
 		Set<String> authorities = SecurityUtils.getCurrentUserAuthorities();
 
-		boolean isAuthorized = authorities.contains("ALL") ||
-				authorities.contains("SUPER_ADMIN") ||
-				authorities.contains(requiredPermission);
+		boolean isAuthorized = authorities.contains("SUPER_ADMIN") ||
+				authorities.contains(requiredPermission) ||
+				(!isAdminEntity() && authorities.contains("ALL"));
 
 		if (!isAuthorized) {
 			throw new AccessDeniedException("You have no permission to access " + getEntityPlural());
@@ -58,7 +71,7 @@ public abstract class BaseService<T extends BaseEntity> {
 	public Pagination<T> findAllPaginated(Pageable pageable, List<String> filter, String fields) {
 		checkPermission(getReadPermission());
 
-		Specification<T> spec = (root, query, cb) -> cb.conjunction();
+		Specification<T> spec = buildTenantSpec();
 
 		if (filter != null && !filter.isEmpty()) {
 			for (String filterStr : filter) {
@@ -68,6 +81,14 @@ public abstract class BaseService<T extends BaseEntity> {
 
 		Page<T> resultPage = getRepositoryAsExecutor().findAll(spec, pageable);
 		return buildPaginatedResponse(resultPage, pageable);
+	}
+
+	@SuppressWarnings("unchecked")
+	private Specification<T> buildTenantSpec() {
+		return currentUserResolver.getCurrentUser()
+				.map(user -> (Specification<T>) new TenantAwareSpecification<>(user,
+						SecurityUtils.getCurrentUserAuthorities()))
+				.orElse((root, query, cb) -> cb.conjunction());
 	}
 
 	private Pagination<T> buildPaginatedResponse(Page<T> resultPage, Pageable pageable) {
@@ -82,7 +103,8 @@ public abstract class BaseService<T extends BaseEntity> {
 	@Transactional(readOnly = true)
 	public List<T> findAll() {
 		checkPermission(getReadPermission());
-		return getRepository().findAll();
+		Specification<T> spec = buildTenantSpec();
+		return getRepositoryAsExecutor().findAll(spec);
 	}
 
 	@Transactional(readOnly = true)

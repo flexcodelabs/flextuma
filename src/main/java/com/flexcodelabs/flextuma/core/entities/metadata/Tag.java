@@ -22,9 +22,11 @@ public class Tag extends AbstractMetadataEntity {
     public static final String PLURAL = "tags";
     public static final String NAME_PLURAL = "Tags";
     public static final String NAME_SINGULAR = "Tag";
-    public static final String READ = "READ_TAGS";
-    public static final String ADD = "ADD_TAGS";
-    public static final String DELETE = "DELETE_TAGS";
-    public static final String UPDATE = "UPDATE_TAGS";
+
+    public static final String ALL = "ALL";
+    public static final String READ = ALL;
+    public static final String ADD = ALL;
+    public static final String DELETE = ALL;
+    public static final String UPDATE = ALL;
 
 }

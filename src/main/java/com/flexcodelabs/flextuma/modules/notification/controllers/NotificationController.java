@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.modules.notification.services.NotificationService;
 
 import java.util.Map;
@@ -16,13 +17,22 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     @PostMapping("")
-    public ResponseEntity<Map<String, String>> sendSms(
-
+    public ResponseEntity<SmsLog> send(
             @RequestBody Map<String, String> variables,
             java.security.Principal principal) {
 
-        notificationService.sendTemplatedSms(variables, principal.getName());
+        SmsLog log = notificationService.queueTemplatedSms(variables, principal.getName());
 
-        return ResponseEntity.ok(Map.of("message", "SMS request queued successfully"));
+        return ResponseEntity.ok(log);
+    }
+
+    @PostMapping("/raw")
+    public ResponseEntity<SmsLog> sendRaw(
+            @RequestBody Map<String, String> payload,
+            java.security.Principal principal) {
+
+        SmsLog log = notificationService.queueRawSms(payload, principal.getName());
+
+        return ResponseEntity.ok(log);
     }
 }

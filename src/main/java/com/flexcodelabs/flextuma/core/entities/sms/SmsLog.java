@@ -3,9 +3,12 @@ package com.flexcodelabs.flextuma.core.entities.sms;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
+import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -27,12 +30,14 @@ import lombok.Setter;
 public class SmsLog extends Owner {
 
     public static final String PLURAL = "smsLogs";
-    public static final String NAME_PLURAL = "SMS Logs";
-    public static final String NAME_SINGULAR = "SMS Log";
-    public static final String READ = "READ_SMS_TEMPLATES";
-    public static final String ADD = "ADD_SMS_LOGS";
-    public static final String DELETE = "DELETE_SMS_LOGS";
-    public static final String UPDATE = "UPDATE_SMS_LOGS";
+    public static final String NAME_PLURAL = "SmsLogs";
+    public static final String NAME_SINGULAR = "SmsLog";
+
+    public static final String ALL = "ALL";
+    public static final String READ = ALL;
+    public static final String ADD = ALL;
+    public static final String DELETE = ALL;
+    public static final String UPDATE = ALL;
 
     private String recipient;
 
@@ -40,7 +45,15 @@ public class SmsLog extends Owner {
     private String content;
 
     @Column(columnDefinition = "TEXT", name = "status")
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private SmsLogStatus status;
+
+    @Column(name = "retries", nullable = false)
+    private int retries = 0;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "connector", nullable = true)
+    private SmsConnector connector;
 
     @Column(columnDefinition = "TEXT", name = "providerresponse", nullable = true)
     private String providerResponse;
@@ -51,5 +64,8 @@ public class SmsLog extends Owner {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template")
     private SmsTemplate template;
+
+    @Column(name = "scheduled_at", nullable = true)
+    private java.time.LocalDateTime scheduledAt;
 
 }

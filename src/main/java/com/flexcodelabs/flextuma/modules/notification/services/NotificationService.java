@@ -1,24 +1,31 @@
 package com.flexcodelabs.flextuma.modules.notification.services;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
+import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
+import com.flexcodelabs.flextuma.core.helpers.SmsSegmentResult;
+import com.flexcodelabs.flextuma.core.helpers.SmsSegmentCalculator;
 import com.flexcodelabs.flextuma.core.helpers.TemplateUtils;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
-import com.flexcodelabs.flextuma.core.services.SmsSender;
+import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
+import com.flexcodelabs.flextuma.core.services.RateLimiterService;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Value;
+import java.math.BigDecimal;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,63 +33,100 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class NotificationService {
 
-    private final SmsTemplateRepository templateRepository;
-    private final SmsLogRepository logRepository;
-    private final UserRepository userRepository;
-    private final SmsConnectorRepository connectorRepository;
-    private final List<SmsSender> smsSenders;
+        private final SmsTemplateRepository templateRepository;
+        private final SmsLogRepository logRepository;
+        private final UserRepository userRepository;
+        private final SmsConnectorRepository connectorRepository;
+        private final WalletService walletService;
+        private final RateLimiterService rateLimiterService;
+        private final SmsSegmentCalculator segmentCalculator;
 
-    @Async
-    public void sendTemplatedSms(Map<String, String> placeholders, String username) {
+        @Value("${flextuma.sms.price-per-segment:1.0}")
+        private BigDecimal pricePerSegment;
 
-        if (username == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+        @Transactional
+        public SmsLog queueTemplatedSms(Map<String, String> placeholders, String username) {
+                User currentUser = getUser(username);
+                checkRateLimit(currentUser);
+
+                String providerValue = getRequiredField(placeholders, "provider");
+                String templateCode = getRequiredField(placeholders, "templateCode");
+                String phoneNumber = getRequiredField(placeholders, "phoneNumber");
+
+                SmsTemplate template = templateRepository.findByCreatedByAndCode(currentUser, templateCode)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "Template not found or you don't have access to it"));
+
+                SmsConnector connector = getConnector(currentUser, providerValue);
+
+                String finalMessage = TemplateUtils.fillTemplate(template.getContent(), placeholders);
+
+                return processAndSaveSms(currentUser, connector, phoneNumber, finalMessage, template, placeholders);
         }
 
-        User currentUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+        @Transactional
+        public SmsLog queueRawSms(Map<String, String> payload, String username) {
+                User currentUser = getUser(username);
+                checkRateLimit(currentUser);
 
-        String providerValue = Optional.ofNullable(placeholders.get("provider"))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "SMS provider is missing"));
+                String providerValue = getRequiredField(payload, "provider");
+                String content = getRequiredField(payload, "content");
+                String phoneNumber = getRequiredField(payload, "phoneNumber");
 
-        String templateCode = Optional.ofNullable(placeholders.get("templateCode"))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Template is missing"));
+                SmsConnector connector = getConnector(currentUser, providerValue);
 
-        String phoneNumber = Optional.ofNullable(placeholders.get("phoneNumber"))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone number is missing"));
-
-        SmsSender activeSender = smsSenders.stream()
-                .filter(s -> s.getProvider().equalsIgnoreCase(providerValue))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "No SMS service implementation found for provider " + "[" + providerValue + "]"));
-
-        SmsTemplate template = templateRepository.findByCreatedByAndCode(currentUser, templateCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "Template not found or you don't have access to it"));
-
-        SmsConnector connector = connectorRepository
-                .findByCreatedByAndProviderAndActiveTrue(currentUser, providerValue)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "No active SMS connector found for provider [" + providerValue + "]"));
-
-        String finalMessage = TemplateUtils.fillTemplate(template.getContent(), placeholders);
-
-        SmsLog log = new SmsLog();
-        log.setRecipient(phoneNumber);
-        log.setContent(finalMessage);
-        log.setTemplate(template);
-        log.setStatus("PENDING");
-        log = logRepository.save(log);
-
-        try {
-            String providerId = activeSender.sendSms(connector, phoneNumber, finalMessage);
-            log.setStatus("SENT");
-            log.setProviderResponse(providerId);
-        } catch (Exception e) {
-            log.setStatus("FAILED");
-            log.setError(e.getMessage());
+                return processAndSaveSms(currentUser, connector, phoneNumber, content, null, payload);
         }
-        logRepository.save(log);
-    }
+
+        private User getUser(String username) {
+                if (username == null) {
+                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not authenticated");
+                }
+                return userRepository.findByUsername(username)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                                                "User not found"));
+        }
+
+        private void checkRateLimit(User user) {
+                UUID tenantId = user.getOrganisation() != null ? user.getOrganisation().getId() : user.getId();
+                rateLimiterService.checkRateLimit(tenantId);
+        }
+
+        private String getRequiredField(Map<String, String> data, String key) {
+                return Optional.ofNullable(data.get(key))
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                                key + " is missing"));
+        }
+
+        private SmsConnector getConnector(User user, String provider) {
+                return connectorRepository.findByCreatedByAndProviderAndActiveTrue(user, provider)
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                                "No active SMS connector found for provider [" + provider + "]"));
+        }
+
+        private SmsLog processAndSaveSms(User user, SmsConnector connector, String phoneNumber, String content,
+                        SmsTemplate template, Map<String, String> metadata) {
+                SmsSegmentResult segmentResult = segmentCalculator.calculate(content);
+                BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
+
+                walletService.debit(user, cost, "SMS send to " + phoneNumber, null);
+
+                SmsLog log = new SmsLog();
+                log.setRecipient(phoneNumber);
+                log.setContent(content);
+                log.setTemplate(template);
+                log.setConnector(connector);
+                log.setStatus(SmsLogStatus.PENDING);
+                log.setCreatedBy(user);
+
+                if (metadata.containsKey("scheduledAt")) {
+                        try {
+                                log.setScheduledAt(java.time.LocalDateTime.parse(metadata.get("scheduledAt")));
+                        } catch (Exception e) {
+                                // Ignore invalid date format and fallback to no-scheduling
+                        }
+                }
+
+                return logRepository.save(log);
+        }
 }

@@ -17,13 +17,15 @@ import lombok.Setter;
 @Setter
 @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ListEntity extends  AbstractMetadataEntity {
+public class ListEntity extends AbstractMetadataEntity {
 
         public static final String PLURAL = "lists";
         public static final String NAME_PLURAL = "Lists";
         public static final String NAME_SINGULAR = "List";
-        public static final String READ = "READ_LISTS";
-        public static final String ADD = "ADD_LISTS";
-        public static final String DELETE = "DELETE_LISTS";
-        public static final String UPDATE = "UPDATE_LISTS";
+
+        public static final String ALL = "ALL";
+        public static final String READ = ALL;
+        public static final String ADD = ALL;
+        public static final String DELETE = ALL;
+        public static final String UPDATE = ALL;
 }

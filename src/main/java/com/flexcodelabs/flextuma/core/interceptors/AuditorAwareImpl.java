@@ -12,13 +12,15 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
+import org.springframework.beans.factory.ObjectProvider;
+
 import java.util.Optional;
 
 @Component("auditorProvider")
 @RequiredArgsConstructor
 public class AuditorAwareImpl implements AuditorAware<User> {
 
-    private final UserRepository userRepository;
+    private final ObjectProvider<UserRepository> userRepositoryProvider;
     private final EntityManager entityManager;
 
     @Override
@@ -38,7 +40,7 @@ public class AuditorAwareImpl implements AuditorAware<User> {
             FlushModeType originalFlushMode = entityManager.getFlushMode();
             try {
                 entityManager.setFlushMode(FlushModeType.COMMIT);
-                return userRepository.findByIdentifier(username);
+                return userRepositoryProvider.getObject().findByIdentifier(username);
             } finally {
                 entityManager.setFlushMode(originalFlushMode);
             }

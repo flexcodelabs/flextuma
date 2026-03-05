@@ -6,21 +6,23 @@ services:
     ports:
       - "8080:8080"
     restart: always
+    env_file:
+      - .env  
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://main:5432/flexmalipo
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD}
       - SPRING_DOCKER_COMPOSE_ENABLED=false
-      - HIKARI_MAX_POOL=10
-      - HIKARI_MIN_IDLE=5
-      - HIKARI_IDLE_TIMEOUT=300000
-      - HIKARI_CONN_TIMEOUT=20000
+      - HIKARI_MAX_POOL=${HIKARI_MAX_POOL:-10}
+      - HIKARI_MIN_IDLE=${HIKARI_MIN_IDLE:-5}
+      - HIKARI_IDLE_TIMEOUT=${HIKARI_IDLE_TIMEOUT:-300000}
+      - HIKARI_CONN_TIMEOUT=${HIKARI_CONN_TIMEOUT:-20000}
       - SPRING_DEVTOOLS_RESTART_ENABLED=true
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       # - SPRING_JPA_SHOW_SQL=true
       - SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.PostgreSQLDialect
-      - SPRING_DATA_REDIS_HOST=redis
-      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATA_REDIS_HOST=${SPRING_DATA_REDIS_HOST}
+      - SPRING_DATA_REDIS_PORT=${SPRING_DATA_REDIS_PORT:-6379}
     volumes:
       - ./src:/app/src
       - ./build/classes/java/main:/app/extracted/WEB-INF/classes

@@ -10,7 +10,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisHttpSession;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
@@ -21,9 +20,12 @@ import org.springframework.session.web.http.DefaultCookieSerializer;
 public class SecurityConfig {
 
     private final CustomSecurityExceptionHandler securityExceptionHandler;
+    private final PatAuthenticationFilter patAuthenticationFilter;
 
-    public SecurityConfig(CustomSecurityExceptionHandler securityExceptionHandler) {
+    public SecurityConfig(CustomSecurityExceptionHandler securityExceptionHandler,
+            PatAuthenticationFilter patAuthenticationFilter) {
         this.securityExceptionHandler = securityExceptionHandler;
+        this.patAuthenticationFilter = patAuthenticationFilter;
     }
 
     @Bean
@@ -44,14 +46,13 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
         try {
             http
-                    .csrf(csrf -> csrf
-                            .csrfTokenRepository(
-                                    new org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository())
-                            .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+                    .csrf(csrf -> csrf.disable())
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers("/api/login").permitAll()
                             .anyRequest().authenticated())
                     .httpBasic(Customizer.withDefaults())
+                    .addFilterBefore(patAuthenticationFilter,
+                            org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                     .exceptionHandling(ex -> ex
                             .authenticationEntryPoint(securityExceptionHandler)
                             .accessDeniedHandler(securityExceptionHandler))

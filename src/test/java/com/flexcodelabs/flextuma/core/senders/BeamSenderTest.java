@@ -18,13 +18,13 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class BeamSenderTest {
+class BeemSenderTest {
 
     @Mock
     private RestTemplate restTemplate;
 
     @InjectMocks
-    private BeamSender beamSender;
+    private BeemSender beemSender;
 
     private SmsConnector config;
 
@@ -38,20 +38,20 @@ class BeamSenderTest {
     }
 
     @Test
-    void getProvider_shouldReturnBeam() {
-        assertEquals("BEAM", beamSender.getProvider());
+    void getProvider_shouldReturnBeem() {
+        assertEquals("BEEM", beemSender.getProvider());
     }
 
     @Test
     void sendSms_shouldReturnSuccess_whenApiCallIsSuccessful() {
-        BeamSender.BeamSmsResponse responseBody = new BeamSender.BeamSmsResponse(true, "SMS sent successfully", 100);
-        ResponseEntity<BeamSender.BeamSmsResponse> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
+        BeemSender.BeemSmsResponse responseBody = new BeemSender.BeemSmsResponse(true, "SMS sent successfully", 100);
+        ResponseEntity<BeemSender.BeemSmsResponse> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
 
         when(restTemplate.postForEntity(eq(config.getUrl()), any(HttpEntity.class),
-                eq(BeamSender.BeamSmsResponse.class)))
+                eq(BeemSender.BeemSmsResponse.class)))
                 .thenReturn(responseEntity);
 
-        String result = beamSender.sendSms(config, "255712345678", "Hello World");
+        String result = beemSender.sendSms(config, "255712345678", "Hello World");
 
         assertEquals("SMS sent successfully", result);
     }
@@ -59,14 +59,14 @@ class BeamSenderTest {
     @Test
     void sendSms_shouldReturnSuccess_whenResponseIsNull() {
         // If body is null, it defaults to "SUCCESS"
-        ResponseEntity<BeamSender.BeamSmsResponse> responseEntity = new ResponseEntity<>(
-                (BeamSender.BeamSmsResponse) null, HttpStatus.OK);
+        ResponseEntity<BeemSender.BeemSmsResponse> responseEntity = new ResponseEntity<>(
+                (BeemSender.BeemSmsResponse) null, HttpStatus.OK);
 
         when(restTemplate.postForEntity(eq(config.getUrl()), any(HttpEntity.class),
-                eq(BeamSender.BeamSmsResponse.class)))
+                eq(BeemSender.BeemSmsResponse.class)))
                 .thenReturn(responseEntity);
 
-        String result = beamSender.sendSms(config, "255712345678", "Hello World");
+        String result = beemSender.sendSms(config, "255712345678", "Hello World");
 
         assertEquals("SUCCESS", result);
     }
@@ -74,9 +74,9 @@ class BeamSenderTest {
     @Test
     void sendSms_shouldThrowException_whenConnectionFails() {
         when(restTemplate.postForEntity(eq(config.getUrl()), any(HttpEntity.class),
-                eq(BeamSender.BeamSmsResponse.class)))
+                eq(BeemSender.BeemSmsResponse.class)))
                 .thenThrow(new org.springframework.web.client.ResourceAccessException("Connection failed"));
         assertThrows(org.springframework.web.server.ResponseStatusException.class,
-                () -> beamSender.sendSms(config, "255712345678", "Hello World"));
+                () -> beemSender.sendSms(config, "255712345678", "Hello World"));
     }
 }

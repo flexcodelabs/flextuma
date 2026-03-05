@@ -1,0 +1,139 @@
+# Flextuma API Specification
+
+This file contains examples of common API requests for the Flextuma backend.
+
+### Authentication
+
+#### Log In
+```http
+POST /api/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "yourpassword"
+}
+```
+
+#### Generate Personal Access Token (PAT)
+```http
+POST /api/tokens/generate
+Content-Type: application/json
+Authorization: Session ...
+
+{
+  "name": "Frontend Integration Token",
+  "expiresAt": "2026-12-31T23:59:59"
+}
+```
+
+---
+
+### SMS Notifications
+
+#### Send Templated SMS (Immediate)
+```http
+POST /api/notifications
+Content-Type: application/json
+X-API-KEY: your_raw_pat_token
+
+{
+  "phoneNumber": "255700000000",
+  "templateCode": "WELCOME_SMS",
+  "customerName": "John Doe",
+  "otpCode": "123456"
+}
+```
+
+#### Send Templated SMS (Scheduled)
+```http
+POST /api/notifications
+Content-Type: application/json
+X-API-KEY: your_raw_pat_token
+
+{
+  "phoneNumber": "255700000000",
+  "templateCode": "REMAINDER_SMS",
+  "scheduledAt": "2026-03-10T10:00:00",
+  "customerName": "John Doe"
+}
+```
+
+#### Send Passthrough SMS (Raw Content)
+```http
+POST /api/notifications/raw
+Content-Type: application/json
+X-API-KEY: your_raw_pat_token
+
+{
+  "phoneNumber": "255700000000",
+  "provider": "NEXT",
+  "content": "This is a direct message without using a template!"
+}
+```
+
+---
+
+### SMS Logs & Monitoring
+
+#### List Logs (Filtered by Failed)
+```http
+GET /api/smsLogs?filter=status:EQ:FAILED&page=0&size=10
+X-API-KEY: your_raw_pat_token
+```
+
+#### Retry Failed Log
+```http
+POST /api/smsLogs/{{log_id}}/retry
+X-API-KEY: your_raw_pat_token
+
+---
+
+### Webhook Triggers (Bulk Dispatch)
+
+#### Trigger Templated Bulk (Existing)
+```http
+POST /api/webhooks/{{connector_id}}/sms
+Content-Type: application/json
+
+{
+  "templateCode": "WELCOME_SMS",
+  "provider": "BEEM",
+  "filterQuery": {
+    "status": "active"
+  }
+}
+```
+
+#### Trigger Passthrough Bulk (Raw Content)
+```http
+POST /api/webhooks/{{connector_id}}/sms
+Content-Type: application/json
+
+{
+  "content": "Urgent update: Our office will be closed tomorrow. Thank you!",
+  "provider": "NEXT",
+  "filterQuery": {
+    "type": "customer"
+  }
+}
+```
+```
+
+---
+
+### Templates
+
+#### Preview Template
+```http
+POST /api/smsTemplates/preview
+Content-Type: application/json
+
+{
+  "template": "Hello {{name}}, your balance is {{balance}}.",
+  "variables": {
+    "name": "Alice",
+    "balance": "5,000 TZS"
+  }
+}
+```
