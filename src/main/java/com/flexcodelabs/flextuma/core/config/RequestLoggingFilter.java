@@ -36,15 +36,25 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             int status = response.getStatus();
 
             boolean isError = status >= 400;
+
             String logColor = isError ? "\u001B[31m" : "\u001B[32m";
             String reset = "\u001B[0m";
 
-            String greenLog = logColor + (isError ? "ERROR" : "LOG") + reset;
+            String statusLog = logColor + (isError ? "ERROR" : "LOG") + reset;
             String userInfo = "\u001B[33m[" + username + "]\u001B[0m";
             String coloredMethod = logColor + request.getMethod() + reset;
             String coloredUri = logColor + fullUri + reset;
 
-            log.info("{} {} {} {} {}ms", greenLog, userInfo, coloredMethod, coloredUri, duration);
+            org.slf4j.MDC.put("username", username);
+            try {
+                if (isError) {
+                    log.error("{} {} {} {} {}ms", statusLog, userInfo, coloredMethod, coloredUri, duration);
+                } else {
+                    log.info("{} {} {} {} {}ms", statusLog, userInfo, coloredMethod, coloredUri, duration);
+                }
+            } finally {
+                org.slf4j.MDC.remove("username");
+            }
         }
     }
 

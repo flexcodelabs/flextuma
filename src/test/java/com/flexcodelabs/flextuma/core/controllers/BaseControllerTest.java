@@ -62,7 +62,7 @@ public abstract class BaseControllerTest<T extends BaseEntity, S extends BaseSer
 
         // Use any() for Pageable since standalone setup might not resolve it perfectly
         // or we don't care about exact instance
-        when(getService().findAllPaginated(any(Pageable.class), any(), any())).thenReturn(pagination);
+        when(getService().findAllPaginated(any(Pageable.class), any(), any(), any())).thenReturn(pagination);
         // Note: BaseController.getAll calls service.getPropertyName().
         // We need to ensure service mock returns something if queried, or Pagination
         // object structure is enough.

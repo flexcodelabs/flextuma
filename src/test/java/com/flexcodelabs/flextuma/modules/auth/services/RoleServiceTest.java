@@ -17,11 +17,14 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.flexcodelabs.flextuma.core.entities.auth.Role;
+import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.RoleRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +39,12 @@ class RoleServiceTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private CurrentUserResolver currentUserResolver;
+
     private MockedStatic<SecurityContextHolder> securityContextHolderMock;
 
     private RoleService service;
@@ -43,6 +52,8 @@ class RoleServiceTest {
     @BeforeEach
     void setUp() {
         service = new RoleService(repository);
+        ReflectionTestUtils.setField(service, "eventPublisher", eventPublisher);
+        ReflectionTestUtils.setField(service, "currentUserResolver", currentUserResolver);
 
         securityContextHolderMock = Mockito.mockStatic(SecurityContextHolder.class);
         securityContextHolderMock.when(SecurityContextHolder::getContext).thenReturn(securityContext);

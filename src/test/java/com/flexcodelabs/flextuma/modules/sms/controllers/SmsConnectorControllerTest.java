@@ -36,6 +36,6 @@ public class SmsConnectorControllerTest extends BaseControllerTest<SmsConnector,
 
     @Override
     protected String getBaseUrl() {
-        return "/api/smsConnectors";
+        return "/api/" + SmsConnector.PLURAL;
     }
 }

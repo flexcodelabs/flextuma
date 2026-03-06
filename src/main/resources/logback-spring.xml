@@ -5,17 +5,23 @@
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %clr(%5p) %clr(---){faint} %clr([%X{user:-SYSTEM}]){magenta} %clr([%logger{0}]){cyan} : %m%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %clr(%5p) %clr(---){faint} %clr([%X{traceId:-no-trace}]){yellow} %clr([%X{user:-SYSTEM}]){magenta} %clr([%logger{0}]){cyan} : %m%n</pattern>
             <charset>utf8</charset>
         </encoder>
+    </appender>
+
+    <appender name="DB" class="com.flexcodelabs.flextuma.core.logging.DatabaseLogAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
     </appender>
 
     <logger name="org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver" level="OFF" />
     <logger name="org.springframework" level="WARN"/>
     <logger name="org.hibernate" level="WARN"/>
 
-
     <root level="INFO">
         <appender-ref ref="CONSOLE" />
+        <appender-ref ref="DB" />
     </root>
 </configuration>
