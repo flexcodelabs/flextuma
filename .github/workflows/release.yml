@@ -128,3 +128,8 @@ jobs:
           echo "Pushing images..."
           docker push $IMAGE_NAME:$VERSION
           docker push $IMAGE_NAME:latest
+          
+      - name: 🔀
+        uses: BaharaJr/merge-pr@0.0.1
+        with:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
