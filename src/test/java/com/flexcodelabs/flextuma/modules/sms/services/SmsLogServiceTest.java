@@ -72,7 +72,7 @@ class SmsLogServiceTest {
         try (MockedStatic<com.flexcodelabs.flextuma.core.security.SecurityUtils> utils = mockStatic(
                 com.flexcodelabs.flextuma.core.security.SecurityUtils.class)) {
             utils.when(com.flexcodelabs.flextuma.core.security.SecurityUtils::getCurrentUserAuthorities)
-                    .thenReturn(Set.of("UPDATE_SMS_LOGS"));
+                    .thenReturn(Set.of(SmsLog.UPDATE));
 
             when(smsLogRepository.findById(logId)).thenReturn(Optional.empty());
 

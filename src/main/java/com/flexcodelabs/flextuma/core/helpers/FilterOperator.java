@@ -10,7 +10,14 @@ public enum FilterOperator {
     ILIKE("ilike"),
     GT("gt"),
     LT("lt"),
-    IN("in");
+    GTE("gte"),
+    LTE("lte"),
+    IN("in"),
+    BTN("btn"),
+    STARTS_WITH("startsWith"),
+    ENDS_WITH("endsWith"),
+    IS_TRUE("isTrue"),
+    IS_FALSE("isFalse");
 
     private final String value;
 

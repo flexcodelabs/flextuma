@@ -5,13 +5,19 @@ import jakarta.persistence.criteria.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -59,53 +65,53 @@ class GenericSpecificationTest {
         lenient().when(path.getJavaType()).thenReturn((Class) type);
     }
 
-    @Test
-    void testEqOperatorString() {
+    // --- Parameterized EQ tests for different types ---
+
+    static Stream<Arguments> eqOperatorProvider() {
+        UUID testUuid = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        return Stream.of(
+                Arguments.of("name:EQ:value", String.class, "value"),
+                Arguments.of("id:EQ:" + testUuid, UUID.class, testUuid),
+                Arguments.of("active:EQ:true", Boolean.class, true),
+                Arguments.of("status:EQ:ONE", TestEnum.class, TestEnum.ONE));
+    }
+
+    @ParameterizedTest
+    @MethodSource("eqOperatorProvider")
+    void testEqOperator(String filterString, Class<?> type, Object expectedValue) {
+        mockPathForType(type);
+        when(cb.equal(path, expectedValue)).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>(filterString);
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).equal(path, expectedValue);
+    }
+
+    // --- Parameterized LIKE-family tests ---
+
+    static Stream<Arguments> likeOperatorProvider() {
+        return Stream.of(
+                Arguments.of("name:LIKE:value", "%value%"),
+                Arguments.of("name:ILIKE:VaLuE", "%value%"),
+                Arguments.of("name:startsWith:value", "value%"),
+                Arguments.of("name:endsWith:value", "%value"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("likeOperatorProvider")
+    void testLikeOperators(String filterString, String expectedPattern) {
         mockPathForType(String.class);
-        when(cb.equal(path, "value")).thenReturn(predicate);
+        when(path.as(String.class)).thenReturn(stringPath);
+        when(cb.lower(any())).thenReturn(stringPath);
+        when(cb.like(any(), anyString())).thenReturn(predicate);
 
-        GenericSpecification<TestEntity> spec = new GenericSpecification<>("name:EQ:value");
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>(filterString);
         Predicate p = spec.toPredicate(root, query, cb);
 
         assertNotNull(p);
-        verify(cb).equal(path, "value");
-    }
-
-    @Test
-    void testEqOperatorUUID() {
-        mockPathForType(UUID.class);
-        UUID id = UUID.randomUUID();
-        when(cb.equal(path, id)).thenReturn(predicate);
-
-        GenericSpecification<TestEntity> spec = new GenericSpecification<>("id:EQ:" + id);
-        Predicate p = spec.toPredicate(root, query, cb);
-
-        assertNotNull(p);
-        verify(cb).equal(path, id);
-    }
-
-    @Test
-    void testEqOperatorBoolean() {
-        mockPathForType(Boolean.class);
-        when(cb.equal(path, true)).thenReturn(predicate);
-
-        GenericSpecification<TestEntity> spec = new GenericSpecification<>("active:EQ:true");
-        Predicate p = spec.toPredicate(root, query, cb);
-
-        assertNotNull(p);
-        verify(cb).equal(path, true);
-    }
-
-    @Test
-    void testEqOperatorEnum() {
-        mockPathForType(TestEnum.class);
-        when(cb.equal(path, TestEnum.ONE)).thenReturn(predicate);
-
-        GenericSpecification<TestEntity> spec = new GenericSpecification<>("status:EQ:ONE");
-        Predicate p = spec.toPredicate(root, query, cb);
-
-        assertNotNull(p);
-        verify(cb).equal(path, TestEnum.ONE);
+        verify(cb).like(any(), eq(expectedPattern));
     }
 
     @Test
@@ -118,34 +124,6 @@ class GenericSpecificationTest {
 
         assertNotNull(p);
         verify(cb).notEqual(path, "value");
-    }
-
-    @Test
-    void testLikeOperator() {
-        mockPathForType(String.class);
-        when(path.as(String.class)).thenReturn(stringPath);
-        when(cb.lower(any())).thenReturn(stringPath);
-        when(cb.like(any(), anyString())).thenReturn(predicate);
-
-        GenericSpecification<TestEntity> spec = new GenericSpecification<>("name:LIKE:value");
-        Predicate p = spec.toPredicate(root, query, cb);
-
-        assertNotNull(p);
-        verify(cb).like(any(), eq("%value%"));
-    }
-
-    @Test
-    void testILikeOperator() {
-        mockPathForType(String.class);
-        when(path.as(String.class)).thenReturn(stringPath);
-        when(cb.lower(any())).thenReturn(stringPath);
-        when(cb.like(any(), anyString())).thenReturn(predicate);
-
-        GenericSpecification<TestEntity> spec = new GenericSpecification<>("name:ILIKE:VaLuE");
-        Predicate p = spec.toPredicate(root, query, cb);
-
-        assertNotNull(p);
-        verify(cb).like(any(), eq("%value%"));
     }
 
     @Test
@@ -222,5 +200,174 @@ class GenericSpecificationTest {
 
         assertNotNull(p);
         verify(cb).equal(path, "");
+    }
+
+    @Test
+    void testGteOperator() {
+        mockPathForType(Integer.class);
+        when(path.as(String.class)).thenReturn(stringPath);
+        when(cb.greaterThanOrEqualTo(any(), eq("10"))).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("age:GTE:10");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).greaterThanOrEqualTo(any(), eq("10"));
+    }
+
+    @Test
+    void testLteOperator() {
+        mockPathForType(Integer.class);
+        when(path.as(String.class)).thenReturn(stringPath);
+        when(cb.lessThanOrEqualTo(any(), eq("10"))).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("age:LTE:10");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).lessThanOrEqualTo(any(), eq("10"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void testIsTrueOperator() {
+        mockPathForType(Boolean.class);
+        Path<Boolean> booleanPath = mock(Path.class);
+        when(path.as(Boolean.class)).thenReturn(booleanPath);
+        when(cb.isTrue(booleanPath)).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("active:isTrue:ignored");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).isTrue(booleanPath);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void testIsFalseOperator() {
+        mockPathForType(Boolean.class);
+        Path<Boolean> booleanPath = mock(Path.class);
+        when(path.as(Boolean.class)).thenReturn(booleanPath);
+        when(cb.isFalse(booleanPath)).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("active:isFalse:ignored");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).isFalse(booleanPath);
+    }
+
+    @Test
+    void testBtnOperator() {
+        mockPathForType(Integer.class);
+        when(path.as(String.class)).thenReturn(stringPath);
+        when(cb.between(stringPath, "10", "20")).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("age:BTN:10,20");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).between(stringPath, "10", "20");
+    }
+
+    @Test
+    void testBtnOperatorInvalidRange() {
+        mockPathForType(Integer.class);
+        when(cb.conjunction()).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("age:BTN:10");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).conjunction();
+    }
+
+    @Test
+    void testCastValueInteger() {
+        mockPathForType(Integer.class);
+        when(cb.equal(path, 10)).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("age:EQ:10");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).equal(path, 10);
+    }
+
+    @Test
+    void testToPredicateExceptionReturnsConjunction() {
+        when(root.get(anyString())).thenThrow(new RuntimeException("Test exception"));
+        when(cb.conjunction()).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("field:EQ:value");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).conjunction();
+    }
+
+    @Test
+    void testCastValueBooleanPrimitive() {
+        mockPathForType(boolean.class);
+        when(cb.equal(path, true)).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("active:eq:true");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).equal(path, true);
+    }
+
+    @Test
+    void testCastValueIntPrimitive() {
+        mockPathForType(int.class);
+        when(cb.equal(path, 10)).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("age:eq:10");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).equal(path, 10);
+    }
+
+    @Test
+    void testCastValueNullString() {
+        mockPathForType(String.class);
+        when(cb.equal(path, (Object) null)).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("name:eq:null");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).equal(path, (Object) null);
+    }
+
+    @Test
+    void testCastValueEmptyValue() {
+        mockPathForType(String.class);
+        when(cb.equal(path, "")).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("name:eq:");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).equal(path, "");
+    }
+
+    @Test
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    void testNestedPathResolution() {
+        Path<Object> nestedPath = mock(Path.class);
+        when(root.get("parent")).thenReturn((Path) nestedPath);
+        when(nestedPath.get("child")).thenReturn((Path) path);
+        lenient().when(path.getJavaType()).thenReturn((Class) String.class);
+        when(cb.equal(path, "value")).thenReturn(predicate);
+
+        GenericSpecification<TestEntity> spec = new GenericSpecification<>("parent.child:EQ:value");
+        Predicate p = spec.toPredicate(root, query, cb);
+
+        assertNotNull(p);
+        verify(cb).equal(path, "value");
     }
 }

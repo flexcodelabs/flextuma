@@ -5,12 +5,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
 import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
-import com.flexcodelabs.flextuma.core.helpers.GenericSpecification;
-import com.flexcodelabs.flextuma.core.helpers.TenantAwareSpecification;
+import com.flexcodelabs.flextuma.core.events.EntityEvent;
+import com.flexcodelabs.flextuma.core.helpers.*;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
+import com.flexcodelabs.flextuma.core.dtos.AggregateDTO;
+import com.flexcodelabs.flextuma.core.dtos.EntityFieldDTO;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.criteria.*;
+import jakarta.persistence.metamodel.Attribute;
+import jakarta.persistence.metamodel.EntityType;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -19,12 +26,28 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.ParameterizedType;
 import java.util.*;
 
 public abstract class BaseService<T extends BaseEntity> {
 
 	@PersistenceContext
 	protected EntityManager entityManager;
+
+	protected final Class<T> entityClass;
+
+	@SuppressWarnings("unchecked")
+	protected BaseService() {
+		this.entityClass = (Class<T>) ((ParameterizedType) getClass()
+				.getGenericSuperclass()).getActualTypeArguments()[0];
+	}
+
+	private ApplicationEventPublisher eventPublisher;
+
+	@Autowired
+	public void setEventPublisher(ApplicationEventPublisher eventPublisher) {
+		this.eventPublisher = eventPublisher;
+	}
 
 	private CurrentUserResolver currentUserResolver;
 
@@ -67,16 +90,72 @@ public abstract class BaseService<T extends BaseEntity> {
 		}
 	}
 
+	protected Specification<T> buildFetchSpec(String fields) {
+		return new DynamicFetchSpecification<>(FieldParser.parse(fields));
+	}
+
+	@Transactional(readOnly = true)
+	public List<EntityFieldDTO> getEntityFields() {
+		checkPermission(getReadPermission());
+		EntityType<T> type = entityManager.getMetamodel().entity(entityClass);
+
+		return type.getAttributes().stream()
+				.map(this::toFieldDTO)
+				.sorted(Comparator.comparing(EntityFieldDTO::getName))
+				.toList();
+	}
+
+	private EntityFieldDTO toFieldDTO(Attribute<?, ?> attribute) {
+		boolean mandatory = false;
+		if (attribute instanceof jakarta.persistence.metamodel.SingularAttribute) {
+			mandatory = !((jakarta.persistence.metamodel.SingularAttribute<?, ?>) attribute).isOptional();
+		}
+
+		return EntityFieldDTO.builder()
+				.name(attribute.getName())
+				.type(attribute.getJavaType().getSimpleName().toUpperCase())
+				.mandatory(mandatory)
+				.description(attribute.getPersistentAttributeType().name())
+				.build();
+	}
+
+	protected Specification<T> buildFilterSpec(List<String> filter, String rootJoin) {
+		if (filter == null || filter.isEmpty()) {
+			return null;
+		}
+		Specification<T> filterSpec = null;
+		for (String filterStr : filter) {
+			Specification<T> part = new GenericSpecification<>(filterStr);
+			if (filterSpec == null) {
+				filterSpec = part;
+			} else {
+				filterSpec = "OR".equalsIgnoreCase(rootJoin) ? filterSpec.or(part) : filterSpec.and(part);
+			}
+		}
+		return filterSpec;
+	}
+
 	@Transactional(readOnly = true)
 	public Pagination<T> findAllPaginated(Pageable pageable, List<String> filter, String fields) {
+		return doFindAllPaginated(pageable, filter, fields, "AND");
+	}
+
+	@Transactional(readOnly = true)
+	public Pagination<T> findAllPaginated(Pageable pageable, List<String> filter, String fields, String rootJoin) {
+		return doFindAllPaginated(pageable, filter, fields, rootJoin);
+	}
+
+	private Pagination<T> doFindAllPaginated(Pageable pageable, List<String> filter, String fields, String rootJoin) {
 		checkPermission(getReadPermission());
 
 		Specification<T> spec = buildTenantSpec();
+		Specification<T> filterSpec = buildFilterSpec(filter, rootJoin);
+		if (filterSpec != null) {
+			spec = spec.and(filterSpec);
+		}
 
-		if (filter != null && !filter.isEmpty()) {
-			for (String filterStr : filter) {
-				spec = spec.and(new GenericSpecification<>(filterStr));
-			}
+		if (fields != null && !fields.isBlank()) {
+			spec = spec.and(buildFetchSpec(fields));
 		}
 
 		Page<T> resultPage = getRepositoryAsExecutor().findAll(spec, pageable);
@@ -108,9 +187,45 @@ public abstract class BaseService<T extends BaseEntity> {
 	}
 
 	@Transactional(readOnly = true)
+	public List<T> findAll(String fields) {
+		return doFindAll(fields, null, "AND");
+	}
+
+	@Transactional(readOnly = true)
+	public List<T> findAll(String fields, List<String> filter, String rootJoin) {
+		return doFindAll(fields, filter, rootJoin);
+	}
+
+	private List<T> doFindAll(String fields, List<String> filter, String rootJoin) {
+		checkPermission(getReadPermission());
+		Specification<T> spec = buildTenantSpec();
+
+		Specification<T> filterSpec = buildFilterSpec(filter, rootJoin);
+		if (filterSpec != null) {
+			spec = spec.and(filterSpec);
+		}
+
+		if (fields != null && !fields.isBlank()) {
+			spec = spec.and(buildFetchSpec(fields));
+		}
+		return getRepositoryAsExecutor().findAll(spec);
+	}
+
+	@Transactional(readOnly = true)
 	public Optional<T> findById(UUID id) {
 		checkPermission(getReadPermission());
 		return getRepository().findById(id);
+	}
+
+	@Transactional(readOnly = true)
+	public Optional<T> findById(UUID id, String fields) {
+		checkPermission(getReadPermission());
+		Specification<T> spec = buildTenantSpec();
+		spec = spec.and((root, query, cb) -> cb.equal(root.get("id"), id));
+		if (fields != null && !fields.isBlank()) {
+			spec = spec.and(buildFetchSpec(fields));
+		}
+		return getRepositoryAsExecutor().findOne(spec);
 	}
 
 	@Transactional
@@ -119,6 +234,7 @@ public abstract class BaseService<T extends BaseEntity> {
 		onPreSave(entity);
 		T saved = getRepository().save(entity);
 		onPostSave(saved);
+		eventPublisher.publishEvent(new EntityEvent<>(this, saved, EntityEvent.EntityEventType.CREATED));
 		return saved;
 	}
 
@@ -126,11 +242,14 @@ public abstract class BaseService<T extends BaseEntity> {
 	public T update(UUID id, T entity) {
 		checkPermission(getUpdatePermission());
 		T existing = getRepository().findById(id)
-				.orElseThrow(() -> new RuntimeException(getEntitySingular() + " not found"));
+				.orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+						org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
 		onPreUpdate(entity, existing);
 		String[] excludedFields = getNullPropertyNames(entity);
 		org.springframework.beans.BeanUtils.copyProperties(entity, existing, excludedFields);
-		return existing;
+		T saved = getRepository().save(existing);
+		eventPublisher.publishEvent(new EntityEvent<>(this, saved, EntityEvent.EntityEventType.UPDATED));
+		return saved;
 	}
 
 	private String[] getNullPropertyNames(T source) {
@@ -160,15 +279,130 @@ public abstract class BaseService<T extends BaseEntity> {
 		checkPermission(getDeletePermission());
 
 		T entity = getRepository().findById(id)
-				.orElseThrow(() -> new RuntimeException(getEntitySingular() + " not found"));
+				.orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+						org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
 
 		validateDelete(entity);
 
 		getRepository().deleteById(id);
 
 		onPostDelete(id);
+		eventPublisher.publishEvent(new EntityEvent<>(this, entity, EntityEvent.EntityEventType.DELETED));
 
 		return Map.of("message", getEntitySingular() + " deleted successfully");
+	}
+
+	@Transactional
+	public Map<String, String> deleteMany(List<String> filters) {
+		return doDeleteMany(filters, "AND");
+	}
+
+	@Transactional
+	public Map<String, String> deleteMany(List<String> filters, String rootJoin) {
+		return doDeleteMany(filters, rootJoin);
+	}
+
+	private Map<String, String> doDeleteMany(List<String> filters, String rootJoin) {
+		checkPermission(getDeletePermission());
+		Specification<T> spec = buildTenantSpec();
+		Specification<T> filterSpec = buildFilterSpec(filters, rootJoin);
+		if (filterSpec != null) {
+			spec = spec.and(filterSpec);
+		}
+
+		List<T> entities = getRepositoryAsExecutor().findAll(spec);
+		if (entities.isEmpty()) {
+			throw new org.springframework.web.server.ResponseStatusException(
+					org.springframework.http.HttpStatus.NOT_FOUND,
+					"No " + getEntityPlural() + " found for deletion");
+		}
+
+		getRepository().deleteAll(entities);
+		return Map.of("message", entities.size() + " " + getEntityPlural() + " deleted successfully");
+	}
+
+	@Transactional(readOnly = true)
+	public List<Map<String, Object>> getAggregatedData(List<AggregateDTO> aggregates, List<String> groupBy,
+			List<String> filters, String rootJoin) {
+		checkPermission(getReadPermission());
+
+		CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+		CriteriaQuery<Object[]> query = cb.createQuery(Object[].class);
+		Root<T> root = query.from(entityClass);
+
+		List<Selection<?>> selections = new ArrayList<>();
+
+		// Add GroupBy columns to selections
+		if (groupBy != null) {
+			for (String groupField : groupBy) {
+				selections.add(resolvePath(root, groupField).alias(groupField));
+			}
+		}
+
+		// Add Aggregates to selections
+		for (AggregateDTO agg : aggregates) {
+			selections.add(createAggregateExpression(cb, root, agg).alias(agg.getAlias()));
+		}
+
+		query.select(cb.array(selections.toArray(new Selection[0])));
+
+		// Apply filters
+		Specification<T> spec = buildTenantSpec();
+		Specification<T> filterSpec = buildFilterSpec(filters, rootJoin);
+		if (filterSpec != null) {
+			spec = spec.and(filterSpec);
+		}
+
+		Predicate predicate = spec.toPredicate(root, query, cb);
+		if (predicate != null) {
+			query.where(predicate);
+		}
+
+		// Apply GroupBy
+		if (groupBy != null && !groupBy.isEmpty()) {
+			query.groupBy(groupBy.stream()
+					.map(f -> (Expression<?>) resolvePath(root, f))
+					.toArray(Expression[]::new));
+		}
+
+		List<Object[]> results = entityManager.createQuery(query).getResultList();
+
+		return results.stream().map(row -> {
+			Map<String, Object> map = new LinkedHashMap<>();
+			int i = 0;
+			if (groupBy != null) {
+				for (String groupField : groupBy) {
+					map.put(groupField, row[i++]);
+				}
+			}
+			for (AggregateDTO agg : aggregates) {
+				map.put(agg.getAlias(), row[i++]);
+			}
+			return map;
+		}).toList();
+	}
+
+	private Expression<?> createAggregateExpression(CriteriaBuilder cb, Root<T> root, AggregateDTO agg) {
+		String func = agg.getFunc().toUpperCase();
+		Expression<? extends Number> path = resolvePath(root, agg.getColumn()).as(Number.class);
+
+		return switch (func) {
+			case "SUM" -> cb.sum(path);
+			case "AVG" -> cb.avg(path);
+			case "COUNT" -> cb.count(resolvePath(root, agg.getColumn()));
+			case "MIN" -> cb.min(path);
+			case "MAX" -> cb.max(path);
+			default -> throw new IllegalArgumentException("Unsupported aggregation function: " + func);
+		};
+	}
+
+	private Path<?> resolvePath(Root<T> root, String fieldPath) {
+		String[] parts = fieldPath.split("\\.");
+		Path<?> path = root;
+		for (String part : parts) {
+			path = path.get(part);
+		}
+		return path;
 	}
 
 	protected void validateDelete(T entity) {

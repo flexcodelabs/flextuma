@@ -12,9 +12,9 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -31,6 +31,9 @@ import jakarta.persistence.FlushModeType;
 class AuditorAwareImplTest {
 
     @Mock
+    private ObjectProvider<UserRepository> userRepositoryProvider;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -39,12 +42,12 @@ class AuditorAwareImplTest {
     @Mock
     private SecurityContext securityContext;
 
-    @InjectMocks
     private AuditorAwareImpl auditorAware;
 
     @BeforeEach
     void setUp() {
         SecurityContextHolder.setContext(securityContext);
+        auditorAware = new AuditorAwareImpl(userRepositoryProvider, entityManager);
     }
 
     @Test
@@ -88,6 +91,7 @@ class AuditorAwareImplTest {
 
         User user = new User();
         when(entityManager.getFlushMode()).thenReturn(FlushModeType.AUTO);
+        when(userRepositoryProvider.getObject()).thenReturn(userRepository);
         when(userRepository.findByIdentifier("testuser")).thenReturn(Optional.of(user));
 
         Optional<User> result = auditorAware.getCurrentAuditor();
@@ -108,6 +112,7 @@ class AuditorAwareImplTest {
         when(securityContext.getAuthentication()).thenReturn(auth);
 
         when(entityManager.getFlushMode()).thenReturn(FlushModeType.AUTO);
+        when(userRepositoryProvider.getObject()).thenReturn(userRepository);
         when(userRepository.findByIdentifier("testuser")).thenThrow(new RuntimeException("DB Error"));
 
         assertThrows(RuntimeException.class, () -> auditorAware.getCurrentAuditor());

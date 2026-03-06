@@ -106,9 +106,9 @@ class NotificationServiceTest {
 
         @ParameterizedTest
         @CsvSource({
-                        "provider, SMS provider is missing",
-                        "templateCode, Template is missing",
-                        "phoneNumber, Phone number is missing"
+                        "provider, provider is missing",
+                        "templateCode, templateCode is missing",
+                        "phoneNumber, phoneNumber is missing"
         })
         void queueTemplatedSms_shouldThrowWhenRequiredPlaceholderMissing(String missingKey, String expectedMessage) {
                 when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
