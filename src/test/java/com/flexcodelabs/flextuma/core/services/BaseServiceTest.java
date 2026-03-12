@@ -376,7 +376,7 @@ class BaseServiceTest {
         Map<String, String> response = service.delete(id);
 
         assertEquals("test deleted successfully", response.get("message"));
-        verify(repository).deleteById(id);
+        verify(repository).delete(entity);
     }
 
     @SuppressWarnings("unchecked")

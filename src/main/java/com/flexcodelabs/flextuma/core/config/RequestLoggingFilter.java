@@ -6,6 +6,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -14,9 +16,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger("FLEXTUMA");
+
+    @Override
+    protected boolean shouldNotFilterErrorDispatch() {
+        return false;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -30,31 +38,47 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
         try {
             filterChain.doFilter(request, response);
+        } catch (Exception ex) {
+            logRequest(request, response, fullUri, startTime, 500, ex);
+            throw ex;
         } finally {
-            String username = getUsername();
-            long duration = System.currentTimeMillis() - startTime;
-            int status = response.getStatus();
-
-            boolean isError = status >= 400;
-
-            String logColor = isError ? "\u001B[31m" : "\u001B[32m";
-            String reset = "\u001B[0m";
-
-            String statusLog = logColor + (isError ? "ERROR" : "LOG") + reset;
-            String userInfo = "\u001B[33m[" + username + "]\u001B[0m";
-            String coloredMethod = logColor + request.getMethod() + reset;
-            String coloredUri = logColor + fullUri + reset;
-
-            org.slf4j.MDC.put("username", username);
-            try {
-                if (isError) {
-                    log.error("{} {} {} {} {}ms", statusLog, userInfo, coloredMethod, coloredUri, duration);
-                } else {
-                    log.info("{} {} {} {} {}ms", statusLog, userInfo, coloredMethod, coloredUri, duration);
-                }
-            } finally {
-                org.slf4j.MDC.remove("username");
+            // Only log in finally if we haven't already logged via the catch block
+            // OR we rely on the response status. Best is to extract the logging logic
+            // into a helper method.
+            if (request.getAttribute("REQUEST_LOGGED") == null) {
+                logRequest(request, response, fullUri, startTime, response.getStatus(), null);
             }
+        }
+    }
+
+    private void logRequest(HttpServletRequest request, HttpServletResponse response, String fullUri, long startTime,
+            int statusOverride, Exception ex) {
+        request.setAttribute("REQUEST_LOGGED", true);
+        String username = getUsername();
+        long duration = System.currentTimeMillis() - startTime;
+
+        int status = statusOverride > 0 ? statusOverride : response.getStatus();
+        boolean isError = status >= 400 || ex != null;
+
+        String logColor = isError ? "\u001B[31m" : "\u001B[32m";
+        String reset = "\u001B[0m";
+
+        String statusLog = logColor + (isError ? "ERROR" : "LOG") + reset;
+        String userInfo = "\u001B[33m[" + username + "]\u001B[0m";
+        String coloredMethod = logColor + request.getMethod() + reset;
+        String coloredUri = logColor + fullUri + reset;
+
+        org.slf4j.MDC.put("username", username);
+        try {
+            if (isError) {
+                log.error("{} {} {} {} {}ms - Status: {}", statusLog, userInfo, coloredMethod, coloredUri, duration,
+                        status);
+            } else {
+                log.info("{} {} {} {} {}ms - Status: {}", statusLog, userInfo, coloredMethod, coloredUri, duration,
+                        status);
+            }
+        } finally {
+            org.slf4j.MDC.remove("username");
         }
     }
 

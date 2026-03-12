@@ -34,9 +34,15 @@ public class AuditorAwareImpl implements AuditorAware<User> {
         }
 
         Object principal = authentication.getPrincipal();
+        String username = null;
 
         if (principal instanceof UserDetails userDetails) {
-            String username = userDetails.getUsername();
+            username = userDetails.getUsername();
+        } else if (principal instanceof String principalString) {
+            username = principalString;
+        }
+
+        if (username != null) {
             FlushModeType originalFlushMode = entityManager.getFlushMode();
             try {
                 entityManager.setFlushMode(FlushModeType.COMMIT);

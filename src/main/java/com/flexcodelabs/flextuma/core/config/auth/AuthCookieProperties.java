@@ -13,7 +13,7 @@ import lombok.Setter;
 public class AuthCookieProperties {
     private String name = "SESSION";
     private long maxAge = 3600;
-    private boolean secure = true;
+    private boolean secure = false;
     private String sameSite = "Lax";
     private String path = "/";
 }

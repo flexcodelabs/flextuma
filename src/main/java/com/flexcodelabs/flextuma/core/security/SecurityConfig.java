@@ -39,7 +39,6 @@ public class SecurityConfig {
     @Bean
     public CookieSerializer cookieSerializer() {
         DefaultCookieSerializer serializer = new DefaultCookieSerializer();
-        serializer.setCookieName("SESSION");
         serializer.setUseHttpOnlyCookie(true);
         serializer.setSameSite("Lax");
         return serializer;
