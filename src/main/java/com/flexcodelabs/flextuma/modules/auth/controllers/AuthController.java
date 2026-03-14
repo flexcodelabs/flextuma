@@ -1,6 +1,10 @@
 package com.flexcodelabs.flextuma.modules.auth.controllers;
 
+import java.math.BigDecimal;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -17,8 +21,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.flexcodelabs.flextuma.core.dtos.LoginDto;
+import com.flexcodelabs.flextuma.core.dtos.RegisterDto;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.services.CookieService;
+import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
 import com.flexcodelabs.flextuma.modules.auth.services.UserService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,6 +39,21 @@ public class AuthController {
 
     private final UserService userService;
     private final CookieService cookieService;
+    private final WalletService walletService;
+
+    @Value("${flextuma.sms.price-per-segment:1.0}")
+    private BigDecimal pricePerSegment;
+
+    @PostMapping("/register")
+    public ResponseEntity<User> register(@Valid @RequestBody RegisterDto request) {
+
+        User user = userService.register(request);
+
+        BigDecimal creditAmount = pricePerSegment.multiply(BigDecimal.TEN);
+        walletService.credit(user, creditAmount, "Registration test SMS credits", "REGISTRATION_BONUS");
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(user);
+    }
 
     @PostMapping("/login")
     public ResponseEntity<User> login(

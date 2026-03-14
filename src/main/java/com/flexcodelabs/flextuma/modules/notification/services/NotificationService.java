@@ -70,7 +70,7 @@ public class NotificationService {
                 checkRateLimit(currentUser);
 
                 String providerValue = getRequiredField(payload, "provider");
-                String content = getRequiredField(payload, "content");
+                String content = getRequiredField(payload, "message");
                 String phoneNumber = getRequiredField(payload, "phoneNumber");
 
                 SmsConnector connector = getConnector(currentUser, providerValue);

@@ -23,6 +23,7 @@ import com.flexcodelabs.flextuma.core.dtos.LoginDto;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.services.CookieService;
 import com.flexcodelabs.flextuma.modules.auth.services.UserService;
+import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.Authentication;
@@ -39,6 +40,9 @@ class AuthControllerTest {
     private CookieService cookieService;
 
     @Mock
+    private WalletService walletService;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock
@@ -48,7 +52,7 @@ class AuthControllerTest {
 
     @BeforeEach
     void setUp() {
-        AuthController controller = new AuthController(userService, cookieService);
+        AuthController controller = new AuthController(userService, cookieService, walletService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 

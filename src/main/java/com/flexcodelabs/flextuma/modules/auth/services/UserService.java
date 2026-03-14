@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.flexcodelabs.flextuma.core.entities.auth.User;
+import com.flexcodelabs.flextuma.core.dtos.RegisterDto;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 
@@ -91,6 +92,22 @@ public class UserService extends BaseService<User> {
         return repository.findByUsername(username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "User with username " + username + " not found"));
+    }
+
+    public User register(RegisterDto request) {
+        repository.findByUsername(request.getUsername()).ifPresent(u -> {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "User with username " + request.getUsername() + " already exists");
+        });
+
+        User user = new User();
+        user.setName(request.getName());
+        user.setUsername(request.getUsername());
+        user.setPassword(request.getPassword());
+        user.setPhoneNumber(request.getPhoneNumber());
+        user.setEmail(request.getEmail());
+
+        return repository.save(user);
     }
 
 }

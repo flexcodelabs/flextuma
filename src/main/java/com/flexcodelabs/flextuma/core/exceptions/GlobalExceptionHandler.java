@@ -48,12 +48,11 @@ public class GlobalExceptionHandler {
 
         String message = defaultMessage;
 
-        if (detailedMessage != null && !detailedMessage.isBlank()) {
+        if (detailedMessage != null && !detailedMessage.isBlank()
+                && detailedMessage.contains("not one of the values accepted for Enum class")) {
             String enumMessage = tryBuildEnumErrorMessage(detailedMessage);
             if (enumMessage != null) {
                 message = enumMessage;
-            } else {
-                message = defaultMessage + " Details: " + detailedMessage;
             }
         }
 
