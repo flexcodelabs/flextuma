@@ -2,9 +2,18 @@ package com.flexcodelabs.flextuma.modules.auth.services;
 
 import java.util.UUID;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -86,6 +95,31 @@ public class UserService extends BaseService<User> {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
         }
         return user;
+    }
+
+    public AuthenticationResult authenticateAndCreateContext(String username, String password,
+            HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        User user = login(username, password);
+
+        java.util.Set<SimpleGrantedAuthority> authorities = user.getRoles()
+                .stream()
+                .flatMap(role -> role.getPrivileges().stream())
+                .map(privilege -> new SimpleGrantedAuthority(privilege.getValue()))
+                .collect(java.util.stream.Collectors.toSet());
+
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                user.getUsername(), null, authorities);
+        authentication.setDetails(
+                new WebAuthenticationDetailsSource().buildDetails(httpRequest));
+
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
+
+        HttpSessionSecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
+        securityContextRepository.saveContext(context, httpRequest, httpResponse);
+
+        return new AuthenticationResult(user, authentication);
     }
 
     public User findByUsername(String username) {

@@ -25,10 +25,6 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    // S5852 Fix: Use negated character classes [^)]+ and [^\"]+ instead of .*? to
-    // prevent ReDoS
-    // Also pre-compiling for performance
     private static final Pattern UNIQUE_CONSTRAINT_PATTERN = Pattern
             .compile("Key \\(([^)]+)\\)=\\(([^)]+)\\) already exists");
 
@@ -44,7 +40,7 @@ public class GlobalExceptionHandler {
         }
 
         Throwable mostSpecificCause = ex.getMostSpecificCause();
-        String detailedMessage = mostSpecificCause != null ? mostSpecificCause.getMessage() : null;
+        String detailedMessage = mostSpecificCause.getMessage();
 
         String message = defaultMessage;
 
@@ -60,11 +56,6 @@ public class GlobalExceptionHandler {
     }
 
     private String tryBuildEnumErrorMessage(String detailedMessage) {
-        // Example detailedMessage:
-        // "JSON parse error: Cannot deserialize value of type
-        // `com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus` from String \"Running\":
-        // not one of the values accepted for Enum class: [CANCELLED, COMPLETED, SCHEDULED,
-        // DRAFT, PROCESSING]"
 
         if (!detailedMessage.contains("not one of the values accepted for Enum class")) {
             return null;
@@ -135,7 +126,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Object> handleDatabaseError(DataIntegrityViolationException ex) {
         Throwable rootCause = ex.getRootCause();
         String detail = (rootCause != null) ? rootCause.getMessage() : ex.getMessage();
-        return buildResponse(sanitizeDatabaseError(detail), HttpStatus.BAD_REQUEST);
+        return buildResponse(sanitizeDatabaseError(detail), getResponseStatus(detail, HttpStatus.BAD_REQUEST));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -164,6 +155,11 @@ public class GlobalExceptionHandler {
         return buildResponse("Oops 😢! Route not available.", HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Object> handleRateLimitExceeded(RateLimitExceededException ex) {
+        return buildResponse(ex.getMessage(), HttpStatus.TOO_MANY_REQUESTS);
+    }
+
     @ExceptionHandler(InvalidEnumValueException.class)
     public ResponseEntity<Object> handleEnumDeserializationError(InvalidEnumValueException ex) {
         String message = String.format("Invalid value provided for '%s'. Allowed values are: %s.",
@@ -184,6 +180,9 @@ public class GlobalExceptionHandler {
         Throwable cause = ex.getRootCause();
         if (cause instanceof ConstraintViolationException constraintEx) {
             return handleConstraintViolationException(constraintEx);
+        }
+        if (cause instanceof DataIntegrityViolationException dataEx) {
+            return handleDatabaseError(dataEx);
         }
         if (cause != null) {
             return buildResponse(sanitizeGeneralMessage(cause.getMessage()), HttpStatus.BAD_REQUEST);
@@ -215,7 +214,7 @@ public class GlobalExceptionHandler {
             Matcher matcher = UNIQUE_CONSTRAINT_PATTERN.matcher(message);
             if (matcher.find()) {
                 String fields = matcher.group(1).replace("_", " ");
-                return fields + " combination already exists";
+                return fields + " already exists";
             }
             return "A record with these details already exists";
         }
