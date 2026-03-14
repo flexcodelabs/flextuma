@@ -27,11 +27,12 @@ class CookieServiceTest {
 
     @Test
     void createAuthCookie_shouldReturnValidCookie() {
-        when(properties.getName()).thenReturn("SESSION");
-        when(properties.getPath()).thenReturn("/");
-        when(properties.getMaxAge()).thenReturn(3600L);
-        when(properties.isSecure()).thenReturn(true);
-        when(properties.getSameSite()).thenReturn("Lax");
+        when(properties.name()).thenReturn("SESSION");
+        when(properties.path()).thenReturn("/");
+        when(properties.secure()).thenReturn(true);
+        when(properties.httpOnly()).thenReturn(true);
+        when(properties.maxAge()).thenReturn(java.time.Duration.ofSeconds(3600));
+        when(properties.sameSite()).thenReturn("Strict");
 
         ResponseCookie cookie = service.createAuthCookie();
 
@@ -41,15 +42,17 @@ class CookieServiceTest {
         assertEquals("/", cookie.getPath());
         assertEquals(3600, cookie.getMaxAge().getSeconds());
         assertTrue(cookie.isSecure());
-        assertEquals("Lax", cookie.getSameSite());
+        assertEquals("Strict", cookie.getSameSite());
         assertTrue(cookie.isHttpOnly());
     }
 
     @Test
     void deleteAuthCookie_shouldReturnEmptyCookie() {
-        when(properties.getName()).thenReturn("SESSION");
-        when(properties.getPath()).thenReturn("/");
-        when(properties.isSecure()).thenReturn(true);
+        when(properties.name()).thenReturn("SESSION");
+        when(properties.path()).thenReturn("/");
+        when(properties.secure()).thenReturn(true);
+        when(properties.httpOnly()).thenReturn(true);
+        when(properties.sameSite()).thenReturn("Strict");
 
         ResponseCookie cookie = service.deleteAuthCookie();
 
@@ -59,6 +62,7 @@ class CookieServiceTest {
         assertEquals("/", cookie.getPath());
         assertEquals(0, cookie.getMaxAge().getSeconds());
         assertTrue(cookie.isSecure());
+        assertEquals("Strict", cookie.getSameSite());
         assertTrue(cookie.isHttpOnly());
     }
 }

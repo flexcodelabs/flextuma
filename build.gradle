@@ -8,7 +8,7 @@ plugins {
 }
 
 group = 'com.flexcodelabs'
-version = '0.0.3'
+version = '0.0.4'
 description = 'Flextuma App'
 
 java {
@@ -44,6 +44,7 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 	providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat-runtime'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'com.h2database:h2'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

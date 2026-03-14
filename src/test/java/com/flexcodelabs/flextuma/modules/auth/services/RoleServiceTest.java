@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.List;
 
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,9 @@ class RoleServiceTest {
     private RoleRepository repository;
 
     @Mock
+    private EntityManager entityManager;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock
@@ -52,6 +56,7 @@ class RoleServiceTest {
     @BeforeEach
     void setUp() {
         service = new RoleService(repository);
+        ReflectionTestUtils.setField(service, "entityManager", entityManager);
         ReflectionTestUtils.setField(service, "eventPublisher", eventPublisher);
         ReflectionTestUtils.setField(service, "currentUserResolver", currentUserResolver);
 
@@ -91,7 +96,7 @@ class RoleServiceTest {
 
         service.delete(id);
 
-        verify(repository).deleteById(id);
+        verify(repository).delete(role);
     }
 
     private void mockPermissions(Set<String> permissions) {

@@ -2,9 +2,11 @@ package com.flexcodelabs.flextuma;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication(excludeName = {
 		"org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration" })
+@ConfigurationPropertiesScan
 @org.springframework.boot.persistence.autoconfigure.EntityScan(basePackages = "com.flexcodelabs.flextuma.core.entities")
 @org.springframework.data.jpa.repository.config.EnableJpaRepositories(basePackages = "com.flexcodelabs.flextuma.core.repositories")
 @org.springframework.data.jpa.repository.config.EnableJpaAuditing(auditorAwareRef = "auditorProvider")

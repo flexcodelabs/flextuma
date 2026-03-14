@@ -87,7 +87,7 @@ public class User extends BaseEntity {
 
 	@ManyToMany(fetch = FetchType.LAZY)
 	@JoinTable(name = "userrole", joinColumns = @JoinColumn(name = "owner", referencedColumnName = "id"), inverseJoinColumns = @JoinColumn(name = "role", referencedColumnName = "id"))
-	private Set<Role> roles;
+	private Set<Role> roles = new java.util.HashSet<>();
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "organisation", referencedColumnName = "id", nullable = true)

@@ -34,7 +34,7 @@ public class Role extends BaseEntity {
 
 	@ManyToMany(fetch = FetchType.LAZY)
 	@JoinTable(name = "userprivilege", joinColumns = @JoinColumn(name = "role", referencedColumnName = "id"), inverseJoinColumns = @JoinColumn(name = "privilege", referencedColumnName = "id"))
-	private Set<Privilege> privileges;
+	private Set<Privilege> privileges = new java.util.HashSet<>();
 
 	@PrePersist
 	public void ensureSystemValue() {

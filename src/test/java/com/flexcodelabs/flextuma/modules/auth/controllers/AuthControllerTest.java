@@ -60,6 +60,7 @@ class AuthControllerTest {
 
         User user = new User();
         user.setUsername("user");
+        user.setRoles(new java.util.HashSet<>());
 
         ResponseCookie cookie = ResponseCookie.from("SESSION", "token").build();
 

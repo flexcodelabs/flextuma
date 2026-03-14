@@ -284,7 +284,9 @@ public abstract class BaseService<T extends BaseEntity> {
 
 		validateDelete(entity);
 
-		getRepository().deleteById(id);
+		getRepository().delete(entity);
+		entityManager.flush();
+		entityManager.clear();
 
 		onPostDelete(id);
 		eventPublisher.publishEvent(new EntityEvent<>(this, entity, EntityEvent.EntityEventType.DELETED));

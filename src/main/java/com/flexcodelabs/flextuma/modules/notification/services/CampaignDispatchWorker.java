@@ -68,7 +68,7 @@ public class CampaignDispatchWorker {
             String[] recipients = recipientsStr.split(",");
             log.info("Processing campaign [{}] for {} recipients", campaign.getName(), recipients.length);
 
-            SmsSegmentResult segmentResult = segmentCalculator.calculate(campaign.getContent());
+            SmsSegmentResult segmentResult = segmentCalculator.calculate(campaign.getTemplate().getContent());
             BigDecimal costPerSms = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
 
             for (String recipient : recipients) {
@@ -90,7 +90,7 @@ public class CampaignDispatchWorker {
 
         SmsLog smsLog = new SmsLog();
         smsLog.setRecipient(recipient);
-        smsLog.setContent(campaign.getContent());
+        smsLog.setContent(campaign.getTemplate().getContent());
         smsLog.setTemplate(campaign.getTemplate());
         smsLog.setConnector(campaign.getConnector());
         smsLog.setStatus(SmsLogStatus.PENDING);
