@@ -18,21 +18,22 @@ public class CookieService {
 
         String token = TokenGenerator.generateSecureToken(32);
 
-        return ResponseCookie.from(properties.getName(), token)
-                .httpOnly(true)
-                .secure(properties.isSecure())
-                .path(properties.getPath())
-                .maxAge(properties.getMaxAge())
-                .sameSite(properties.getSameSite())
+        return ResponseCookie.from(properties.name(), token)
+                .httpOnly(properties.httpOnly())
+                .secure(properties.secure())
+                .path(properties.path())
+                .maxAge(properties.maxAge())
+                .sameSite(properties.sameSite())
                 .build();
     }
 
     public ResponseCookie deleteAuthCookie() {
-        return ResponseCookie.from(properties.getName(), "")
-                .httpOnly(true)
-                .secure(properties.isSecure())
-                .path(properties.getPath())
+        return ResponseCookie.from(properties.name(), "")
+                .httpOnly(properties.httpOnly())
+                .secure(properties.secure())
+                .path(properties.path())
                 .maxAge(0)
+                .sameSite(properties.sameSite())
                 .build();
     }
 }

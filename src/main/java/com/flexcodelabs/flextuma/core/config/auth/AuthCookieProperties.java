@@ -1,19 +1,25 @@
 package com.flexcodelabs.flextuma.core.config.auth;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.validation.annotation.Validated;
 
-import lombok.Getter;
-import lombok.Setter;
+import java.time.Duration;
 
-@Configuration
+@Validated
 @ConfigurationProperties(prefix = "auth.cookie")
-@Getter
-@Setter
-public class AuthCookieProperties {
-    private String name = "SESSION";
-    private long maxAge = 3600;
-    private boolean secure = false;
-    private String sameSite = "Lax";
-    private String path = "/";
+public record AuthCookieProperties(
+        @NotBlank @DefaultValue("SESSION") String name,
+
+        @NotNull @DefaultValue("3600s") Duration maxAge,
+
+        @DefaultValue("true") boolean secure,
+
+        @DefaultValue("true") boolean httpOnly,
+
+        @NotBlank @DefaultValue("Strict") String sameSite,
+
+        @NotBlank @DefaultValue("/") String path) {
 }

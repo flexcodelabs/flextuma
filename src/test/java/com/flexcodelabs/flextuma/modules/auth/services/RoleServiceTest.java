@@ -96,7 +96,7 @@ class RoleServiceTest {
 
         service.delete(id);
 
-        verify(repository).deleteById(id);
+        verify(repository).delete(role);
     }
 
     private void mockPermissions(Set<String> permissions) {

@@ -35,8 +35,8 @@ public class SmsCampaign extends Owner {
     @Column(nullable = false)
     private String name;
 
-    @Column(columnDefinition = "TEXT", nullable = false)
-    private String content;
+    @Column(columnDefinition = "TEXT", nullable = true)
+    private String description;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template_id")

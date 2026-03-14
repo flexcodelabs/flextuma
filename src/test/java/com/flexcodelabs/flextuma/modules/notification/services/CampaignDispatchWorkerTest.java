@@ -3,6 +3,8 @@ package com.flexcodelabs.flextuma.modules.notification.services;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsCampaign;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus;
 import com.flexcodelabs.flextuma.core.helpers.SmsSegmentCalculator;
 import com.flexcodelabs.flextuma.core.helpers.SmsSegmentResult;
@@ -24,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -66,7 +69,11 @@ class CampaignDispatchWorkerTest {
         SmsCampaign campaign = new SmsCampaign();
         campaign.setName("Test Campaign");
         campaign.setRecipients("255700112233, 255700445566");
-        campaign.setContent("Hello world");
+        SmsTemplate template = new SmsTemplate();
+        template.setContent("Hello world");
+        campaign.setTemplate(template);
+        SmsConnector connector = new SmsConnector();
+        campaign.setConnector(connector);
         User adminUser = new User();
         adminUser.setUsername("admin");
         campaign.setCreatedBy(adminUser);
@@ -75,7 +82,7 @@ class CampaignDispatchWorkerTest {
                 any(Pageable.class)))
                 .thenReturn(List.of(campaign));
 
-        when(segmentCalculator.calculate(anyString())).thenReturn(new SmsSegmentResult(1, true, 11, 149));
+        when(segmentCalculator.calculate(any())).thenReturn(new SmsSegmentResult(1, true, 11, 149));
 
         worker.processCampaigns();
 
@@ -105,6 +112,11 @@ class CampaignDispatchWorkerTest {
     void processCampaigns_whenDebitFails_shouldContinueProcessing() {
         SmsCampaign campaign = new SmsCampaign();
         campaign.setRecipients("255700112233");
+        SmsTemplate template = new SmsTemplate();
+        template.setContent("Hello");
+        campaign.setTemplate(template);
+        SmsConnector connector = new SmsConnector();
+        campaign.setConnector(connector);
         User user1 = new User();
         user1.setUsername("user1");
         campaign.setCreatedBy(user1);

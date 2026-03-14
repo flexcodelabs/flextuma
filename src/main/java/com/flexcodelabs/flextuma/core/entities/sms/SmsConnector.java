@@ -18,8 +18,8 @@ import lombok.*;
 public class SmsConnector extends Owner {
 
     public static final String PLURAL = "connectors";
-    public static final String NAME_PLURAL = "SmsConnectors";
-    public static final String NAME_SINGULAR = "SmsConnector";
+    public static final String NAME_PLURAL = "SMS Connectors";
+    public static final String NAME_SINGULAR = "SMS Connector";
 
     public static final String ALL = "ALL";
     public static final String READ = ALL;

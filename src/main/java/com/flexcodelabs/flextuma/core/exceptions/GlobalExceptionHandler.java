@@ -38,11 +38,82 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
-        String message = "The request body is missing or the JSON format is invalid.";
+        String defaultMessage = "The request body is missing or the JSON format is invalid.";
         if (ex.getMessage() != null && ex.getMessage().contains("Required request body is missing")) {
-            message = "Required request body is missing. Please provide the required data in the request body.";
+            defaultMessage = "Required request body is missing. Please provide the required data in the request body.";
         }
+
+        Throwable mostSpecificCause = ex.getMostSpecificCause();
+        String detailedMessage = mostSpecificCause != null ? mostSpecificCause.getMessage() : null;
+
+        String message = defaultMessage;
+
+        if (detailedMessage != null && !detailedMessage.isBlank()) {
+            String enumMessage = tryBuildEnumErrorMessage(detailedMessage);
+            if (enumMessage != null) {
+                message = enumMessage;
+            } else {
+                message = defaultMessage + " Details: " + detailedMessage;
+            }
+        }
+
         return buildResponse(message, HttpStatus.BAD_REQUEST);
+    }
+
+    private String tryBuildEnumErrorMessage(String detailedMessage) {
+        // Example detailedMessage:
+        // "JSON parse error: Cannot deserialize value of type
+        // `com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus` from String \"Running\":
+        // not one of the values accepted for Enum class: [CANCELLED, COMPLETED, SCHEDULED,
+        // DRAFT, PROCESSING]"
+
+        if (!detailedMessage.contains("not one of the values accepted for Enum class")) {
+            return null;
+        }
+
+        String enumType = null;
+        String invalidValue = null;
+        String allowedValues = null;
+
+        int typeStart = detailedMessage.indexOf("`");
+        int typeEnd = detailedMessage.indexOf("`", typeStart + 1);
+        if (typeStart != -1 && typeEnd != -1 && typeEnd > typeStart + 1) {
+            enumType = detailedMessage.substring(typeStart + 1, typeEnd);
+        }
+
+        String fromStringToken = "from String \"";
+        int valueStart = detailedMessage.indexOf(fromStringToken);
+        if (valueStart != -1) {
+            valueStart += fromStringToken.length();
+            int valueEnd = detailedMessage.indexOf("\"", valueStart);
+            if (valueEnd != -1 && valueEnd > valueStart) {
+                invalidValue = detailedMessage.substring(valueStart, valueEnd);
+            }
+        }
+
+        int valuesStart = detailedMessage.indexOf('[');
+        int valuesEnd = detailedMessage.indexOf(']', valuesStart + 1);
+        if (valuesStart != -1 && valuesEnd != -1 && valuesEnd > valuesStart + 1) {
+            allowedValues = detailedMessage.substring(valuesStart + 1, valuesEnd);
+        }
+
+        if (allowedValues == null) {
+            return null;
+        }
+
+        StringBuilder builder = new StringBuilder("Invalid value");
+        if (invalidValue != null) {
+            builder.append(" '").append(invalidValue).append("'");
+        }
+        builder.append(" for enum");
+        if (enumType != null) {
+            int lastDot = enumType.lastIndexOf('.');
+            String simpleName = lastDot != -1 ? enumType.substring(lastDot + 1) : enumType;
+            builder.append(" ").append(simpleName);
+        }
+        builder.append(". Allowed values are: [").append(allowedValues).append("].");
+
+        return builder.toString();
     }
 
     @ExceptionHandler(ResponseStatusException.class)
