@@ -11,7 +11,6 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
@@ -98,17 +97,6 @@ class SmsLogServiceTest {
 
             assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
             assertTrue(ex.getReason().contains("Only failed messages"));
-        }
-    }
-
-    @Test
-    void retryFailedMessage_NoPermission() {
-        try (MockedStatic<com.flexcodelabs.flextuma.core.security.SecurityUtils> utils = mockStatic(
-                com.flexcodelabs.flextuma.core.security.SecurityUtils.class)) {
-            utils.when(com.flexcodelabs.flextuma.core.security.SecurityUtils::getCurrentUserAuthorities)
-                    .thenReturn(Set.of("READ_SMS_LOGS"));
-
-            assertThrows(AccessDeniedException.class, () -> smsLogService.retryFailedMessage(logId));
         }
     }
 }

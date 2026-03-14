@@ -21,7 +21,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flexcodelabs.flextuma.core.dtos.LoginDto;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
+import com.flexcodelabs.flextuma.core.services.AuthRateLimitService;
 import com.flexcodelabs.flextuma.core.services.CookieService;
+import com.flexcodelabs.flextuma.core.services.SecurityLogService;
+import com.flexcodelabs.flextuma.core.services.VerificationService;
 import com.flexcodelabs.flextuma.modules.auth.services.UserService;
 import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
 import org.springframework.security.core.context.SecurityContext;
@@ -43,6 +46,15 @@ class AuthControllerTest {
     private WalletService walletService;
 
     @Mock
+    private AuthRateLimitService rateLimitService;
+
+    @Mock
+    private SecurityLogService securityLogService;
+
+    @Mock
+    private VerificationService verificationService;
+
+    @Mock
     private SecurityContext securityContext;
 
     @Mock
@@ -52,7 +64,8 @@ class AuthControllerTest {
 
     @BeforeEach
     void setUp() {
-        AuthController controller = new AuthController(userService, cookieService, walletService);
+        AuthController controller = new AuthController(userService, cookieService, walletService, rateLimitService,
+                securityLogService, verificationService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -70,13 +83,16 @@ class AuthControllerTest {
 
         when(userService.login("user", "password")).thenReturn(user);
         when(cookieService.createAuthCookie()).thenReturn(cookie);
+        when(rateLimitService.isBlocked(any())).thenReturn(false);
+        doNothing().when(rateLimitService).recordSuccessfulAttempt(any());
+        doNothing().when(securityLogService).logLoginAttempt(any(), any(), eq(true), any());
 
         mockMvc.perform(post("/api/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(loginDto)))
                 .andExpect(status().isOk())
                 .andExpect(header().exists("Set-Cookie"))
-                .andExpect(jsonPath("$.username").value("user"));
+                .andExpect(jsonPath("$.data.username").value("user"));
     }
 
     @Test
@@ -84,9 +100,17 @@ class AuthControllerTest {
         ResponseCookie cookie = ResponseCookie.from("SESSION", "").maxAge(0).build();
         when(cookieService.deleteAuthCookie()).thenReturn(cookie);
 
-        mockMvc.perform(post("/api/logout"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Set-Cookie", containsString("Max-Age=0")));
+        // Mock authentication context
+        when(authentication.getName()).thenReturn("testuser");
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        try (var mocked = mockStatic(SecurityContextHolder.class)) {
+            mocked.when(SecurityContextHolder::getContext).thenReturn(securityContext);
+
+            mockMvc.perform(post("/api/logout"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Set-Cookie", containsString("Max-Age=0")));
+        }
     }
 
     @Test
@@ -115,7 +139,7 @@ class AuthControllerTest {
 
             mockMvc.perform(get("/api/me"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.username").value("user"));
+                    .andExpect(jsonPath("$.data.username").value("user"));
         }
     }
 
