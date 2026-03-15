@@ -72,7 +72,6 @@ public class TagService extends BaseService<Tag> {
     @Override
     @Transactional
     protected void validateDelete(Tag entity) {
-        // Use native query to delete foreign key references first
         entityManager.createNativeQuery("DELETE FROM contacttags WHERE tag = :tagId")
                 .setParameter("tagId", entity.getId())
                 .executeUpdate();
