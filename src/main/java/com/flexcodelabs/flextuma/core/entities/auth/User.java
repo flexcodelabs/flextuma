@@ -116,9 +116,8 @@ public class User extends BaseEntity {
 		}
 		this.setActive(true);
 
-		if (this.password != null && (this.salt == null)) {
-			this.salt = BCrypt.gensalt();
-			this.password = BCrypt.hashpw(this.password, this.salt);
+		if (this.password != null) {
+			this.password = BCrypt.hashpw(this.password, BCrypt.gensalt());
 		}
 
 		this.phoneNumber = validateUserPhone(this.phoneNumber);

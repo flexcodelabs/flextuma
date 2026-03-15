@@ -1,11 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
-    <conversionRule conversionWord="clr" converterClass="org.springframework.boot.logging.logback.ColorConverter" />
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %clr(%5p) %clr(---){faint} %clr([%X{traceId:-no-trace}]){yellow} %clr([%X{user:-SYSTEM}]){magenta} %clr([%logger{0}]){cyan} : %m%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %clr(%5p): %m%n</pattern>
+            <charset>utf8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="FLEXTUMA_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %clr(%5p): %m%n</pattern>
             <charset>utf8</charset>
         </encoder>
     </appender>
@@ -16,11 +21,34 @@
         </filter>
     </appender>
 
-    <logger name="org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver" level="OFF" />
-    <logger name="org.springframework" level="WARN"/>
-    <logger name="org.hibernate" level="WARN"/>
+    <logger name="FLEXTUMA" level="INFO" additivity="false">
+        <appender-ref ref="FLEXTUMA_CONSOLE" />
+    </logger>
 
-    <root level="INFO">
+    <!-- Turn off ALL verbose loggers -->
+    <logger name="o" level="OFF"/>
+    <logger name="org" level="OFF"/>
+    <logger name="com" level="OFF"/>
+    <logger name="c" level="OFF"/>
+    <logger name="r" level="OFF"/>
+    <logger name="." level="OFF"/>
+    <logger name="o.s" level="OFF"/>
+    <logger name="o.a" level="OFF"/>
+    <logger name="o.s.w" level="OFF"/>
+    <logger name="o.s.w.s" level="OFF"/>
+    <logger name="o.s.b" level="OFF"/>
+    <logger name="o.s.b.t" level="OFF"/>
+    <logger name="c.f" level="OFF"/>
+    <logger name="c.f.f" level="OFF"/>
+    <logger name="c.f.f.c" level="OFF"/>
+    <logger name="c.f.f.core" level="OFF"/>
+    <logger name="c.f.f.core.s" level="OFF"/>
+    <logger name="c.f.f.core.services" level="OFF"/>
+    <logger name="c.f.f.core.services.SecurityLogService" level="OFF"/>
+    <logger name=".m.m.a.ExceptionHandlerExceptionResolver" level="OFF"/>
+    <logger name="m.m.a.ExceptionHandlerExceptionResolver" level="OFF"/>
+
+    <root level="OFF">
         <appender-ref ref="CONSOLE" />
         <appender-ref ref="DB" />
     </root>

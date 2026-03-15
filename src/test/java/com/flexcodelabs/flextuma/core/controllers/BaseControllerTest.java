@@ -45,8 +45,10 @@ public abstract class BaseControllerTest<T extends BaseEntity, S extends BaseSer
 
     @BeforeEach
     public void setUp() {
+        org.springframework.data.web.PageableHandlerMethodArgumentResolver resolver = new org.springframework.data.web.PageableHandlerMethodArgumentResolver();
+        resolver.setOneIndexedParameters(true);
         mockMvc = MockMvcBuilders.standaloneSetup(getController())
-                .setCustomArgumentResolvers(new org.springframework.data.web.PageableHandlerMethodArgumentResolver())
+                .setCustomArgumentResolvers(resolver)
                 .build();
     }
 

@@ -16,7 +16,7 @@ public class NotificationController {
 
     private final NotificationService notificationService;
 
-    @PostMapping("")
+    @PostMapping()
     public ResponseEntity<SmsLog> send(
             @RequestBody Map<String, String> variables,
             java.security.Principal principal) {

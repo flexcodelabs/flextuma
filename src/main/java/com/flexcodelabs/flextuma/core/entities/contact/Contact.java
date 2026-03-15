@@ -41,10 +41,11 @@ public class Contact extends Owner {
     public static final String PLURAL = "contacts";
     public static final String NAME_PLURAL = "Contacts";
     public static final String NAME_SINGULAR = "Contact";
-    public static final String READ = "READ_CONTACTS";
-    public static final String ADD = "ADD_CONTACTS";
-    public static final String DELETE = "DELETE_CONTACTS";
-    public static final String UPDATE = "UPDATE_CONTACTS";
+    public static final String ALL = "ALL";
+    public static final String READ = ALL;
+    public static final String ADD = ALL;
+    public static final String DELETE = ALL;
+    public static final String UPDATE = ALL;
 
     @Column(name = "firstname", nullable = false, updatable = true)
     private String firstName;

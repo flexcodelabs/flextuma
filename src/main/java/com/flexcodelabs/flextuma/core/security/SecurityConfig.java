@@ -51,6 +51,7 @@ public class SecurityConfig {
                     .csrf(csrf -> csrf.disable())
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers("/api/login").permitAll()
+                            .requestMatchers("/api/register").permitAll()
                             .anyRequest().authenticated())
                     .httpBasic(Customizer.withDefaults())
                     .addFilterBefore(patAuthenticationFilter,

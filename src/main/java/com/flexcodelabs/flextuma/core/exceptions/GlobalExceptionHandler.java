@@ -25,10 +25,6 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    // S5852 Fix: Use negated character classes [^)]+ and [^\"]+ instead of .*? to
-    // prevent ReDoS
-    // Also pre-compiling for performance
     private static final Pattern UNIQUE_CONSTRAINT_PATTERN = Pattern
             .compile("Key \\(([^)]+)\\)=\\(([^)]+)\\) already exists");
 
@@ -44,16 +40,15 @@ public class GlobalExceptionHandler {
         }
 
         Throwable mostSpecificCause = ex.getMostSpecificCause();
-        String detailedMessage = mostSpecificCause != null ? mostSpecificCause.getMessage() : null;
+        String detailedMessage = mostSpecificCause.getMessage();
 
         String message = defaultMessage;
 
-        if (detailedMessage != null && !detailedMessage.isBlank()) {
+        if (detailedMessage != null && !detailedMessage.isBlank()
+                && detailedMessage.contains("not one of the values accepted for Enum class")) {
             String enumMessage = tryBuildEnumErrorMessage(detailedMessage);
             if (enumMessage != null) {
                 message = enumMessage;
-            } else {
-                message = defaultMessage + " Details: " + detailedMessage;
             }
         }
 
@@ -61,11 +56,6 @@ public class GlobalExceptionHandler {
     }
 
     private String tryBuildEnumErrorMessage(String detailedMessage) {
-        // Example detailedMessage:
-        // "JSON parse error: Cannot deserialize value of type
-        // `com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus` from String \"Running\":
-        // not one of the values accepted for Enum class: [CANCELLED, COMPLETED, SCHEDULED,
-        // DRAFT, PROCESSING]"
 
         if (!detailedMessage.contains("not one of the values accepted for Enum class")) {
             return null;
@@ -136,7 +126,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Object> handleDatabaseError(DataIntegrityViolationException ex) {
         Throwable rootCause = ex.getRootCause();
         String detail = (rootCause != null) ? rootCause.getMessage() : ex.getMessage();
-        return buildResponse(sanitizeDatabaseError(detail), HttpStatus.BAD_REQUEST);
+        return buildResponse(sanitizeDatabaseError(detail), getResponseStatus(detail, HttpStatus.BAD_REQUEST));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -165,6 +155,11 @@ public class GlobalExceptionHandler {
         return buildResponse("Oops 😢! Route not available.", HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Object> handleRateLimitExceeded(RateLimitExceededException ex) {
+        return buildResponse(ex.getMessage(), HttpStatus.TOO_MANY_REQUESTS);
+    }
+
     @ExceptionHandler(InvalidEnumValueException.class)
     public ResponseEntity<Object> handleEnumDeserializationError(InvalidEnumValueException ex) {
         String message = String.format("Invalid value provided for '%s'. Allowed values are: %s.",
@@ -185,6 +180,9 @@ public class GlobalExceptionHandler {
         Throwable cause = ex.getRootCause();
         if (cause instanceof ConstraintViolationException constraintEx) {
             return handleConstraintViolationException(constraintEx);
+        }
+        if (cause instanceof DataIntegrityViolationException dataEx) {
+            return handleDatabaseError(dataEx);
         }
         if (cause != null) {
             return buildResponse(sanitizeGeneralMessage(cause.getMessage()), HttpStatus.BAD_REQUEST);
@@ -216,7 +214,7 @@ public class GlobalExceptionHandler {
             Matcher matcher = UNIQUE_CONSTRAINT_PATTERN.matcher(message);
             if (matcher.find()) {
                 String fields = matcher.group(1).replace("_", " ");
-                return fields + " combination already exists";
+                return fields + " already exists";
             }
             return "A record with these details already exists";
         }
@@ -261,28 +259,58 @@ public class GlobalExceptionHandler {
             return str;
 
         StringBuilder result = new StringBuilder();
-        boolean insideBrackets = false;
-        boolean firstCharFound = false;
+        CapitalizeState state = new CapitalizeState();
 
         for (int i = 0; i < str.length(); i++) {
             char c = str.charAt(i);
-            if (c == '[')
-                insideBrackets = true;
 
-            if (insideBrackets) {
+            boolean shouldAppendDirectly = updateBracketState(c, state) ||
+                    updateDotSpaceState(str, i, c, state);
+
+            if (shouldAppendDirectly) {
                 result.append(c);
             } else {
-                if (!firstCharFound && Character.isLetterOrDigit(c)) {
-                    result.append(Character.toUpperCase(c));
-                    firstCharFound = true;
-                } else {
-                    result.append(Character.toLowerCase(c));
-                }
+                appendProcessedChar(c, state, result);
             }
-            if (c == ']')
-                insideBrackets = false;
         }
+
         return result.toString().replace("_", " ");
+    }
+
+    private boolean updateBracketState(char c, CapitalizeState state) {
+        if (c == '[') {
+            state.insideBrackets = true;
+        } else if (c == ']') {
+            state.insideBrackets = false;
+        }
+        return state.insideBrackets;
+    }
+
+    private boolean updateDotSpaceState(String str, int i, char c, CapitalizeState state) {
+        if (i > 0 && str.charAt(i - 1) == '.' && c == ' ') {
+            state.previousWasDotSpace = true;
+            return true;
+        }
+        return false;
+    }
+
+    private void appendProcessedChar(char c, CapitalizeState state, StringBuilder result) {
+        if (!state.firstCharFound && Character.isLetterOrDigit(c)) {
+            result.append(Character.toUpperCase(c));
+            state.firstCharFound = true;
+        } else if (state.previousWasDotSpace && Character.isLetter(c)) {
+            result.append(Character.toUpperCase(c));
+            state.previousWasDotSpace = false;
+        } else {
+            result.append(Character.toLowerCase(c));
+            state.previousWasDotSpace = false;
+        }
+    }
+
+    private static class CapitalizeState {
+        boolean insideBrackets = false;
+        boolean firstCharFound = false;
+        boolean previousWasDotSpace = false;
     }
 
     private HttpStatus getResponseStatus(String message, HttpStatus defaultStatus) {
