@@ -37,7 +37,7 @@ public class SystemLogController {
         Page<SystemLog> page = systemLogService.findAll(pageable, level, source, traceId, from, to);
 
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("page", page.getNumber());
+        response.put("page", page.getNumber() + 1);
         response.put("total", page.getTotalElements());
         response.put("pageSize", page.getSize());
         response.put("systemLog", page.getContent());

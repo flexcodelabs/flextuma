@@ -73,6 +73,11 @@ public class NotificationService {
                 String content = getRequiredField(payload, "message");
                 String phoneNumber = getRequiredField(payload, "phoneNumber");
 
+                if (containsUnreplacedVariables(content)) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                        "Message contains unreplaced template variables. Please ensure all variables like {{variable}} are properly replaced.");
+                }
+
                 SmsConnector connector = getConnector(currentUser, providerValue);
 
                 return processAndSaveSms(currentUser, connector, phoneNumber, content, null, payload);
@@ -96,6 +101,12 @@ public class NotificationService {
                 return Optional.ofNullable(data.get(key))
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                                 key + " is missing"));
+        }
+
+        private boolean containsUnreplacedVariables(String content) {
+                java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\{[^}]*\\}");
+                java.util.regex.Matcher matcher = pattern.matcher(content);
+                return matcher.find();
         }
 
         private SmsConnector getConnector(User user, String provider) {

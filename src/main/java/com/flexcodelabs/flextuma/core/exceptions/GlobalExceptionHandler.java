@@ -259,28 +259,58 @@ public class GlobalExceptionHandler {
             return str;
 
         StringBuilder result = new StringBuilder();
-        boolean insideBrackets = false;
-        boolean firstCharFound = false;
+        CapitalizeState state = new CapitalizeState();
 
         for (int i = 0; i < str.length(); i++) {
             char c = str.charAt(i);
-            if (c == '[')
-                insideBrackets = true;
 
-            if (insideBrackets) {
+            boolean shouldAppendDirectly = updateBracketState(c, state) ||
+                    updateDotSpaceState(str, i, c, state);
+
+            if (shouldAppendDirectly) {
                 result.append(c);
             } else {
-                if (!firstCharFound && Character.isLetterOrDigit(c)) {
-                    result.append(Character.toUpperCase(c));
-                    firstCharFound = true;
-                } else {
-                    result.append(Character.toLowerCase(c));
-                }
+                appendProcessedChar(c, state, result);
             }
-            if (c == ']')
-                insideBrackets = false;
         }
+
         return result.toString().replace("_", " ");
+    }
+
+    private boolean updateBracketState(char c, CapitalizeState state) {
+        if (c == '[') {
+            state.insideBrackets = true;
+        } else if (c == ']') {
+            state.insideBrackets = false;
+        }
+        return state.insideBrackets;
+    }
+
+    private boolean updateDotSpaceState(String str, int i, char c, CapitalizeState state) {
+        if (i > 0 && str.charAt(i - 1) == '.' && c == ' ') {
+            state.previousWasDotSpace = true;
+            return true;
+        }
+        return false;
+    }
+
+    private void appendProcessedChar(char c, CapitalizeState state, StringBuilder result) {
+        if (!state.firstCharFound && Character.isLetterOrDigit(c)) {
+            result.append(Character.toUpperCase(c));
+            state.firstCharFound = true;
+        } else if (state.previousWasDotSpace && Character.isLetter(c)) {
+            result.append(Character.toUpperCase(c));
+            state.previousWasDotSpace = false;
+        } else {
+            result.append(Character.toLowerCase(c));
+            state.previousWasDotSpace = false;
+        }
+    }
+
+    private static class CapitalizeState {
+        boolean insideBrackets = false;
+        boolean firstCharFound = false;
+        boolean previousWasDotSpace = false;
     }
 
     private HttpStatus getResponseStatus(String message, HttpStatus defaultStatus) {
