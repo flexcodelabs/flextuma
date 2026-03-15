@@ -64,6 +64,11 @@ public class ConnectorConfigService extends BaseService<ConnectorConfig> {
     }
 
     @Override
+    protected String getTableName() {
+        return "connectorconfig";
+    }
+
+    @Override
     protected void validateDelete(ConnectorConfig entity) {
         if (Boolean.TRUE.equals(entity.getActive())) {
             throw new IllegalStateException("Cannot delete an active config");

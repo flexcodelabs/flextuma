@@ -187,7 +187,7 @@ class GlobalExceptionHandlerTest {
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message")
-                        .value("Invalid value provided for 'status'. allowed values are: value1, value2."));
+                        .value("Invalid value provided for 'status'. Allowed values are: value1, value2."));
     }
 
     @Test
@@ -213,7 +213,7 @@ class GlobalExceptionHandlerTest {
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(
-                        jsonPath("$.message").value("Parameter 'id' must be a valid integer. received: 'invalid-id'"));
+                        jsonPath("$.message").value("Parameter 'id' must be a valid integer. Received: 'invalid-id'"));
     }
 
     @Test

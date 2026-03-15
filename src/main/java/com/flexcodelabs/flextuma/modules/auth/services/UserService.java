@@ -76,6 +76,11 @@ public class UserService extends BaseService<User> {
     }
 
     @Override
+    protected String getTableName() {
+        return "\"user\"";
+    }
+
+    @Override
     protected JpaSpecificationExecutor<User> getRepositoryAsExecutor() {
         return repository;
     }

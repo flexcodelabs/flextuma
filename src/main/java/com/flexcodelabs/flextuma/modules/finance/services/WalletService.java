@@ -28,8 +28,6 @@ public class WalletService extends BaseService<Wallet> {
     private final WalletRepository repository;
     private final WalletTransactionRepository transactionRepository;
 
-
-
     public Wallet getOrCreateWallet(User user) {
         Optional<Wallet> optionalWallet = repository.findByCreatedBy(user);
         if (optionalWallet.isPresent()) {
@@ -92,7 +90,6 @@ public class WalletService extends BaseService<Wallet> {
         return transactionRepository.save(transaction);
     }
 
-
     @Override
     protected boolean isAdminEntity() {
         return false;
@@ -144,9 +141,14 @@ public class WalletService extends BaseService<Wallet> {
     }
 
     @Override
+    protected String getTableName() {
+        return "wallet";
+    }
+
+    @Override
     protected void validateDelete(Wallet entity) throws ResponseStatusException {
-            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Wallet cannot be deleted");
-        
+        throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Wallet cannot be deleted");
+
     }
 
     @Override

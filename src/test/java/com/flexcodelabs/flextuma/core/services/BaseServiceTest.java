@@ -7,6 +7,7 @@ import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.*;
 import jakarta.persistence.metamodel.Attribute;
@@ -124,6 +125,11 @@ class BaseServiceTest {
         @Override
         protected JpaSpecificationExecutor<TestEntity> getRepositoryAsExecutor() {
             return executor;
+        }
+
+        @Override
+        protected String getTableName() {
+            return "test";
         }
     }
 
@@ -373,10 +379,20 @@ class BaseServiceTest {
         TestEntity entity = new TestEntity();
         when(repository.findById(id)).thenReturn(Optional.of(entity));
 
+        // Mock the native query execution
+        Query query = mock(Query.class);
+        when(entityManager.createNativeQuery("DELETE FROM test WHERE id = :id"))
+                .thenReturn(query);
+        when(query.setParameter("id", id)).thenReturn(query);
+        when(query.executeUpdate()).thenReturn(1);
+
         Map<String, String> response = service.delete(id);
 
         assertEquals("test deleted successfully", response.get("message"));
-        verify(repository).delete(entity);
+        verify(entityManager).createNativeQuery("DELETE FROM test WHERE id = :id");
+        verify(query).setParameter("id", id);
+        verify(query).executeUpdate();
+        verify(entityManager).flush();
     }
 
     @SuppressWarnings("unchecked")

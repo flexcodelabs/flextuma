@@ -64,6 +64,11 @@ public class SmsTemplateService extends BaseService<SmsTemplate> {
     }
 
     @Override
+    protected String getTableName() {
+        return "smstemplate";
+    }
+
+    @Override
     protected void validateDelete(SmsTemplate entity) {
         if (Boolean.TRUE.equals(entity.getActive())) {
             throw new IllegalStateException("You cannot delete an active template");

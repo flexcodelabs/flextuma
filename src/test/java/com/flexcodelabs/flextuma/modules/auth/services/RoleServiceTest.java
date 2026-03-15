@@ -10,6 +10,7 @@ import java.util.UUID;
 import java.util.List;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -94,9 +95,19 @@ class RoleServiceTest {
 
         when(repository.findById(id)).thenReturn(Optional.of(role));
 
+        // Mock the native query execution
+        Query query = mock(Query.class);
+        when(entityManager.createNativeQuery("DELETE FROM role WHERE id = :id"))
+                .thenReturn(query);
+        when(query.setParameter("id", id)).thenReturn(query);
+        when(query.executeUpdate()).thenReturn(1);
+
         service.delete(id);
 
-        verify(repository).delete(role);
+        verify(entityManager).createNativeQuery("DELETE FROM role WHERE id = :id");
+        verify(query).setParameter("id", id);
+        verify(query).executeUpdate();
+        verify(entityManager).flush();
     }
 
     private void mockPermissions(Set<String> permissions) {

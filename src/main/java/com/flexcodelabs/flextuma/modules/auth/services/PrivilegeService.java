@@ -69,6 +69,11 @@ public class PrivilegeService extends BaseService<Privilege> {
     }
 
     @Override
+    protected String getTableName() {
+        return "privilege";
+    }
+
+    @Override
     protected void validateDelete(Privilege entity) {
         if (Boolean.TRUE.equals(entity.getActive())) {
             throw new IllegalStateException("You cannot delete an active privilege");

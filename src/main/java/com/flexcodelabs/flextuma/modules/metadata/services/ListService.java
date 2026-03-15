@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.flexcodelabs.flextuma.core.entities.metadata.ListEntity;
 import com.flexcodelabs.flextuma.core.repositories.ListRepository;
@@ -61,5 +62,19 @@ public class ListService extends BaseService<ListEntity> {
     @Override
     protected JpaSpecificationExecutor<ListEntity> getRepositoryAsExecutor() {
         return repository;
+    }
+
+    @Override
+    protected String getTableName() {
+        return "list";
+    }
+
+    @Override
+    @Transactional
+    protected void validateDelete(ListEntity entity) {
+        // Use native query to delete foreign key references first
+        entityManager.createNativeQuery("DELETE FROM contactlists WHERE list = :listId")
+                .setParameter("listId", entity.getId())
+                .executeUpdate();
     }
 }

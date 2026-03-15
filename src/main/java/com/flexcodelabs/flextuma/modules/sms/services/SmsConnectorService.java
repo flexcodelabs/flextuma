@@ -64,6 +64,11 @@ public class SmsConnectorService extends BaseService<SmsConnector> {
     }
 
     @Override
+    protected String getTableName() {
+        return "smsconnector";
+    }
+
+    @Override
     protected void onPreSave(SmsConnector entity) {
         validateProviderConfig(entity);
     }
