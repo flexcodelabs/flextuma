@@ -66,6 +66,11 @@ public class SmsLogService extends BaseService<SmsLog> {
     }
 
     @Override
+    protected String getTableName() {
+        return "smslog";
+    }
+
+    @Override
     protected void onPreSave(SmsLog entity) {
         throw new ResponseStatusException(HttpStatus.METHOD_NOT_ALLOWED, "SMS logs cannot be created manually");
     }

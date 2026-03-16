@@ -4,6 +4,7 @@ import com.flexcodelabs.flextuma.core.entities.base.Owner;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -32,8 +33,22 @@ public class Wallet extends Owner {
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal balance = BigDecimal.ZERO;
 
+    @Column(nullable = false, precision = 19, scale = 4)
+    private BigDecimal smsCost = BigDecimal.ZERO;
+
     @Column(nullable = false, length = 3)
     private String currency = "TZS";
+
+    @Column(nullable = false, length = 3)
+    private String type = "SMS";
+
+    @Transient
+    public BigDecimal getValue() {
+        if (smsCost != null && smsCost.compareTo(BigDecimal.ZERO) > 0) {
+            return smsCost.multiply(balance);
+        }
+        return BigDecimal.ZERO;
+    }
 
     @Version
     private Long version;

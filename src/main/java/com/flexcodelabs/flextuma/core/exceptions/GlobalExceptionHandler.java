@@ -1,9 +1,14 @@
 package com.flexcodelabs.flextuma.core.exceptions;
 
 import com.fasterxml.jackson.databind.JsonMappingException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -16,15 +21,24 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
+
+    @Value("${flextuma.app.frontend.directory:${APP_FRONTEND_DIRECTORY:/app/client}}")
+    private String frontendDirectory;
+
     private static final Pattern UNIQUE_CONSTRAINT_PATTERN = Pattern
             .compile("Key \\(([^)]+)\\)=\\(([^)]+)\\) already exists");
 
@@ -151,7 +165,24 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler({ NoResourceFoundException.class, HttpRequestMethodNotSupportedException.class })
-    public ResponseEntity<Object> handleNotFound() {
+    public ResponseEntity<Object> handleNotFound(HttpServletRequest request) {
+        String requestUri = request.getRequestURI();
+        String method = request.getMethod();
+        if ("GET".equals(method) && !requestUri.startsWith("/api/")) {
+            try {
+                Path filePath = Paths.get(frontendDirectory, "index.html");
+                Resource resource = new FileSystemResource(filePath.toString());
+
+                if (resource.exists() && resource.isReadable()) {
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.parseMediaType("text/html"))
+                            .body(resource);
+                }
+            } catch (Exception e) {
+                log.error("Error serving SPA index.html for URI: {}", requestUri, e);
+            }
+        }
+
         return buildResponse("Oops 😢! Route not available.", HttpStatus.NOT_FOUND);
     }
 

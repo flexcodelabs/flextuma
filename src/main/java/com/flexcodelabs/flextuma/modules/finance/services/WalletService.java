@@ -10,6 +10,7 @@ import com.flexcodelabs.flextuma.core.services.BaseService;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.http.HttpStatus;
@@ -28,7 +29,8 @@ public class WalletService extends BaseService<Wallet> {
     private final WalletRepository repository;
     private final WalletTransactionRepository transactionRepository;
 
-
+    @Value("${flextuma.sms.price-per-segment:20.0}")
+    private BigDecimal smsPricePerSegment;
 
     public Wallet getOrCreateWallet(User user) {
         Optional<Wallet> optionalWallet = repository.findByCreatedBy(user);
@@ -40,6 +42,7 @@ public class WalletService extends BaseService<Wallet> {
         newWallet.setBalance(BigDecimal.ZERO);
         newWallet.setCurrency("TZS");
         newWallet.setCreatedBy(user);
+        newWallet.setSmsCost(smsPricePerSegment);
 
         return repository.save(newWallet);
     }
@@ -57,6 +60,7 @@ public class WalletService extends BaseService<Wallet> {
         }
 
         wallet.setBalance(wallet.getBalance().subtract(amount));
+
         Wallet savedWallet = repository.save(wallet);
 
         WalletTransaction transaction = new WalletTransaction();
@@ -79,6 +83,7 @@ public class WalletService extends BaseService<Wallet> {
         Wallet wallet = getOrCreateWallet(user);
 
         wallet.setBalance(wallet.getBalance().add(amount));
+
         Wallet savedWallet = repository.save(wallet);
 
         WalletTransaction transaction = new WalletTransaction();
@@ -91,7 +96,6 @@ public class WalletService extends BaseService<Wallet> {
 
         return transactionRepository.save(transaction);
     }
-
 
     @Override
     protected boolean isAdminEntity() {
@@ -144,9 +148,14 @@ public class WalletService extends BaseService<Wallet> {
     }
 
     @Override
+    protected String getTableName() {
+        return "wallet";
+    }
+
+    @Override
     protected void validateDelete(Wallet entity) throws ResponseStatusException {
-            throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Wallet cannot be deleted");
-        
+        throw new ResponseStatusException(HttpStatus.NOT_ACCEPTABLE, "Wallet cannot be deleted");
+
     }
 
     @Override

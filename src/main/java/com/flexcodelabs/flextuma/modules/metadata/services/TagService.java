@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.flexcodelabs.flextuma.core.entities.metadata.Tag;
 import com.flexcodelabs.flextuma.core.repositories.TagRepository;
@@ -61,5 +62,18 @@ public class TagService extends BaseService<Tag> {
     @Override
     protected JpaSpecificationExecutor<Tag> getRepositoryAsExecutor() {
         return repository;
+    }
+
+    @Override
+    protected String getTableName() {
+        return "tag";
+    }
+
+    @Override
+    @Transactional
+    protected void validateDelete(Tag entity) {
+        entityManager.createNativeQuery("DELETE FROM contacttags WHERE tag = :tagId")
+                .setParameter("tagId", entity.getId())
+                .executeUpdate();
     }
 }

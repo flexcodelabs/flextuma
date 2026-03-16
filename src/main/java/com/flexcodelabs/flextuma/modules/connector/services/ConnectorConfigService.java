@@ -64,9 +64,44 @@ public class ConnectorConfigService extends BaseService<ConnectorConfig> {
     }
 
     @Override
+    protected String getTableName() {
+        return "connectorconfig";
+    }
+
+    @Override
     protected void validateDelete(ConnectorConfig entity) {
         if (Boolean.TRUE.equals(entity.getActive())) {
             throw new IllegalStateException("Cannot delete an active config");
         }
+    }
+
+    @Override
+    public ConnectorConfig update(UUID id, ConnectorConfig entity) {
+        checkPermission(getUpdatePermission());
+        ConnectorConfig existing = getRepository().findById(id)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
+
+        // Preserve sensitive fields with masked values
+        if (entity.getTenantId() != null && entity.getTenantId().contains("****")) {
+            entity.setTenantId(existing.getTenantId());
+        }
+        if (entity.getToken() != null && entity.getToken().contains("****")) {
+            entity.setToken(existing.getToken());
+        }
+        if (entity.getApiKey() != null && entity.getApiKey().contains("****")) {
+            entity.setApiKey(existing.getApiKey());
+        }
+        if (entity.getUsername() != null && entity.getUsername().contains("****")) {
+            entity.setUsername(existing.getUsername());
+        }
+        if (entity.getPassword() != null && entity.getPassword().contains("****")) {
+            entity.setPassword(existing.getPassword());
+        }
+        if (entity.getUrl() != null && entity.getUrl().contains("****")) {
+            entity.setUrl(existing.getUrl());
+        }
+
+        return super.update(id, entity);
     }
 }

@@ -25,6 +25,7 @@ import com.flexcodelabs.flextuma.core.services.AuthRateLimitService;
 import com.flexcodelabs.flextuma.core.services.CookieService;
 import com.flexcodelabs.flextuma.core.services.SecurityLogService;
 import com.flexcodelabs.flextuma.core.services.VerificationService;
+import com.flexcodelabs.flextuma.modules.auth.services.AuthenticationResult;
 import com.flexcodelabs.flextuma.modules.auth.services.UserService;
 import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
 import org.springframework.security.core.context.SecurityContext;
@@ -80,8 +81,9 @@ class AuthControllerTest {
         user.setRoles(new java.util.HashSet<>());
 
         ResponseCookie cookie = ResponseCookie.from("SESSION", "token").build();
+        AuthenticationResult authResult = new AuthenticationResult(user, null);
 
-        when(userService.login("user", "password")).thenReturn(user);
+        when(userService.authenticateAndCreateContext(eq("user"), eq("password"), any(), any())).thenReturn(authResult);
         when(cookieService.createAuthCookie()).thenReturn(cookie);
         when(rateLimitService.isBlocked(any())).thenReturn(false);
         doNothing().when(rateLimitService).recordSuccessfulAttempt(any());

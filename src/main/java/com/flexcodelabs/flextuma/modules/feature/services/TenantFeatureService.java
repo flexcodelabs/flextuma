@@ -67,4 +67,9 @@ public class TenantFeatureService extends BaseService<TenantFeature> {
     protected String getEntitySingular() {
         return TenantFeature.NAME_SINGULAR;
     }
+
+    @Override
+    protected String getTableName() {
+        return "tenantfeature";
+    }
 }

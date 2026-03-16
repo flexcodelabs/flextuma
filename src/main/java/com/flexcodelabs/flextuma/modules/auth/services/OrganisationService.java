@@ -67,6 +67,11 @@ public class OrganisationService extends BaseService<Organisation> {
     }
 
     @Override
+    protected String getTableName() {
+        return "organisation";
+    }
+
+    @Override
     protected void validateDelete(Organisation entity) {
         if (Boolean.TRUE.equals(entity.getActive())) {
             throw new IllegalStateException("You cannot delete an active organisation");

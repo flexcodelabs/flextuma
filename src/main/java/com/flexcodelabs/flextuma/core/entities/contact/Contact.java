@@ -56,6 +56,9 @@ public class Contact extends Owner {
     @Column(name = "surname", nullable = false, updatable = true)
     private String surname;
 
+    @Column(name = "email", nullable = true, updatable = true)
+    private String email;
+
     @Column(name = "phonenumber", nullable = false, updatable = true)
     private String phoneNumber;
 

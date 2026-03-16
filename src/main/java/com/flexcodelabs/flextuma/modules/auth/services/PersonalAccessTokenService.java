@@ -69,6 +69,11 @@ public class PersonalAccessTokenService extends BaseService<PersonalAccessToken>
     }
 
     @Override
+    protected String getTableName() {
+        return "personalaccesstoken";
+    }
+
+    @Override
     protected void onPreSave(PersonalAccessToken entity) {
         if (entity.getUser() == null) {
             String currentUsername = com.flexcodelabs.flextuma.core.security.SecurityUtils.getCurrentUsername();

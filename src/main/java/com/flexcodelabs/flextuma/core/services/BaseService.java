@@ -74,6 +74,8 @@ public abstract class BaseService<T extends BaseEntity> {
 
 	protected abstract JpaSpecificationExecutor<T> getRepositoryAsExecutor();
 
+	protected abstract String getTableName();
+
 	protected boolean isAdminEntity() {
 		return false;
 	}
@@ -284,9 +286,13 @@ public abstract class BaseService<T extends BaseEntity> {
 
 		validateDelete(entity);
 
-		getRepository().delete(entity);
+		// Use native query to force deletion
+		String tableName = getTableName();
+		entityManager.createNativeQuery("DELETE FROM " + tableName + " WHERE id = :id")
+				.setParameter("id", id)
+				.executeUpdate();
+
 		entityManager.flush();
-		entityManager.clear();
 
 		onPostDelete(id);
 		eventPublisher.publishEvent(new EntityEvent<>(this, entity, EntityEvent.EntityEventType.DELETED));

@@ -54,7 +54,6 @@ public class DatabaseLogAppender extends AppenderBase<ILoggingEvent> {
         listeners.remove(listener);
     }
 
-    // visible for testing
     public static void clearListeners() {
         listeners.clear();
     }
@@ -150,8 +149,7 @@ public class DatabaseLogAppender extends AppenderBase<ILoggingEvent> {
         return lastDot >= 0 ? loggerName.substring(lastDot + 1) : loggerName;
     }
 
-    @SuppressWarnings("java:S106") // System.err is intentional here — using a logger would cause infinite
-                                   // recursion
+    @SuppressWarnings("java:S106")
     private void flush() {
         DataSource ds = dataSource.get();
         if (buffer.isEmpty() || ds == null) {

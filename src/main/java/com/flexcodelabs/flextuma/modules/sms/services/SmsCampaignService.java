@@ -63,6 +63,11 @@ public class SmsCampaignService extends BaseService<SmsCampaign> {
     }
 
     @Override
+    protected String getTableName() {
+        return "smscampaign";
+    }
+
+    @Override
     protected void onPreSave(SmsCampaign entity) {
         if (entity.getStatus() == null) {
             entity.setStatus(SmsCampaignStatus.SCHEDULED);

@@ -28,9 +28,12 @@ class WalletTest {
 
     @Test
     void testAllArgsConstructor() {
-        Wallet wallet = new Wallet(new BigDecimal("200.00"), "KES", 1L);
+        Wallet wallet = new Wallet();
+        wallet.setBalance(new BigDecimal("200.00"));
+        wallet.setCurrency("TZS");
+        wallet.setVersion(1L);
         assertEquals(new BigDecimal("200.00"), wallet.getBalance());
-        assertEquals("KES", wallet.getCurrency());
+        assertEquals("TZS", wallet.getCurrency());
         assertEquals(1L, wallet.getVersion());
     }
 }

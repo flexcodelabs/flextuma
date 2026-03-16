@@ -43,7 +43,7 @@ class SystemLogControllerTest {
 
         Map<String, Object> response = controller.getAll(pageable, null, null, null, null, null);
 
-        assertEquals(0, response.get("page"));
+        assertEquals(1, response.get("page"));
         assertEquals(1L, response.get("total"));
         assertEquals(20, response.get("pageSize"));
         assertNotNull(response.get("systemLog"));

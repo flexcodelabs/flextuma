@@ -69,6 +69,11 @@ public class RoleService extends BaseService<Role> {
     }
 
     @Override
+    protected String getTableName() {
+        return "role";
+    }
+
+    @Override
     protected void validateDelete(Role role) {
         if (Boolean.TRUE.equals(role.getSystem())) {
             throw new IllegalStateException("System roles cannot be deleted");
