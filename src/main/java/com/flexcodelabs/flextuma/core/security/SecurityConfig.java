@@ -24,11 +24,14 @@ public class SecurityConfig {
 
     private final CustomSecurityExceptionHandler securityExceptionHandler;
     private final PatAuthenticationFilter patAuthenticationFilter;
+    private final PasswordChangeRequiredFilter passwordChangeRequiredFilter;
 
     public SecurityConfig(CustomSecurityExceptionHandler securityExceptionHandler,
-            PatAuthenticationFilter patAuthenticationFilter) {
+            PatAuthenticationFilter patAuthenticationFilter,
+            PasswordChangeRequiredFilter passwordChangeRequiredFilter) {
         this.securityExceptionHandler = securityExceptionHandler;
         this.patAuthenticationFilter = patAuthenticationFilter;
+        this.passwordChangeRequiredFilter = passwordChangeRequiredFilter;
     }
 
     @Bean
@@ -56,6 +59,8 @@ public class SecurityConfig {
                             .anyRequest().authenticated())
                     .httpBasic(Customizer.withDefaults())
                     .addFilterBefore(patAuthenticationFilter,
+                            org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
+                    .addFilterAfter(passwordChangeRequiredFilter,
                             org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                     .exceptionHandling(ex -> ex
                             .authenticationEntryPoint(securityExceptionHandler)

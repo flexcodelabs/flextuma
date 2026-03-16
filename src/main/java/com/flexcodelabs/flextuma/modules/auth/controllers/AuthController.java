@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.flexcodelabs.flextuma.core.dtos.LoginDto;
 import com.flexcodelabs.flextuma.core.dtos.RegisterDto;
+import com.flexcodelabs.flextuma.core.dtos.PasswordChangeDto;
 import com.flexcodelabs.flextuma.core.dto.ApiResponse;
 import com.flexcodelabs.flextuma.core.dto.ErrorResponse;
 import com.flexcodelabs.flextuma.core.dtos.UserResponseDto;
@@ -78,7 +79,7 @@ public class AuthController {
         }
 
         @PostMapping("/login")
-        public ResponseEntity<ApiResponse<UserResponseDto>> login(
+        public ResponseEntity<Object> login(
                         @Valid @RequestBody LoginDto request,
                         HttpServletRequest httpRequest,
                         HttpServletResponse httpResponse) {
@@ -113,22 +114,22 @@ public class AuthController {
         }
 
         @GetMapping("/me")
-        public ResponseEntity<ApiResponse<UserResponseDto>> me() {
+        public ResponseEntity<Object> me() {
                 Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
                 if (auth == null ||
                                 !auth.isAuthenticated() ||
                                 auth instanceof AnonymousAuthenticationToken) {
                         return ResponseEntity.status(401)
-                                        .body(ApiResponse.error(ErrorResponse.unauthorized("Unauthorized")));
+                                        .body(ErrorResponse.unauthorized("Unauthorized"));
                 }
                 User user = userService.findByUsername(auth.getName());
                 return ResponseEntity.ok()
-                                .body(ApiResponse.success(UserResponseDto.fromUser(user)));
+                                .body(ApiResponse.success(user));
         }
 
         @PostMapping("/verify")
-        public ResponseEntity<ApiResponse<String>> verify(@Valid @RequestBody VerificationRequestDto request,
+        public ResponseEntity<Object> verify(@Valid @RequestBody VerificationRequestDto request,
                         HttpServletRequest httpRequest) {
                 if (verificationService.verifyCode(request.getIdentifier(), request.getCode())) {
                         securityLogService.logRegistrationAttempt("", request.getIdentifier(), httpRequest,
@@ -139,8 +140,8 @@ public class AuthController {
                         securityLogService.logRegistrationAttempt("", request.getIdentifier(), httpRequest,
                                         false, "Invalid verification code");
                         return ResponseEntity.badRequest()
-                                        .body(ApiResponse.error(ErrorResponse
-                                                        .badRequest("Invalid or expired verification code")));
+                                        .body(ErrorResponse
+                                                        .badRequest("Invalid or expired verification code"));
                 }
         }
 
@@ -157,5 +158,38 @@ public class AuthController {
 
                 return ResponseEntity.ok()
                                 .body(ApiResponse.success("Verification code sent"));
+        }
+
+        @PostMapping("/changePassword")
+        public ResponseEntity<Object> changePassword(
+                        @Valid @RequestBody PasswordChangeDto request,
+                        HttpServletRequest httpRequest) {
+                Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+                if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+                        return ResponseEntity.status(401)
+                                        .body(ErrorResponse.unauthorized("Unauthorized"));
+                }
+
+                User user = userService.findByUsername(auth.getName());
+
+                if (!user.validatePassword(request.getCurrentPassword())) {
+                        return ResponseEntity.badRequest()
+                                        .body(ErrorResponse
+                                                        .badRequest("Current password is incorrect"));
+                }
+
+                if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+                        return ResponseEntity.badRequest()
+                                        .body(ErrorResponse
+                                                        .badRequest("New password and confirmation do not match"));
+                }
+
+                userService.changePassword(user, request.getNewPassword());
+
+                securityLogService.logPasswordChange(user.getUsername(), httpRequest, true);
+
+                return ResponseEntity.ok()
+                                .body(ApiResponse.success(user));
         }
 }

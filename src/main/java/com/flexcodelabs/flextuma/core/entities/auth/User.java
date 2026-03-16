@@ -85,6 +85,9 @@ public class User extends BaseEntity {
 	@Column(name = "system", nullable = true)
 	private Boolean system = false;
 
+	@Column(name = "changepassword")
+	private Boolean changePassword = false;
+
 	@ManyToMany(fetch = FetchType.LAZY)
 	@JoinTable(name = "userrole", joinColumns = @JoinColumn(name = "owner", referencedColumnName = "id"), inverseJoinColumns = @JoinColumn(name = "role", referencedColumnName = "id"))
 	private Set<Role> roles = new java.util.HashSet<>();
