@@ -20,8 +20,8 @@ import com.flexcodelabs.flextuma.core.dtos.LoginDto;
 import com.flexcodelabs.flextuma.core.dtos.RegisterDto;
 import com.flexcodelabs.flextuma.core.dtos.PasswordChangeDto;
 import com.flexcodelabs.flextuma.core.dto.ApiResponse;
-import com.flexcodelabs.flextuma.core.dto.ErrorResponse;
 import com.flexcodelabs.flextuma.core.dtos.UserResponseDto;
+import com.flexcodelabs.flextuma.core.dto.ErrorResponse;
 import com.flexcodelabs.flextuma.core.dtos.VerificationRequestDto;
 import com.flexcodelabs.flextuma.core.exceptions.RateLimitExceededException;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
@@ -54,7 +54,7 @@ public class AuthController {
         private BigDecimal pricePerSegment;
 
         @PostMapping("/register")
-        public ResponseEntity<ApiResponse<UserResponseDto>> register(@Valid @RequestBody RegisterDto request,
+        public ResponseEntity<Object> register(@Valid @RequestBody RegisterDto request,
                         HttpServletRequest httpRequest) {
                 if (rateLimitService.isBlocked(httpRequest)) {
                         long remainingTime = rateLimitService.getBlockTimeRemainingSeconds(httpRequest);
@@ -75,7 +75,7 @@ public class AuthController {
                 rateLimitService.recordSuccessfulAttempt(httpRequest);
 
                 return ResponseEntity.status(HttpStatus.CREATED)
-                                .body(ApiResponse.success(UserResponseDto.fromUser(user)));
+                                .body(UserResponseDto.fromUser(user));
         }
 
         @PostMapping("/login")
@@ -99,7 +99,7 @@ public class AuthController {
 
                 return ResponseEntity.ok()
                                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                                .body(ApiResponse.success(UserResponseDto.fromUser(authResult.user())));
+                                .body(UserResponseDto.fromUser(authResult.user()));
         }
 
         @PostMapping("/logout")
@@ -125,7 +125,7 @@ public class AuthController {
                 }
                 User user = userService.findByUsername(auth.getName());
                 return ResponseEntity.ok()
-                                .body(ApiResponse.success(user));
+                                .body(UserResponseDto.fromUser(user));
         }
 
         @PostMapping("/verify")

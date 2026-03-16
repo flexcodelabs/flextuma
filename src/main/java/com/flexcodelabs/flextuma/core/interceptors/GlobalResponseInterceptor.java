@@ -1,8 +1,10 @@
 package com.flexcodelabs.flextuma.core.interceptors;
 
+import java.util.Map;
 import com.flexcodelabs.flextuma.core.dto.ApiResponse;
 import com.flexcodelabs.flextuma.core.dtos.UserResponseDto;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
+import com.flexcodelabs.flextuma.core.entities.base.Owner;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
@@ -36,8 +38,24 @@ public class GlobalResponseInterceptor implements ResponseBodyAdvice<Object> {
     }
 
     private Object convertEntitiesToDtos(Object body) {
+        if (body == null) {
+            return null;
+        }
+
         if (body instanceof User user) {
             return UserResponseDto.fromUser(user);
+        }
+
+        if (body instanceof Owner owner) {
+            return handleOwnerEntity(owner);
+        }
+
+        if (body instanceof Iterable<?> collection) {
+            return handleCollection(collection);
+        }
+
+        if (body instanceof java.util.Map<?, ?> map) {
+            return handleMap(map);
         }
 
         if (body instanceof ApiResponse<?> apiResponse) {
@@ -45,6 +63,95 @@ public class GlobalResponseInterceptor implements ResponseBodyAdvice<Object> {
         }
 
         return body;
+    }
+
+    private Object handleCollection(Iterable<?> collection) {
+        java.util.List<Object> convertedList = new java.util.ArrayList<>();
+        boolean hasConversion = false;
+
+        for (Object item : collection) {
+            Object converted = convertEntitiesToDtos(item);
+            convertedList.add(converted);
+            if (converted != item) {
+                hasConversion = true;
+            }
+        }
+
+        return hasConversion ? convertedList : collection;
+    }
+
+    private Object handleMap(java.util.Map<?, ?> map) {
+        java.util.Map<Object, Object> convertedMap = new java.util.HashMap<>();
+        boolean hasConversion = false;
+
+        for (java.util.Map.Entry<?, ?> entry : map.entrySet()) {
+            Object convertedValue = convertEntitiesToDtos(entry.getValue());
+            convertedMap.put(entry.getKey(), convertedValue);
+            if (convertedValue != entry.getValue()) {
+                hasConversion = true;
+            }
+        }
+
+        return hasConversion ? convertedMap : map;
+    }
+
+    private static final String CREATED_BY_FIELD = "createdBy";
+    private static final String UPDATED_BY_FIELD = "updatedBy";
+
+    private Object handleOwnerEntity(Owner owner) {
+        try {
+            Map<String, Object> cleanEntity = new java.util.HashMap<>();
+
+            java.lang.reflect.Field[] fields = owner.getClass().getDeclaredFields();
+            for (java.lang.reflect.Field field : fields) {
+                field.setAccessible(true);
+                String fieldName = field.getName();
+
+                if (!CREATED_BY_FIELD.equals(fieldName) && !UPDATED_BY_FIELD.equals(fieldName)) {
+                    Object value = field.get(owner);
+                    if (value != null) {
+                        cleanEntity.put(fieldName, value);
+                    }
+                }
+            }
+
+            fields = owner.getClass().getSuperclass().getDeclaredFields();
+            for (java.lang.reflect.Field field : fields) {
+                field.setAccessible(true);
+                String fieldName = field.getName();
+
+                if (CREATED_BY_FIELD.equals(fieldName)) {
+                    User createdBy = (User) field.get(owner);
+                    if (createdBy != null) {
+                        cleanEntity.put(fieldName, UserResponseDto.fromUser(createdBy));
+                    }
+                } else if (UPDATED_BY_FIELD.equals(fieldName)) {
+                    User updatedBy = (User) field.get(owner);
+                    if (updatedBy != null) {
+                        cleanEntity.put(fieldName, UserResponseDto.fromUser(updatedBy));
+                    }
+                } else {
+                    Object value = field.get(owner);
+                    if (value != null) {
+                        cleanEntity.put(fieldName, value);
+                    }
+                }
+            }
+
+            fields = owner.getClass().getSuperclass().getSuperclass().getDeclaredFields();
+            for (java.lang.reflect.Field field : fields) {
+                field.setAccessible(true);
+                Object value = field.get(owner);
+                if (value != null) {
+                    cleanEntity.put(field.getName(), value);
+                }
+            }
+
+            return cleanEntity;
+        } catch (java.lang.IllegalAccessException e) {
+            log.warn("Failed to handle Owner entity: {}", e.getMessage());
+            return owner;
+        }
     }
 
     private Object processApiResponse(ApiResponse<?> apiResponse) {
