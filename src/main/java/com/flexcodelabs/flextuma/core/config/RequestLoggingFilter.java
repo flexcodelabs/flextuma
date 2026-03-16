@@ -51,8 +51,20 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
     }
 
+    private boolean shouldSkipLogging(String fullUri) {
+        return fullUri.equals("/") || fullUri.contains("/actuator/") || fullUri.contains(".js")
+                || fullUri.contains(".css")
+                || fullUri.contains(".png") || fullUri.contains(".jpg") || fullUri.contains(".jpeg")
+                || fullUri.contains(".gif") || fullUri.contains(".svg") || fullUri.contains(".ico")
+                || fullUri.contains(".json") || fullUri.contains(".html") || fullUri.contains(".woff2")
+                || fullUri.contains(".woff") || fullUri.contains(".ttf");
+    }
+
     private void logRequest(HttpServletRequest request, HttpServletResponse response, String fullUri, long startTime,
             int statusOverride, Exception ex) {
+        if (shouldSkipLogging(fullUri)) {
+            return;
+        }
         request.setAttribute("REQUEST_LOGGED", true);
         String username = getUsername();
         long duration = System.currentTimeMillis() - startTime;

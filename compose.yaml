@@ -23,9 +23,11 @@ services:
       - SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.PostgreSQLDialect
       - SPRING_DATA_REDIS_HOST=${SPRING_DATA_REDIS_HOST}
       - SPRING_DATA_REDIS_PORT=${SPRING_DATA_REDIS_PORT:-6379}
+      - APP_FRONTEND_DIRECTORY=client
     volumes:
       - ./src:/app/src
       - ./build/classes/java/main:/app/extracted/WEB-INF/classes
+      - ./client:/app/client
 
 networks:
   default:

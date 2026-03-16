@@ -104,4 +104,21 @@ public class SmsConnectorService extends BaseService<SmsConnector> {
             throw new IllegalStateException("You cannot delete an active connector");
         }
     }
+
+    @Override
+    public SmsConnector update(UUID id, SmsConnector entity) {
+        checkPermission(getUpdatePermission());
+        SmsConnector existing = getRepository().findById(id)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
+
+        if (entity.getKey() != null && entity.getKey().contains("****")) {
+            entity.setKey(existing.getKey());
+        }
+        if (entity.getSecret() != null && entity.getSecret().contains("****")) {
+            entity.setSecret(existing.getSecret());
+        }
+
+        return super.update(id, entity);
+    }
 }
