@@ -1,5 +1,6 @@
 package com.flexcodelabs.flextuma.core.interceptors;
 
+import java.util.Map;
 import com.flexcodelabs.flextuma.core.dto.ApiResponse;
 import com.flexcodelabs.flextuma.core.dtos.UserResponseDto;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
@@ -94,25 +95,60 @@ public class GlobalResponseInterceptor implements ResponseBodyAdvice<Object> {
         return hasConversion ? convertedMap : map;
     }
 
-    @SuppressWarnings({ "java:S3011", "java:S112" })
+    private static final String CREATED_BY_FIELD = "createdBy";
+    private static final String UPDATED_BY_FIELD = "updatedBy";
+
     private Object handleOwnerEntity(Owner owner) {
         try {
-            java.lang.reflect.Field createdByField = owner.getClass().getSuperclass().getDeclaredField("createdBy");
-            createdByField.setAccessible(true);
-            User createdBy = (User) createdByField.get(owner);
-            if (createdBy != null) {
-                createdByField.set(owner, UserResponseDto.fromUser(createdBy));
+            Map<String, Object> cleanEntity = new java.util.HashMap<>();
+
+            java.lang.reflect.Field[] fields = owner.getClass().getDeclaredFields();
+            for (java.lang.reflect.Field field : fields) {
+                field.setAccessible(true);
+                String fieldName = field.getName();
+
+                if (!CREATED_BY_FIELD.equals(fieldName) && !UPDATED_BY_FIELD.equals(fieldName)) {
+                    Object value = field.get(owner);
+                    if (value != null) {
+                        cleanEntity.put(fieldName, value);
+                    }
+                }
             }
 
-            java.lang.reflect.Field updatedByField = owner.getClass().getSuperclass().getDeclaredField("updatedBy");
-            updatedByField.setAccessible(true);
-            User updatedBy = (User) updatedByField.get(owner);
-            if (updatedBy != null) {
-                updatedByField.set(owner, UserResponseDto.fromUser(updatedBy));
+            fields = owner.getClass().getSuperclass().getDeclaredFields();
+            for (java.lang.reflect.Field field : fields) {
+                field.setAccessible(true);
+                String fieldName = field.getName();
+
+                if (CREATED_BY_FIELD.equals(fieldName)) {
+                    User createdBy = (User) field.get(owner);
+                    if (createdBy != null) {
+                        cleanEntity.put(fieldName, UserResponseDto.fromUser(createdBy));
+                    }
+                } else if (UPDATED_BY_FIELD.equals(fieldName)) {
+                    User updatedBy = (User) field.get(owner);
+                    if (updatedBy != null) {
+                        cleanEntity.put(fieldName, UserResponseDto.fromUser(updatedBy));
+                    }
+                } else {
+                    Object value = field.get(owner);
+                    if (value != null) {
+                        cleanEntity.put(fieldName, value);
+                    }
+                }
             }
 
-            return owner;
-        } catch (Exception e) {
+            fields = owner.getClass().getSuperclass().getSuperclass().getDeclaredFields();
+            for (java.lang.reflect.Field field : fields) {
+                field.setAccessible(true);
+                Object value = field.get(owner);
+                if (value != null) {
+                    cleanEntity.put(field.getName(), value);
+                }
+            }
+
+            return cleanEntity;
+        } catch (java.lang.IllegalAccessException e) {
             log.warn("Failed to handle Owner entity: {}", e.getMessage());
             return owner;
         }
