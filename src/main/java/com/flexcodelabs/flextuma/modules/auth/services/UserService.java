@@ -149,4 +149,10 @@ public class UserService extends BaseService<User> {
         return repository.save(user);
     }
 
+    public void changePassword(User user, String newPassword) {
+        user.setPassword(newPassword);
+        user.setChangePassword(false);
+        repository.save(user);
+    }
+
 }

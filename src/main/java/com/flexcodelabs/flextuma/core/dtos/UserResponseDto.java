@@ -16,6 +16,7 @@ public class UserResponseDto {
     private LocalDateTime lastLogin;
     private Boolean verified;
     private Boolean active;
+    private Boolean changePassword;
     private Set<String> roles;
     private LocalDateTime created;
     private LocalDateTime updated;
@@ -34,6 +35,7 @@ public class UserResponseDto {
         dto.setLastLogin(user.getLastLogin());
         dto.setVerified(user.getVerified());
         dto.setActive(user.getActive());
+        dto.setChangePassword(user.getChangePassword());
         dto.setCreated(user.getCreated());
         dto.setUpdated(user.getUpdated());
 
@@ -108,6 +110,14 @@ public class UserResponseDto {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    public Boolean getChangePassword() {
+        return changePassword;
+    }
+
+    public void setChangePassword(Boolean changePassword) {
+        this.changePassword = changePassword;
     }
 
     public Set<String> getRoles() {

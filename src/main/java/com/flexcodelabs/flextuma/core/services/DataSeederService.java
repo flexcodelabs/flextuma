@@ -49,13 +49,14 @@ public class DataSeederService {
                 String hashedPass = passwordEncoder.encode(pass);
 
                 jdbcTemplate.update(
-                                "INSERT INTO \"user\" (id, username, name, email, phonenumber, password, type, active, verified, system, created, updated) "
+                                "INSERT INTO \"user\" (id, username, name, email, phonenumber, password, type, active, verified, system, password_change_required, created, updated) "
                                                 +
-                                                "VALUES (?, ?, ?, ?, ?, ?, 'SYSTEM', true, true, true, NOW(), NOW()) " +
+                                                "VALUES (?, ?, ?, ?, ?, ?, 'SYSTEM', true, true, true, ?, NOW(), NOW()) "
+                                                +
                                                 "ON CONFLICT (id) DO NOTHING",
                                 userId, username, username.toUpperCase(), email,
                                 username.equals("SYSTEM") ? "0000000000" : "123456789",
-                                hashedPass);
+                                hashedPass, true);
 
                 jdbcTemplate.update(
                                 "INSERT INTO userrole (owner, role) VALUES (?, ?) " +
