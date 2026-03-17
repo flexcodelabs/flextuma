@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -75,7 +76,7 @@ public class AuthController {
                 rateLimitService.recordSuccessfulAttempt(httpRequest);
 
                 return ResponseEntity.status(HttpStatus.CREATED)
-                                .body(UserResponseDto.fromUser(user));
+                                .body(user);
         }
 
         @PostMapping("/login")
@@ -99,7 +100,7 @@ public class AuthController {
 
                 return ResponseEntity.ok()
                                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                                .body(UserResponseDto.fromUser(authResult.user()));
+                                .body(authResult.user());
         }
 
         @PostMapping("/logout")
@@ -125,7 +126,7 @@ public class AuthController {
                 }
                 User user = userService.findByUsername(auth.getName());
                 return ResponseEntity.ok()
-                                .body(UserResponseDto.fromUser(user));
+                                .body(user);
         }
 
         @PostMapping("/verify")
@@ -185,11 +186,11 @@ public class AuthController {
                                                         .badRequest("New password and confirmation do not match"));
                 }
 
-                userService.changePassword(user, request.getNewPassword());
+                userService.changePassword(user, BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt()));
 
                 securityLogService.logPasswordChange(user.getUsername(), httpRequest, true);
 
                 return ResponseEntity.ok()
-                                .body(ApiResponse.success(user));
+                                .body(ApiResponse.success(UserResponseDto.fromUser(user)));
         }
 }
