@@ -7,6 +7,7 @@ import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -99,11 +100,13 @@ public class User extends BaseEntity {
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "creator", referencedColumnName = "id", nullable = true)
 	@CreatedBy
+	@JsonIgnore
 	private User createdBy;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "updator", referencedColumnName = "id", nullable = true)
 	@LastModifiedBy
+	@JsonIgnore
 	private User updatedBy;
 
 	@PrePersist
