@@ -32,6 +32,7 @@ public class SmsTemplateController extends BaseController<SmsTemplate, SmsTempla
 		SmsSegmentResult segments = segmentCalculator.calculate(rendered);
 		String encoding = segments.isGsm7() ? "GSM-7" : "UCS-2";
 		return ResponseEntity
-				.ok(new PreviewResponse(rendered, segments.segments(), encoding, segments.charactersRemaining()));
+				.ok(new PreviewResponse(rendered, segments.segments(), encoding, segments.charactersRemaining(),
+						segments.cost(), segments.pricePerSegment()));
 	}
 }

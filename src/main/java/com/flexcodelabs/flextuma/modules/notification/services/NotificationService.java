@@ -124,9 +124,7 @@ public class NotificationService {
         private SmsLog processAndSaveSms(User user, SmsConnector connector, String phoneNumber, String content,
                         SmsTemplate template, Map<String, String> metadata) {
                 SmsSegmentResult segmentResult = segmentCalculator.calculate(content);
-
-                if (connector.getCreatedBy() != null && connector.getCreatedBy().getId() != null
-                                && user.getId() != null) {
+                if (connector.getCode() != null && connector.getCode().equals(connector.getProvider() + "_SYSTEM")) {
                         BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
                         walletService.debit(user, cost, "SMS send to " + phoneNumber, null);
                 }

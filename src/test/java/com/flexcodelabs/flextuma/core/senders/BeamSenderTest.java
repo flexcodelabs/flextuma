@@ -1,6 +1,7 @@
 package com.flexcodelabs.flextuma.core.senders;
 
 import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
+import com.flexcodelabs.flextuma.core.services.SmsSendResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,9 +52,10 @@ class BeemSenderTest {
                 eq(BeemSender.BeemSmsResponse.class)))
                 .thenReturn(responseEntity);
 
-        String result = beemSender.sendSms(config, "255712345678", "Hello World");
+        SmsSendResult result = beemSender.sendSms(config, "255712345678", "Hello World");
 
-        assertEquals("SMS sent successfully", result);
+        assertEquals("SMS sent successfully", result.getMessage());
+        assertTrue(result.isSuccess());
     }
 
     @Test
@@ -66,17 +68,23 @@ class BeemSenderTest {
                 eq(BeemSender.BeemSmsResponse.class)))
                 .thenReturn(responseEntity);
 
-        String result = beemSender.sendSms(config, "255712345678", "Hello World");
+        SmsSendResult result = beemSender.sendSms(config, "255712345678", "Hello World");
 
-        assertEquals("SUCCESS", result);
+        assertEquals("SMS sent successfully", result.getMessage());
+        assertTrue(result.isSuccess());
     }
 
     @Test
-    void sendSms_shouldThrowException_whenConnectionFails() {
+    void sendSms_shouldReturnFailure_whenConnectionFails() {
         when(restTemplate.postForEntity(eq(config.getUrl()), any(HttpEntity.class),
                 eq(BeemSender.BeemSmsResponse.class)))
                 .thenThrow(new org.springframework.web.client.ResourceAccessException("Connection failed"));
-        assertThrows(org.springframework.web.server.ResponseStatusException.class,
-                () -> beemSender.sendSms(config, "255712345678", "Hello World"));
+
+        SmsSendResult result = beemSender.sendSms(config, "255712345678", "Hello World");
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("Failed to send via Beem"));
+        assertEquals("SEND_ERROR", result.getErrorCode());
+        assertNotNull(result.getProviderResponse());
     }
 }

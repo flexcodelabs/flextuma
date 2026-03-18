@@ -82,7 +82,8 @@ class CampaignDispatchWorkerTest {
                 any(Pageable.class)))
                 .thenReturn(List.of(campaign));
 
-        when(segmentCalculator.calculate(any())).thenReturn(new SmsSegmentResult(1, true, 11, 149));
+        when(segmentCalculator.calculate(any()))
+                .thenReturn(new SmsSegmentResult(1, true, 11, 149, BigDecimal.ONE, BigDecimal.TEN));
 
         worker.processCampaigns();
 
@@ -124,7 +125,8 @@ class CampaignDispatchWorkerTest {
         when(campaignRepository.findDueCampaigns(eq(SmsCampaignStatus.SCHEDULED), any(LocalDateTime.class),
                 any(Pageable.class)))
                 .thenReturn(List.of(campaign));
-        when(segmentCalculator.calculate(any())).thenReturn(new SmsSegmentResult(1, true, 5, 155));
+        when(segmentCalculator.calculate(any()))
+                .thenReturn(new SmsSegmentResult(1, true, 5, 155, BigDecimal.ONE, BigDecimal.TEN));
 
         doThrow(new RuntimeException("InSufficient Funds")).when(walletService).debit(any(), any(), any(), any());
 

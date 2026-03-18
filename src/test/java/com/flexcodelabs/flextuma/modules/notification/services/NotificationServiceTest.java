@@ -163,7 +163,8 @@ class NotificationServiceTest {
                 when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "Twilio"))
                                 .thenReturn(Optional.of(connector));
 
-                SmsSegmentResult mockSegmentResult = new SmsSegmentResult(1, true, 14, 146);
+                SmsSegmentResult mockSegmentResult = new SmsSegmentResult(1, true, 14, 146, BigDecimal.ONE,
+                                BigDecimal.ONE);
                 when(segmentCalculator.calculate(anyString())).thenReturn(mockSegmentResult);
 
                 SmsLog expectedSavedLog = new SmsLog();

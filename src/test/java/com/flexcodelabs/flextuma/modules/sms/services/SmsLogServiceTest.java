@@ -13,6 +13,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Map;
+
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -41,7 +43,7 @@ class SmsLogServiceTest {
         smsLog.setStatus(SmsLogStatus.FAILED);
         smsLog.setRetries(1);
         smsLog.setError("Network timeout");
-        smsLog.setProviderResponse("HTTP 504");
+        smsLog.setProviderResponse(Map.of("error", "HTTP 504", "status", "failed"));
     }
 
     @Test

@@ -61,6 +61,8 @@ class SmsTemplateControllerTest extends BaseControllerTest<SmsTemplate, SmsTempl
                 .andExpect(jsonPath("$.renderedContent").value("Hello Alice, your code is 1234"))
                 .andExpect(jsonPath("$.segmentCount").value(1))
                 .andExpect(jsonPath("$.encoding").value("GSM-7"))
-                .andExpect(jsonPath("$.charactersRemaining").value(130));
+                .andExpect(jsonPath("$.charactersRemaining").value(130))
+                .andExpect(jsonPath("$.cost").value(1.0))
+                .andExpect(jsonPath("$.pricePerSegment").value(1.0));
     }
 }
