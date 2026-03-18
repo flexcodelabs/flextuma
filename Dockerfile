@@ -13,4 +13,4 @@ ENTRYPOINT ["java", "-cp", "/app/extracted/WEB-INF/classes:/app/extracted/WEB-IN
 
 FROM dev AS prod
 COPY --from=build /app/build/libs/*.war app.war
-ENTRYPOINT ["java", "-jar", "app.war"]
+ENTRYPOINT ["java", "-Dspring.profiles.active=prod", "-Dlogging.config=classpath:logback-prod.xml", "-jar", "app.war"]
