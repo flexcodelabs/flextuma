@@ -1,5 +1,6 @@
 package com.flexcodelabs.flextuma.core.helpers;
 
+import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -13,6 +14,7 @@ public class SmsSegmentCalculator {
     private int gsm7MultipartLength = 153;
     private int ucs2MaxLength = 70;
     private int ucs2MultipartLength = 67;
+    private BigDecimal pricePerSegment = BigDecimal.ONE;
 
     @Value("${app.sms.segment.gsm7.max:160}")
     public void setGsm7MaxLength(int gsm7MaxLength) {
@@ -34,6 +36,11 @@ public class SmsSegmentCalculator {
         this.ucs2MultipartLength = ucs2MultipartLength;
     }
 
+    @Value("${flextuma.sms.price-per-segment:1.0}")
+    public void setPricePerSegment(BigDecimal pricePerSegment) {
+        this.pricePerSegment = pricePerSegment;
+    }
+
     private static final Set<Character> GSM7_CHARS = new HashSet<>();
 
     static {
@@ -53,7 +60,7 @@ public class SmsSegmentCalculator {
 
     public SmsSegmentResult calculate(String message) {
         if (message == null || message.isEmpty()) {
-            return new SmsSegmentResult(0, true, 0, gsm7MaxLength);
+            return new SmsSegmentResult(0, true, 0, gsm7MaxLength, BigDecimal.ZERO, pricePerSegment);
         }
 
         boolean isGsm7 = true;
@@ -94,6 +101,7 @@ public class SmsSegmentCalculator {
         }
 
         int charactersRemaining = maxCapacity - finalLength;
-        return new SmsSegmentResult(segments, isGsm7, finalLength, charactersRemaining);
+        BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segments));
+        return new SmsSegmentResult(segments, isGsm7, finalLength, charactersRemaining, cost, pricePerSegment);
     }
 }

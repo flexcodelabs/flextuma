@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
+import com.flexcodelabs.flextuma.core.services.SmsSendResult;
 import com.flexcodelabs.flextuma.core.services.SmsSender;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,13 +57,16 @@ class SmsDispatchWorkerTest {
         when(logRepository.findDueMessages(eq(SmsLogStatus.PENDING), any(java.time.LocalDateTime.class),
                 any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(log));
-        when(smsSender.sendSms(any(), any(), any())).thenReturn("provider-msg-id-123");
+        when(smsSender.sendSms(any(), any(), any())).thenReturn(
+                SmsSendResult.success("SMS sent successfully", "provider-msg-id-123",
+                        Map.of("status", "sent", "message_id", "provider-msg-id-123")));
         when(logRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         worker.dispatch();
 
         assertEquals(SmsLogStatus.SENT, log.getStatus());
-        assertEquals("provider-msg-id-123", log.getProviderResponse());
+        assertEquals("provider-msg-id-123", log.getProviderMessageId());
+        assertEquals(Map.of("status", "sent", "message_id", "provider-msg-id-123"), log.getProviderResponse());
     }
 
     @Test

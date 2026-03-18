@@ -1,5 +1,10 @@
 package com.flexcodelabs.flextuma.core.entities.sms;
 
+import java.util.Map;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
@@ -55,8 +60,11 @@ public class SmsLog extends Owner {
     @JoinColumn(name = "connector", nullable = true)
     private SmsConnector connector;
 
-    @Column(columnDefinition = "TEXT", name = "providerresponse", nullable = true)
-    private String providerResponse;
+    @JdbcTypeCode(SqlTypes.JSON)
+    private Map<String, Object> providerResponse;
+
+    @Column(name = "provider_message_id", nullable = true)
+    private String providerMessageId;
 
     @Column(columnDefinition = "TEXT", nullable = true)
     private String error;

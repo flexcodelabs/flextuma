@@ -14,7 +14,7 @@ public class SmsSenderRegistry {
     private final SmsConnectorRepository connectorRepository;
     private final List<SmsSender> senders;
 
-    public String send(String to, String message) {
+    public SmsSendResult send(String to, String message) {
         SmsConnector activeConnector = connectorRepository.findByActive(true)
                 .orElseThrow(() -> new RuntimeException("No active SMS connector found in database"));
 

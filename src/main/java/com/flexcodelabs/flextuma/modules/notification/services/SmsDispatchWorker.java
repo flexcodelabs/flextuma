@@ -10,6 +10,7 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
+import com.flexcodelabs.flextuma.core.services.SmsSendResult;
 import com.flexcodelabs.flextuma.core.services.SmsSender;
 
 import lombok.RequiredArgsConstructor;
@@ -75,10 +76,20 @@ public class SmsDispatchWorker {
         }
 
         try {
-            String providerResponse = sender.sendSms(connector, smsLog.getRecipient(), smsLog.getContent());
-            smsLog.setStatus(SmsLogStatus.SENT);
-            smsLog.setProviderResponse(providerResponse);
-            log.debug("SmsLog [{}] sent successfully via [{}]", smsLog.getId(), connector.getProvider());
+            SmsSendResult result = sender.sendSms(connector, smsLog.getRecipient(), smsLog.getContent());
+
+            if (result.isSuccess()) {
+                smsLog.setStatus(SmsLogStatus.SENT);
+                smsLog.setProviderResponse(result.getProviderResponse());
+                smsLog.setProviderMessageId(result.getProviderMessageId());
+                log.debug("SmsLog [{}] sent successfully via [{}]", smsLog.getId(), connector.getProvider());
+            } else {
+                smsLog.setStatus(SmsLogStatus.FAILED);
+                smsLog.setError(result.getMessage());
+                smsLog.setProviderResponse(result.getProviderResponse());
+                log.warn("SmsLog [{}] FAILED via provider [{}]: {}", smsLog.getId(), connector.getProvider(),
+                        result.getMessage());
+            }
         } catch (Exception e) {
             int retries = smsLog.getRetries() + 1;
             smsLog.setRetries(retries);

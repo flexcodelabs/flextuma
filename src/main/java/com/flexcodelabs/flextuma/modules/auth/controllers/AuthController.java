@@ -54,6 +54,9 @@ public class AuthController {
         @Value("${flextuma.sms.price-per-segment:1.0}")
         private BigDecimal pricePerSegment;
 
+        @Value("${flextuma.registration.bonus-segments:5}")
+        private BigDecimal registrationBonusSegments;
+
         @PostMapping("/register")
         public ResponseEntity<Object> register(@Valid @RequestBody RegisterDto request,
                         HttpServletRequest httpRequest) {
@@ -70,8 +73,8 @@ public class AuthController {
                 securityLogService.logRegistrationAttempt(user.getUsername(), user.getEmail(), httpRequest,
                                 true, "Registration successful");
 
-                BigDecimal creditAmount = pricePerSegment.multiply(BigDecimal.TEN);
-                walletService.credit(user, creditAmount, "Registration test SMS credits", "REGISTRATION_BONUS");
+                walletService.credit(user, registrationBonusSegments, "Registration test SMS credits",
+                                "REGISTRATION_BONUS");
 
                 rateLimitService.recordSuccessfulAttempt(httpRequest);
 

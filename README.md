@@ -261,18 +261,39 @@ Manages SMS provider configurations and message templates.
 - **`SmsConnector`** — provider configuration (URL, API key/secret, sender ID, extra settings). One connector can be marked active at a time.
 - **`SmsTemplate`** — message templates with `{placeholder}` variables, categorised by `CategoryEnum` (`PROMOTIONAL`, etc.). System templates are protected from deletion.
 - **`SmsLog`** — records every sent message: recipient, content, status, provider response, error, and linked template.
+- **`SmsSendResult`** — standardized result object containing success/failure status, message ID, error codes, and full provider response data.
 - **`SmsSenderRegistry`** — selects the active `SmsConnector` from the DB, finds the matching `SmsSender` implementation by provider name, and dispatches the message.
 
 ### SMS Providers
 
 Two concrete `SmsSender` implementations:
 
-| Provider | Class | Auth Method |
-|---|---|---|
-| **Beem** | `BeemSender` | API key + secret (Basic Auth header) |
-| **NextSMS** | `NextSmsSender` | Stub (logs output — for local testing) |
+| Provider | Class | Auth Method | Status |
+|---|---|---|---|
+| **Beem** | `BeemSender` | API key + secret (Basic Auth header) | ✅ Production ready |
+| **NextSMS** | `NextSmsSender` | API key + secret (Basic Auth header) | ✅ Production ready |
 
 Adding a new provider: implement `SmsSender`, annotate with `@Service`, and set the matching `provider` string on the `SmsConnector` record.
+
+### SMS Provider Response Handling
+
+All SMS providers now return standardized `SmsSendResult` objects that include:
+
+- **Success/Failure Status** - Boolean success flag with descriptive messages
+- **Message ID** - Provider-specific message identifier for tracking
+- **Error Codes** - Standardized error codes for failure scenarios
+- **Full Provider Response** - Complete response data as `Map<String, Object>` for debugging and audit
+
+**Response Processing Flow:**
+```
+Provider HTTP Response → SmsSender.processResponse() → SmsSendResult → SmsLog.providerResponse
+```
+
+**Key Features:**
+- Type-safe response mapping using Jackson `Map<String, Object>` conversion
+- Automatic error extraction from provider error responses
+- Detailed logging of provider responses for audit trails
+- Consistent error handling across all SMS providers
 
 ### Connector Module — Data Hydration Flow
 
@@ -380,9 +401,10 @@ See [`ROADMAP/roadmap.md`](ROADMAP/roadmap.md) for the full development roadmap,
 - [x] Rate Limiter (Bucket4j per-tenant quotas)
 - [x] Webhook DLR receiver & Recipient Resolver Trigger API (`/api/webhooks...`)
 - [x] Character Count & Preview API (`/api/smsTemplates/preview` returning segment counts and `charactersRemaining` budget)
+- [x] Real HTTP implementation for `NextSmsSender` with provider response logging
+- [x] Standardized `SmsSendResult` service with type-safe response handling
 
 **Immediate next steps:**
-- [x] Implement real HTTP logic for `NextSmsSender`
 - [ ] Database Partitioning for `sms_log` table
 - [ ] Multi-channel support (WhatsApp/Email)
 
