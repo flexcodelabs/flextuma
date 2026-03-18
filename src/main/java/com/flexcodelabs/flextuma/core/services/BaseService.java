@@ -92,6 +92,11 @@ public abstract class BaseService<T extends BaseEntity> {
 		}
 	}
 
+	protected Boolean isAdminPermission() {
+		Set<String> authorities = SecurityUtils.getCurrentUserAuthorities();
+		return authorities.contains("SUPER_ADMIN");
+	}
+
 	protected Specification<T> buildFetchSpec(String fields) {
 		return new DynamicFetchSpecification<>(FieldParser.parse(fields));
 	}

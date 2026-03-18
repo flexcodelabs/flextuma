@@ -103,6 +103,9 @@ public class SmsConnectorService extends BaseService<SmsConnector> {
         if (Boolean.TRUE.equals(entity.getActive())) {
             throw new IllegalStateException("You cannot delete an active connector");
         }
+        if ((entity.getProvider() + "_SYSTEM").equalsIgnoreCase(entity.getProvider())) {
+            throw new IllegalStateException("You cannot delete a system connector");
+        }
     }
 
     @Override
@@ -111,6 +114,11 @@ public class SmsConnectorService extends BaseService<SmsConnector> {
         SmsConnector existing = getRepository().findById(id)
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
                         org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
+
+        if (!Boolean.TRUE.equals(isAdminPermission())
+                && (existing.getProvider() + "_SYSTEM").equalsIgnoreCase(existing.getProvider())) {
+            throw new IllegalStateException("You cannot update a system connector");
+        }
 
         if (entity.getKey() != null && entity.getKey().contains("****")) {
             entity.setKey(existing.getKey());
