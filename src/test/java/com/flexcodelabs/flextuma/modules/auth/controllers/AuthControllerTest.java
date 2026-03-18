@@ -94,7 +94,7 @@ class AuthControllerTest {
                 .content(objectMapper.writeValueAsString(loginDto)))
                 .andExpect(status().isOk())
                 .andExpect(header().exists("Set-Cookie"))
-                .andExpect(jsonPath("$.data.username").value("user"));
+                .andExpect(jsonPath("$.username").value("user"));
     }
 
     @Test
@@ -141,7 +141,7 @@ class AuthControllerTest {
 
             mockMvc.perform(get("/api/me"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.username").value("user"));
+                    .andExpect(jsonPath("$.username").value("user"));
         }
     }
 

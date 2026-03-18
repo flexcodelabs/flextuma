@@ -55,7 +55,8 @@ public class SecurityConfig {
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers("/api/login").permitAll()
                             .requestMatchers("/api/register").permitAll()
-                            .requestMatchers("/**").permitAll()
+                            .requestMatchers("/").permitAll()
+                            .requestMatchers("/assets/**").permitAll()
                             .anyRequest().authenticated())
                     .httpBasic(Customizer.withDefaults())
                     .addFilterBefore(patAuthenticationFilter,

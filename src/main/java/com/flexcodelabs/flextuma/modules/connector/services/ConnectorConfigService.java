@@ -82,7 +82,6 @@ public class ConnectorConfigService extends BaseService<ConnectorConfig> {
                 .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
                         org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
 
-        // Preserve sensitive fields with masked values
         if (entity.getTenantId() != null && entity.getTenantId().contains("****")) {
             entity.setTenantId(existing.getTenantId());
         }
