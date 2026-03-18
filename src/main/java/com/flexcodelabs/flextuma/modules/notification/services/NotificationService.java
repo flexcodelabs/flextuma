@@ -110,7 +110,13 @@ public class NotificationService {
         }
 
         private SmsConnector getConnector(User user, String provider) {
-                return connectorRepository.findByCreatedByAndProviderAndActiveTrue(user, provider)
+                Optional<SmsConnector> connector = connectorRepository.findByCreatedByAndProviderAndActiveTrue(user,
+                                provider);
+                if (connector.isPresent()) {
+                        return connector.get();
+                }
+
+                return connectorRepository.findByProviderAndCode(provider, provider + "_SYSTEM")
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                                 "No active SMS connector found for provider [" + provider + "]"));
         }
@@ -118,9 +124,12 @@ public class NotificationService {
         private SmsLog processAndSaveSms(User user, SmsConnector connector, String phoneNumber, String content,
                         SmsTemplate template, Map<String, String> metadata) {
                 SmsSegmentResult segmentResult = segmentCalculator.calculate(content);
-                BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
 
-                walletService.debit(user, cost, "SMS send to " + phoneNumber, null);
+                if (connector.getCreatedBy() != null && connector.getCreatedBy().getId() != null
+                                && user.getId() != null) {
+                        BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
+                        walletService.debit(user, cost, "SMS send to " + phoneNumber, null);
+                }
 
                 SmsLog log = new SmsLog();
                 log.setRecipient(phoneNumber);

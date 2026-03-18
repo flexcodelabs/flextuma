@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -33,9 +33,9 @@ public class WalletService extends BaseService<Wallet> {
     private BigDecimal smsPricePerSegment;
 
     public Wallet getOrCreateWallet(User user) {
-        Optional<Wallet> optionalWallet = repository.findByCreatedBy(user);
-        if (optionalWallet.isPresent()) {
-            return optionalWallet.get();
+        List<Wallet> wallets = repository.findByCreatedByAndBalanceGreaterThan(user, BigDecimal.ZERO);
+        if (!wallets.isEmpty()) {
+            return wallets.get(0);
         }
 
         Wallet newWallet = new Wallet();
