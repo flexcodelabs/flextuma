@@ -108,6 +108,305 @@ src/main/java/com/flexcodelabs/flextuma/
 
 ---
 
+## API Reference
+
+### Authentication & Authorization
+
+#### User Registration
+```http
+POST /api/register
+Content-Type: application/json
+
+{
+  "username": "string",
+  "email": "string", 
+  "phoneNumber": "string",
+  "password": "string",
+  "organisation": { "id": "uuid" }
+}
+```
+- **Rate Limited**: Prevents brute force registration attempts
+- **Verification**: Automatically sends verification codes to email and phone
+- **Bonus Credits**: Awards configurable SMS segments on successful registration
+
+#### User Login
+```http
+POST /api/login
+Content-Type: application/json
+
+{
+  "username": "string",
+  "password": "string"
+}
+```
+- **Rate Limited**: Blocks excessive login attempts
+- **Session Management**: Creates HttpOnly session cookie backed by Redis
+- **Security Logging**: Records all login attempts for audit
+
+#### User Logout
+```http
+POST /api/logout
+```
+- Clears session cookie and logs security event
+
+#### Current User Profile
+```http
+GET /api/me
+```
+- Returns authenticated user's profile information
+
+#### Email/Phone Verification
+```http
+POST /api/verify
+Content-Type: application/json
+
+{
+  "identifier": "email@domain.com",
+  "code": "123456"
+}
+```
+
+```http
+POST /api/resendVerification
+Content-Type: application/json
+
+{
+  "identifier": "email@domain.com"
+}
+```
+
+#### Password Change
+```http
+POST /api/changePassword
+Content-Type: application/json
+
+{
+  "currentPassword": "string",
+  "newPassword": "string", 
+  "confirmPassword": "string"
+}
+```
+
+#### Personal Access Tokens (PAT)
+```http
+# Standard CRUD operations
+GET|POST|PUT|DELETE /api/personalAccessTokens
+```
+- Enables API authentication without session cookies
+- Ideal for integrations and automated systems
+
+---
+
+### SMS Campaigns (`/api/campaigns`)
+
+#### Campaign Management
+Full CRUD operations for SMS campaigns with scheduling capabilities:
+
+```json
+{
+  "name": "Campaign Name",
+  "description": "Campaign description", 
+  "template": { "id": "template-uuid" },
+  "scheduledAt": "2024-01-15T10:30:00",
+  "status": "DRAFT|SCHEDULED|RUNNING|COMPLETED",
+  "recipients": "phone1,phone2,phone3",
+  "connector": { "id": "connector-uuid" }
+}
+```
+
+#### Campaign Status Flow
+1. **DRAFT** - Initial state, can be modified
+2. **SCHEDULED** - Set for future delivery
+3. **RUNNING** - Currently being processed
+4. **COMPLETED** - Finished processing
+
+---
+
+### Finance & Wallet Management (`/api/wallets`)
+
+#### Wallet Operations
+```json
+{
+  "balance": 1000.0000,
+  "smsCost": 20.00,
+  "currency": "TZS",
+  "type": "SMS",
+  "value": 20000.00
+}
+```
+
+#### Features
+- **Multi-currency Support** - Configurable currency per wallet
+- **Real-time Balance** - Updated immediately after SMS sending
+- **Cost Tracking** - Per-segment cost calculation
+- **Transaction History** - Complete audit trail via WalletTransaction
+
+#### Automatic Credit Allocation
+- Registration bonus credits configurable via environment
+- Pre-flight balance checks before SMS sending
+- Automatic deduction upon successful delivery
+
+---
+
+### Advanced SMS Features
+
+#### Template Preview & Cost Calculation
+```http
+POST /api/smsTemplates/preview
+Content-Type: application/json
+
+{
+  "template": "Hello {{name}}, your order {{orderId}} is ready!",
+  "variables": {
+    "name": "John Doe",
+    "orderId": "12345"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "rendered": "Hello John Doe, your order 12345 is ready!",
+  "segments": 1,
+  "encoding": "GSM-7",
+  "charactersRemaining": 145,
+  "cost": 20.00,
+  "pricePerSegment": 20.00
+}
+```
+
+#### Failed Message Retry
+```http
+POST /api/smsLogs/{id}/retry
+```
+- Retries failed SMS messages with original parameters
+- Updates log status and provider response
+
+---
+
+### System Administration (`/api/systemLogs`)
+
+#### Log Query & Filtering
+```http
+GET /api/systemLogs?level=ERROR&source=SMS&from=2024-01-01T00:00:00
+```
+
+**Parameters:**
+- `level` - Log level (ERROR, WARN, INFO, DEBUG)
+- `source` - Component source (SMS, AUTH, WEBHOOK, etc.)
+- `traceId` - Request trace identifier
+- `from/to` - Date range filtering
+
+#### Real-time Log Streaming
+```http
+GET /api/systemLogs/tail?level=ERROR
+Accept: text/event-stream
+```
+- Server-Sent Events (SSE) for live log monitoring
+- Filterable by log level
+
+#### System Health Monitoring
+```http
+GET /api/systemLogs/health
+```
+Returns system health metrics including database status, memory usage, and active connections.
+
+#### Log Maintenance
+```http
+DELETE /api/systemLogs/purge?days=30
+```
+- Purges log entries older than specified days
+- Returns count of deleted records
+
+---
+
+### Webhooks & Integrations (`/api/webhooks`)
+
+#### Delivery Report (DLR) Receiver
+```http
+POST /api/webhooks/{provider}
+Content-Type: application/json
+
+{
+  "messageId": "provider-message-id",
+  "status": "DELIVERED|FAILED|PENDING",
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+**Supported Providers:**
+- `beem` - Beem SMS provider
+- `next` - NextSMS provider
+
+#### Recipient Resolver Trigger
+```http
+POST /api/webhooks/{connectorId}/sms
+Content-Type: application/json
+
+{
+  "provider": "beem",
+  "templateCode": "WELCOME_MSG",
+  "content": "Custom message content",
+  "filterQuery": "status=active"
+}
+```
+
+**Features:**
+- Fetches recipients from external ERP systems
+- Supports both template-based and raw content
+- Automatic queueing for async processing
+
+---
+
+### Notification System (`/api/notifications`)
+
+#### Template-based SMS
+```http
+POST /api/notifications
+Content-Type: application/json
+
+{
+  "to": "+255123456789",
+  "templateCode": "WELCOME_MSG", 
+  "variables": {
+    "name": "John Doe",
+    "company": "ACME Corp"
+  }
+}
+```
+
+#### Raw SMS Sending
+```http
+POST /api/notifications/raw
+Content-Type: application/json
+
+{
+  "to": "+255123456789",
+  "content": "Direct message content",
+  "provider": "beem"
+}
+```
+
+---
+
+### App Management (`/api/apps`)
+
+#### Application Upload
+```http
+POST /api/apps
+Content-Type: multipart/form-data
+
+appName: myapp
+version: 1.0.0
+file: [application.zip]
+```
+- **SUPER_ADMIN** only endpoint
+- Uploads and extracts application packages
+- Supports system extensions and plugins
+
+---
+
 ## Core Concepts
 
 ### BaseEntity & Inheritance Chain
@@ -236,16 +535,162 @@ Document every key here when you introduce it:
 
 ---
 
+## Security
+
+### Authentication Methods
+
+| Client Type | Method | Usage |
+|---|---|---|
+| **Browser/SPA** | Session-based auth via `POST /api/login` | Receives HttpOnly `SESSION` cookie (Redis-backed) |
+| **API/Testing** | HTTP Basic Auth (`Authorization: Basic base64(user:pass)`) | Also creates session for convenience |
+| **Integrations** | Personal Access Token (PAT) | Token-based auth for automated systems |
+
+### Rate Limiting
+
+**Authentication Endpoints:**
+- **Registration**: Blocks after excessive attempts with configurable timeout
+- **Login**: Prevents brute force attacks with progressive delays
+- **Verification**: Limits resend attempts to prevent abuse
+
+**Rate Limit Response:**
+```json
+{
+  "error": "Rate limit exceeded",
+  "message": "Too many attempts. Try again in 300 seconds.",
+  "retryAfter": 300
+}
+```
+
+### CSRF Protection
+
+- **Token Method**: Cookie-based `XSRF-TOKEN` + header `X-CSRF-TOKEN`
+- **Exemptions**: `/api/login`, `/api/webhooks/**` (for provider callbacks)
+- **Browser Support**: Automatic for modern SPAs using `withCredentials: true`
+
+### Session Management
+
+- **Storage**: Redis-based session persistence
+- **Cookie**: `SESSION`, HttpOnly, `SameSite=Lax`
+- **Concurrency**: Maximum 1 concurrent session per user
+- **Timeout**: Configurable session expiration
+
+### Security Event Logging
+
+All security events are automatically logged:
+- Login attempts (success/failure)
+- Registration attempts
+- Password changes
+- Logout events
+- Verification attempts
+
+**Log Format:**
+```json
+{
+  "timestamp": "2024-01-15T10:30:00Z",
+  "level": "INFO",
+  "source": "AUTH",
+  "event": "LOGIN_SUCCESS",
+  "username": "john.doe",
+  "ipAddress": "192.168.1.100",
+  "userAgent": "Mozilla/5.0...",
+  "traceId": "abc123-def456"
+}
+```
+
+### Data Isolation
+
+**Tenant-Aware Filtering:**
+- **SUPER_ADMIN/ALL**: Sees all records (no restriction)
+- **Organisation Users**: Sees own records + org-wide data
+- **Unaffiliated Users**: Sees only personal records
+- **System Entities**: No filtering applied (e.g., Organisation)
+
+**Implementation:** Automatic `TenantAwareSpecification` in `BaseService`
+
+---
 
 ## Modules
 
-### Auth (`/api/users`, `/api/roles`, `/api/privileges`, `/api/organisations`)
+### Auth (`/api/users`, `/api/roles`, `/api/privileges`, `/api/organisations`, `/api/personalAccessTokens`)
 
-Manages users, roles, privilege-based RBAC, and organisation membership.
+Manages users, roles, privilege-based RBAC, organisation membership, and API tokens.
 
 - **`User`** — linked to an `Organisation` (one-to-many: many users per org). `UserType` enum (e.g. `SYSTEM`) identifies platform-level admins.
 - **`Organisation`** — the multi-tenancy anchor. Each SACCO is one Organisation. All users of that SACCO share the same `organisationId`.
 - **`Role`** → **`Privilege`** — fine-grained permission strings enforced in `BaseService`.
+- **`PersonalAccessToken`** — API tokens for integrations and automated systems.
+
+**Additional Endpoints:**
+- `/api/register` - User registration with verification
+- `/api/login` - Authentication with rate limiting
+- `/api/logout` - Session termination
+- `/api/me` - Current user profile
+- `/api/verify` - Email/phone verification
+- `/api/changePassword` - Password management
+
+### Finance (`/api/wallets`)
+
+Manages organizational wallets and SMS billing.
+
+- **`Wallet`** — per-organisation SMS credit balance with real-time updates
+- **`WalletTransaction`** — complete audit trail of all credit movements
+
+**Features:**
+- Multi-currency support (TZS, USD, etc.)
+- Per-segment cost calculation
+- Automatic credit deduction on SMS delivery
+- Registration bonus credit allocation
+- Pre-flight balance checks
+
+### SMS (`/api/smsConnectors`, `/api/templates`, `/api/campaigns`, `/api/smsLogs`)
+
+Comprehensive SMS management with campaigns, templates, and delivery tracking.
+
+- **`SmsConnector`** — provider configuration (URL, API key/secret, sender ID, extra settings). One connector can be marked active at a time.
+- **`SmsTemplate`** — message templates with `{placeholder}` variables, categorised by `CategoryEnum` (`PROMOTIONAL`, etc.). System templates are protected from deletion.
+- **`SmsLog`** — records every sent message: recipient, content, status, provider response, error, and linked template.
+- **`SmsCampaign`** — scheduled bulk messaging with status tracking (DRAFT, SCHEDULED, RUNNING, COMPLETED).
+- **`SmsSendResult`** — standardized result object containing success/failure status, message ID, error codes, and full provider response data.
+- **`SmsSenderRegistry`** — selects the active `SmsConnector` from the DB, finds the matching `SmsSender` implementation by provider name, and dispatches the message.
+
+**Advanced Features:**
+- Template preview with cost calculation (`/api/smsTemplates/preview`)
+- Failed message retry (`/api/smsLogs/{id}/retry`)
+- Character encoding detection (GSM-7 vs UCS-2)
+- Segment-based billing
+
+### Notification (`/api/notifications`)
+
+Real-time notification dispatch and queue management.
+
+- **Template-based SMS** - Send templated messages with variable substitution
+- **Raw SMS Sending** - Direct content delivery without templates
+- **Queue Management** - Async processing with status tracking
+
+### System Administration (`/api/systemLogs`, `/api/apps`)
+
+System monitoring, logging, and application management.
+
+- **`SystemLog`** — structured logging with filtering, search, and real-time streaming
+- **App Management** — application upload and plugin system
+
+**Features:**
+- Real-time log streaming via Server-Sent Events
+- Log level filtering (ERROR, WARN, INFO, DEBUG)
+- System health monitoring
+- Log purging by date range
+- Application package upload (SUPER_ADMIN only)
+
+### Webhooks (`/api/webhooks`)
+
+External integrations and delivery report handling.
+
+- **Delivery Report (DLR) Receiver** — Accepts status updates from SMS providers
+- **Recipient Resolver Trigger** — External ERP integration for bulk messaging
+
+**Supported Providers:**
+- `beem` - Beem SMS provider DLRs
+- `next` - NextSMS provider DLRs
 
 ### Connector (`/api/connectorConfigs`)
 
@@ -254,15 +699,17 @@ Configures how Flextuma connects to each organisation's external ERP/data source
 - **`ConnectorConfig`** — stores the base URL, endpoint, `AuthType` (`NONE`, `BASIC`, `BEARER`, `API_KEY`), credentials (masked in responses), and a **JSONPath mapping list** (`List<FieldMapping>`) stored as JSONB.
 - **`DataHydratorService`** — given a `tenantId` and a `memberId`, fetches the external ERP, applies the JSONPath mappings, and returns a `Map<String, String>` of system keys to values. Used to populate SMS template placeholders.
 
-### SMS (`/api/smsConnectors`, `/api/templates`)
+### Contact (`/api/contacts`)
 
-Manages SMS provider configurations and message templates.
+Contact and recipient management for messaging campaigns.
 
-- **`SmsConnector`** — provider configuration (URL, API key/secret, sender ID, extra settings). One connector can be marked active at a time.
-- **`SmsTemplate`** — message templates with `{placeholder}` variables, categorised by `CategoryEnum` (`PROMOTIONAL`, etc.). System templates are protected from deletion.
-- **`SmsLog`** — records every sent message: recipient, content, status, provider response, error, and linked template.
-- **`SmsSendResult`** — standardized result object containing success/failure status, message ID, error codes, and full provider response data.
-- **`SmsSenderRegistry`** — selects the active `SmsConnector` from the DB, finds the matching `SmsSender` implementation by provider name, and dispatches the message.
+### Feature (`/api/tenantFeatures`)
+
+Per-organisation feature flag management for subscription tiers and access control.
+
+### Metadata (`/api/tags`, `/api/lists`)
+
+Tag and list management for organizing contacts and content.
 
 ### SMS Providers
 
