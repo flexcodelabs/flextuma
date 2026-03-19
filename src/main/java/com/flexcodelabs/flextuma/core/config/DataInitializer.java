@@ -17,11 +17,14 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        log.info("FLEXTUMA: Checking system data seeds...");
+        log.info("🚀 FLEXTUMA: Application started - checking system data seeds...");
         try {
+            log.info("🌱 FLEXTUMA: Calling seeder service...");
             seederService.seedSystemData();
+            log.info("✅ FLEXTUMA: System seeding completed successfully!");
         } catch (Exception e) {
-            log.error("FLEXTUMA: Seeding failed: {}", e.getMessage());
+            log.error("❌ FLEXTUMA: System seeding failed: {}", e.getMessage(), e);
+            // Don't throw - allow application to continue
         }
     }
 }
