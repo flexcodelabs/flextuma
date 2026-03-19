@@ -1,5 +1,6 @@
 package com.flexcodelabs.flextuma.core.entities.metadata;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
 import com.flexcodelabs.flextuma.core.entities.contact.Contact;
@@ -23,6 +24,7 @@ public abstract class AbstractMetadataEntity extends Owner {
     private String description;
 
     @ManyToMany
+    @JsonIgnore
     @JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
     private List<Contact> contacts = new ArrayList<>();
 }
