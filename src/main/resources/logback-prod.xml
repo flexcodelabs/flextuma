@@ -25,7 +25,7 @@
         <appender-ref ref="FLEXTUMA_CONSOLE" />
     </logger>
 
-    <!-- Turn off ALL verbose loggers -->
+    <!-- Turn off ALL verbose loggers except SQL for debugging -->
     <logger name="o" level="OFF"/>
     <logger name="org" level="OFF"/>
     <logger name="com" level="OFF"/>
@@ -38,6 +38,13 @@
     <logger name="o.s.w.s" level="OFF"/>
     <logger name="o.s.b" level="OFF"/>
     <logger name="o.s.b.t" level="OFF"/>
+    
+    <!-- Enable JPA/Hibernate logging for debugging -->
+    <logger name="org.hibernate.SQL" level="DEBUG"/>
+    <logger name="org.hibernate.tool.hbm2ddl" level="DEBUG"/>
+    <logger name="org.hibernate.schema" level="DEBUG"/>
+    <logger name="org.springframework.orm.jpa" level="DEBUG"/>
+    
     <logger name="c.f" level="OFF"/>
     <logger name="c.f.f" level="OFF"/>
     <logger name="c.f.f.c" level="OFF"/>
