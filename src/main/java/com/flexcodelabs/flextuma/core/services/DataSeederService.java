@@ -52,7 +52,7 @@ public class DataSeederService {
                         seedUser(roleId, "admin", "admin@flextuma.com", "Admin123", roleId);
 
                         // Seed system user
-                        seedUser(UUID.fromString("7269df24-g8a0-4776-bd89-4015521bc19d"), "SYSTEM",
+                        seedUser(UUID.fromString("7269df24-68a0-4776-bd89-4015521bc19d"), "SYSTEM",
                                         "system@flextuma.com", "system_secret_key", roleId);
 
                         log.info("✅✅✅ System seeding via JDBC completed successfully. ✅✅✅");
@@ -67,14 +67,14 @@ public class DataSeederService {
                 String hashedPass = passwordEncoder.encode(pass);
 
                 int userResult = jdbcTemplate.update(
-                                "INSERT INTO \"user\" (id, username, name, email, phonenumber, password, type, active, verified, system, password_change_required, created, updated) "
+                                "INSERT INTO \"user\" (id, username, name, email, phonenumber, password, type, active, verified, system, changepassword, created, updated) "
                                                 +
                                                 "VALUES (?, ?, ?, ?, ?, ?, 'SYSTEM', true, true, true, ?, NOW(), NOW()) "
                                                 +
                                                 "ON CONFLICT (id) DO NOTHING",
                                 userId, username, username.toUpperCase(), email,
                                 username.equals("SYSTEM") ? "0000000000" : "123456789",
-                                hashedPass, true);
+                                hashedPass, false);
                 log.info("👤 User seeding result for {}: {} rows affected", username, userResult);
 
                 int userRoleResult = jdbcTemplate.update(
