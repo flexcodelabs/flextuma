@@ -32,7 +32,6 @@ public class DataSeederService {
                                         privId);
                         log.info("🔐 Privilege seeding result: {} rows affected", privResult);
 
-                        // Seed role
                         UUID roleId = UUID.fromString("6269df23-f8a0-4776-bd89-3015521bc19d");
                         int roleResult = jdbcTemplate.update(
                                         "INSERT INTO role (id, name, system, active, created, updated) " +
@@ -41,17 +40,14 @@ public class DataSeederService {
                                         roleId);
                         log.info("👑 Role seeding result: {} rows affected", roleResult);
 
-                        // Link role to privilege
                         int userPrivResult = jdbcTemplate.update(
                                         "INSERT INTO userprivilege (role, privilege) VALUES (?, ?) " +
                                                         "ON CONFLICT DO NOTHING",
                                         roleId, privId);
                         log.info("🔗 Role-Privilege linking result: {} rows affected", userPrivResult);
 
-                        // Seed admin user
                         seedUser(roleId, "admin", "admin@flextuma.com", "Admin123", roleId);
 
-                        // Seed system user
                         seedUser(UUID.fromString("7269df24-68a0-4776-bd89-4015521bc19d"), "SYSTEM",
                                         "system@flextuma.com", "system_secret_key", roleId);
 
