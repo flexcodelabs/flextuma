@@ -57,7 +57,6 @@
 
     <root level="OFF">
         <appender-ref ref="CONSOLE" />
-        <!-- Temporarily disable DB appender until tables are created -->
-        <!-- <appender-ref ref="DB" /> -->
+        <appender-ref ref="DB" />
     </root>
 </configuration>
