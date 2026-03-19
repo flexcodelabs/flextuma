@@ -20,6 +20,7 @@ import java.io.IOException;
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger("FLEXTUMA");
+    private static final String USERNAME_KEY = "username";
 
     @Override
     protected boolean shouldNotFilterErrorDispatch() {
@@ -80,7 +81,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         String coloredMethod = logColor + request.getMethod() + reset;
         String coloredUri = logColor + fullUri + reset;
 
-        org.slf4j.MDC.put("username", username);
+        org.slf4j.MDC.put(USERNAME_KEY, username);
         try {
             if (isError) {
                 log.error("{} {} {} {} {}ms - Status: {}", statusLog, userInfo, coloredMethod, coloredUri, duration,
@@ -90,15 +91,55 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                         status);
             }
         } finally {
-            org.slf4j.MDC.remove("username");
+            org.slf4j.MDC.remove(USERNAME_KEY);
         }
     }
 
     private String getUsername() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
-            return auth.getName();
+
+        // Debug logging to understand the authentication context
+        if (auth != null) {
+            log.debug("Auth class: {}", auth.getClass().getSimpleName());
+            log.debug("Auth authenticated: {}", auth.isAuthenticated());
+            log.debug("Auth principal: {}", auth.getPrincipal());
+            log.debug("Auth name: {}", auth.getName());
+            log.debug("Auth details: {}", auth.getDetails());
+        } else {
+            log.debug("Authentication is null");
         }
+
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            String username = auth.getName();
+            // Don't return "SYSTEM" for actual authenticated users
+            if (username != null && !username.trim().isEmpty() && !"SYSTEM".equalsIgnoreCase(username)) {
+                return username;
+            }
+        }
+
+        // For login requests, try to extract username from request parameters
+        HttpServletRequest request = getCurrentRequest();
+        if (request != null && request.getRequestURI().contains("/login")) {
+            String loginUsername = request.getParameter(USERNAME_KEY);
+            if (loginUsername != null && !loginUsername.trim().isEmpty()) {
+                return loginUsername;
+            }
+        }
+
         return "SYSTEM";
+    }
+
+    private HttpServletRequest getCurrentRequest() {
+        // Try to get current request from RequestContextHolder
+        try {
+            org.springframework.web.context.request.RequestAttributes attrs = org.springframework.web.context.request.RequestContextHolder
+                    .getRequestAttributes();
+            if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes servletRequestAttributes) {
+                return servletRequestAttributes.getRequest();
+            }
+        } catch (Exception e) {
+            // Ignore - can't get current request
+        }
+        return null;
     }
 }

@@ -17,6 +17,7 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        log.info("🚀🚀🚀 DataInitializer.run() called! 🚀🚀🚀");
         log.info("🚀 FLEXTUMA: Application started - checking system data seeds...");
         try {
             log.info("🌱 FLEXTUMA: Calling seeder service...");
