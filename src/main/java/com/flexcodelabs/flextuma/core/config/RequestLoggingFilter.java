@@ -99,12 +99,14 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         // Debug logging to understand the authentication context
+        log.debug("Authentication found: {}", auth != null);
         if (auth != null) {
             log.debug("Auth class: {}", auth.getClass().getSimpleName());
             log.debug("Auth authenticated: {}", auth.isAuthenticated());
             log.debug("Auth principal: {}", auth.getPrincipal());
             log.debug("Auth name: {}", auth.getName());
             log.debug("Auth details: {}", auth.getDetails());
+            log.debug("Auth authorities: {}", auth.getAuthorities());
         } else {
             log.debug("Authentication is null");
         }
@@ -113,6 +115,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             String username = auth.getName();
             // Don't return "SYSTEM" for actual authenticated users
             if (username != null && !username.trim().isEmpty() && !"SYSTEM".equalsIgnoreCase(username)) {
+                log.debug("Returning username: {}", username);
                 return username;
             }
         }
@@ -126,11 +129,11 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             }
         }
 
+        log.debug("Returning SYSTEM as fallback");
         return "SYSTEM";
     }
 
     private HttpServletRequest getCurrentRequest() {
-        // Try to get current request from RequestContextHolder
         try {
             org.springframework.web.context.request.RequestAttributes attrs = org.springframework.web.context.request.RequestContextHolder
                     .getRequestAttributes();
@@ -138,7 +141,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                 return servletRequestAttributes.getRequest();
             }
         } catch (Exception e) {
-            // Ignore - can't get current request
+            log.debug("❌❌❌❌ [RequestLoggingFilter] Could not get current request: {} ❌❌❌❌", e.getMessage());
         }
         return null;
     }
