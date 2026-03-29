@@ -5,6 +5,7 @@ import com.flexcodelabs.flextuma.core.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -24,9 +25,25 @@ public class CurrentUserResolver {
 
     public Optional<User> getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof String username)) {
+        if (auth == null || !auth.isAuthenticated()) {
             return Optional.empty();
         }
+
+        Object principal = auth.getPrincipal();
+        String username = null;
+
+        if (principal instanceof UserDetails userDetails) {
+            username = userDetails.getUsername();
+        } else if (principal instanceof String principalName) {
+            username = principalName;
+        } else if (auth.getName() != null && !auth.getName().isBlank()) {
+            username = auth.getName();
+        }
+
+        if (username == null || "anonymousUser".equalsIgnoreCase(username)) {
+            return Optional.empty();
+        }
+
         return userRepository.findByUsername(username);
     }
 }

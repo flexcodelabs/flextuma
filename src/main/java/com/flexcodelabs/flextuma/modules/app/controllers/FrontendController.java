@@ -40,11 +40,23 @@ public class FrontendController {
             return serveStatic(indexFile);
         }
 
-        if (!path.contains(".")) {
+        if (path.startsWith("api/")) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (path.startsWith("assets/")) {
+            return serveStatic(path);
+        }
+
+        if (path.equals("favicon.ico")) {
+            return serveStatic(path);
+        }
+
+        if (path.startsWith(".well-known/")) {
             return serveStatic(indexFile);
         }
 
-        return serveStatic(path);
+        return serveStatic(indexFile);
     }
 
     private ResponseEntity<Resource> serveStatic(String path) {

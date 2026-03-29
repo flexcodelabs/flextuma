@@ -1,6 +1,7 @@
 package com.flexcodelabs.flextuma.modules.auth.controllers;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -100,7 +101,7 @@ public class AuthController {
         }
 
         @PostMapping("/logout")
-        public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
+        public ResponseEntity<Object> logout(HttpServletRequest request, HttpServletResponse response) {
                 Authentication auth = SecurityContextHolder.getContext().getAuthentication();
                 if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
                         securityLogService.logLogout(auth.getName(), request);
@@ -118,7 +119,7 @@ public class AuthController {
                 cookie.setMaxAge(0);
                 response.addCookie(cookie);
 
-                return ResponseEntity.ok().build();
+                return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
         }
 
         @GetMapping("/me")
