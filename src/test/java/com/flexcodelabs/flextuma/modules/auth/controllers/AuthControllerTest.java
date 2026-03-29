@@ -14,7 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseCookie;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -22,7 +21,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flexcodelabs.flextuma.core.dtos.LoginDto;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.services.AuthRateLimitService;
-import com.flexcodelabs.flextuma.core.services.CookieService;
 import com.flexcodelabs.flextuma.core.services.SecurityLogService;
 import com.flexcodelabs.flextuma.core.services.VerificationService;
 import com.flexcodelabs.flextuma.modules.auth.services.AuthenticationResult;
@@ -39,9 +37,6 @@ class AuthControllerTest {
 
     @Mock
     private UserService userService;
-
-    @Mock
-    private CookieService cookieService;
 
     @Mock
     private WalletService walletService;
@@ -65,13 +60,13 @@ class AuthControllerTest {
 
     @BeforeEach
     void setUp() {
-        AuthController controller = new AuthController(userService, cookieService, walletService, rateLimitService,
+        AuthController controller = new AuthController(userService, walletService, rateLimitService,
                 securityLogService, verificationService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
     @Test
-    void login_shouldReturnUserAndSetCookie_whenCredentialsValid() throws Exception {
+    void login_shouldReturnUser_whenCredentialsValid() throws Exception {
         LoginDto loginDto = new LoginDto();
         loginDto.setUsername("user");
         loginDto.setPassword("password");
@@ -80,11 +75,9 @@ class AuthControllerTest {
         user.setUsername("user");
         user.setRoles(new java.util.HashSet<>());
 
-        ResponseCookie cookie = ResponseCookie.from("SESSION", "token").build();
         AuthenticationResult authResult = new AuthenticationResult(user, null);
 
         when(userService.authenticateAndCreateContext(eq("user"), eq("password"), any(), any())).thenReturn(authResult);
-        when(cookieService.createAuthCookie()).thenReturn(cookie);
         when(rateLimitService.isBlocked(any())).thenReturn(false);
         doNothing().when(rateLimitService).recordSuccessfulAttempt(any());
         doNothing().when(securityLogService).logLoginAttempt(any(), any(), eq(true), any());
@@ -93,15 +86,11 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(loginDto)))
                 .andExpect(status().isOk())
-                .andExpect(header().exists("Set-Cookie"))
                 .andExpect(jsonPath("$.username").value("user"));
     }
 
     @Test
     void logout_shouldDeleteCookie() throws Exception {
-        ResponseCookie cookie = ResponseCookie.from("SESSION", "").maxAge(0).build();
-        when(cookieService.deleteAuthCookie()).thenReturn(cookie);
-
         // Mock authentication context
         when(authentication.getName()).thenReturn("testuser");
         when(authentication.isAuthenticated()).thenReturn(true);

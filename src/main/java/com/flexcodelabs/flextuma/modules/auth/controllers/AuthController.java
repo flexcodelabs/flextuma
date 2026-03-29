@@ -3,9 +3,7 @@ package com.flexcodelabs.flextuma.modules.auth.controllers;
 import java.math.BigDecimal;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -27,7 +25,6 @@ import com.flexcodelabs.flextuma.core.dtos.VerificationRequestDto;
 import com.flexcodelabs.flextuma.core.exceptions.RateLimitExceededException;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.services.AuthRateLimitService;
-import com.flexcodelabs.flextuma.core.services.CookieService;
 import com.flexcodelabs.flextuma.core.services.SecurityLogService;
 import com.flexcodelabs.flextuma.core.services.VerificationService;
 import com.flexcodelabs.flextuma.modules.auth.services.AuthenticationResult;
@@ -45,7 +42,6 @@ import lombok.RequiredArgsConstructor;
 public class AuthController {
 
         private final UserService userService;
-        private final CookieService cookieService;
         private final WalletService walletService;
         private final AuthRateLimitService rateLimitService;
         private final SecurityLogService securityLogService;
@@ -95,26 +91,34 @@ public class AuthController {
                 AuthenticationResult authResult = userService.authenticateAndCreateContext(
                                 request.getUsername(), request.getPassword(), httpRequest, httpResponse);
 
-                ResponseCookie cookie = cookieService.createAuthCookie();
-
                 rateLimitService.recordSuccessfulAttempt(httpRequest);
                 securityLogService.logLoginAttempt(authResult.user().getUsername(), httpRequest, true,
                                 "Login successful");
 
                 return ResponseEntity.ok()
-                                .header(HttpHeaders.SET_COOKIE, cookie.toString())
                                 .body(authResult.user());
         }
 
         @PostMapping("/logout")
-        public ResponseEntity<Void> logout(HttpServletRequest request) {
+        public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
                 Authentication auth = SecurityContextHolder.getContext().getAuthentication();
                 if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
                         securityLogService.logLogout(auth.getName(), request);
                 }
-                return ResponseEntity.ok()
-                                .header(HttpHeaders.SET_COOKIE, cookieService.deleteAuthCookie().toString())
-                                .build();
+
+                jakarta.servlet.http.HttpSession session = request.getSession(false);
+                if (session != null) {
+                        session.invalidate();
+                }
+                SecurityContextHolder.clearContext();
+
+                jakarta.servlet.http.Cookie cookie = new jakarta.servlet.http.Cookie("SESSION", "");
+                cookie.setHttpOnly(true);
+                cookie.setPath("/");
+                cookie.setMaxAge(0);
+                response.addCookie(cookie);
+
+                return ResponseEntity.ok().build();
         }
 
         @GetMapping("/me")

@@ -25,13 +25,16 @@ public class SecurityConfig {
     private final CustomSecurityExceptionHandler securityExceptionHandler;
     private final PatAuthenticationFilter patAuthenticationFilter;
     private final PasswordChangeRequiredFilter passwordChangeRequiredFilter;
+    private final AuthenticatedUserCaptureFilter authenticatedUserCaptureFilter;
 
     public SecurityConfig(CustomSecurityExceptionHandler securityExceptionHandler,
             PatAuthenticationFilter patAuthenticationFilter,
-            PasswordChangeRequiredFilter passwordChangeRequiredFilter) {
+            PasswordChangeRequiredFilter passwordChangeRequiredFilter,
+            AuthenticatedUserCaptureFilter authenticatedUserCaptureFilter) {
         this.securityExceptionHandler = securityExceptionHandler;
         this.patAuthenticationFilter = patAuthenticationFilter;
         this.passwordChangeRequiredFilter = passwordChangeRequiredFilter;
+        this.authenticatedUserCaptureFilter = authenticatedUserCaptureFilter;
     }
 
     @Bean
@@ -63,6 +66,7 @@ public class SecurityConfig {
                             org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                     .addFilterAfter(passwordChangeRequiredFilter,
                             org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
+                    .addFilterAfter(authenticatedUserCaptureFilter, PasswordChangeRequiredFilter.class)
                     .exceptionHandling(ex -> ex
                             .authenticationEntryPoint(securityExceptionHandler)
                             .accessDeniedHandler(securityExceptionHandler))

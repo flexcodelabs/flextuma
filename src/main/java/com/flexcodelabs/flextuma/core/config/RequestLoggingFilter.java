@@ -4,16 +4,22 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.security.Principal;
+
+import com.flexcodelabs.flextuma.core.security.AuthenticatedUserCaptureFilter;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -43,9 +49,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             logRequest(request, response, fullUri, startTime, 500, ex);
             throw ex;
         } finally {
-            // Only log in finally if we haven't already logged via the catch block
-            // OR we rely on the response status. Best is to extract the logging logic
-            // into a helper method.
             if (request.getAttribute("REQUEST_LOGGED") == null) {
                 logRequest(request, response, fullUri, startTime, response.getStatus(), null);
             }
@@ -67,7 +70,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             return;
         }
         request.setAttribute("REQUEST_LOGGED", true);
-        String username = getUsername();
+        String username = getUsername(request);
         long duration = System.currentTimeMillis() - startTime;
 
         int status = statusOverride > 0 ? statusOverride : response.getStatus();
@@ -95,10 +98,21 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
     }
 
-    private String getUsername() {
+    private String getUsername(HttpServletRequest request) {
+        Object capturedUsername = request.getAttribute(AuthenticatedUserCaptureFilter.REQUEST_USERNAME_ATTRIBUTE);
+        if (capturedUsername instanceof String username
+                && !username.trim().isEmpty()
+                && !"SYSTEM".equalsIgnoreCase(username)) {
+            return username;
+        }
+
+        Principal principal = request.getUserPrincipal();
+        if (principal != null && principal.getName() != null && !principal.getName().trim().isEmpty()) {
+            return principal.getName();
+        }
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        // Debug logging to understand the authentication context
         log.debug("Authentication found: {}", auth != null);
         if (auth != null) {
             log.debug("Auth class: {}", auth.getClass().getSimpleName());
@@ -113,15 +127,28 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
         if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
             String username = auth.getName();
-            // Don't return "SYSTEM" for actual authenticated users
             if (username != null && !username.trim().isEmpty() && !"SYSTEM".equalsIgnoreCase(username)) {
                 log.debug("Returning username: {}", username);
                 return username;
             }
         }
 
-        // For login requests, try to extract username from request parameters
-        HttpServletRequest request = getCurrentRequest();
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            Object contextAttr = session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+            if (contextAttr instanceof SecurityContext securityContext) {
+                Authentication sessionAuth = securityContext.getAuthentication();
+                if (sessionAuth != null && sessionAuth.isAuthenticated()
+                        && !"anonymousUser".equals(sessionAuth.getPrincipal())) {
+                    String sessionUsername = sessionAuth.getName();
+                    if (sessionUsername != null && !sessionUsername.trim().isEmpty()
+                            && !"SYSTEM".equalsIgnoreCase(sessionUsername)) {
+                        return sessionUsername;
+                    }
+                }
+            }
+        }
+
         if (request != null && request.getRequestURI().contains("/login")) {
             String loginUsername = request.getParameter(USERNAME_KEY);
             if (loginUsername != null && !loginUsername.trim().isEmpty()) {
@@ -131,18 +158,5 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
         log.debug("Returning SYSTEM as fallback");
         return "SYSTEM";
-    }
-
-    private HttpServletRequest getCurrentRequest() {
-        try {
-            org.springframework.web.context.request.RequestAttributes attrs = org.springframework.web.context.request.RequestContextHolder
-                    .getRequestAttributes();
-            if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes servletRequestAttributes) {
-                return servletRequestAttributes.getRequest();
-            }
-        } catch (Exception e) {
-            log.debug("❌❌❌❌ [RequestLoggingFilter] Could not get current request: {} ❌❌❌❌", e.getMessage());
-        }
-        return null;
     }
 }
