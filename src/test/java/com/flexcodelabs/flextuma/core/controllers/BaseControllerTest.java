@@ -84,7 +84,7 @@ public abstract class BaseControllerTest<T extends BaseEntity, S extends BaseSer
         T entity = createEntity();
         entity.setId(id);
 
-        when(getService().findById(id)).thenReturn(Optional.of(entity));
+        when(getService().findById(eq(id), any())).thenReturn(Optional.of(entity));
 
         mockMvc.perform(get(getBaseUrl() + "/" + id))
                 .andExpect(status().isOk())
@@ -94,7 +94,7 @@ public abstract class BaseControllerTest<T extends BaseEntity, S extends BaseSer
     @Test
     public void getById_shouldReturnNotFound_whenNotFound() throws Exception {
         UUID id = UUID.randomUUID();
-        when(getService().findById(id)).thenReturn(Optional.empty());
+        when(getService().findById(eq(id), any())).thenReturn(Optional.empty());
 
         mockMvc.perform(get(getBaseUrl() + "/" + id))
                 .andExpect(status().isNotFound());
