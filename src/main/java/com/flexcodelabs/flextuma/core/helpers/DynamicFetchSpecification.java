@@ -35,19 +35,16 @@ public class DynamicFetchSpecification<T> implements Specification<T> {
 
     @Override
     public Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-        // Fetch joins are not allowed in count queries
         Class<?> resultType = query.getResultType();
         if (resultType == Long.class || resultType == long.class || resultType == Integer.class
                 || resultType == int.class) {
             return cb.conjunction();
         }
 
-        // Apply fetch joins for requested paths
         for (String path : fieldPaths) {
             applyFetch(root, path);
         }
 
-        // Use distinct to avoid duplicates when fetching collections
         query.distinct(true);
 
         return cb.conjunction();
