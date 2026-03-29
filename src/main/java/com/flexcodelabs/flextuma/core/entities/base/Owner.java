@@ -24,10 +24,12 @@ public class Owner extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "creator", referencedColumnName = "id", nullable = false, updatable = false)
     @CreatedBy
+    @JsonIgnoreProperties({ "roles", "organisation", "createdBy", "updatedBy", "password", "salt" })
     private User createdBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updator", referencedColumnName = "id")
     @LastModifiedBy
+    @JsonIgnoreProperties({ "roles", "organisation", "createdBy", "updatedBy", "password", "salt" })
     private User updatedBy;
 }

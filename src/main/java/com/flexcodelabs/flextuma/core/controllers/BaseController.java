@@ -44,8 +44,10 @@ public abstract class BaseController<T extends BaseEntity, S extends BaseService
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<T> getById(@PathVariable UUID id) {
-        return service.findById(id)
+    public ResponseEntity<T> getById(
+            @PathVariable UUID id,
+            @RequestParam(required = false) String fields) {
+        return service.findById(id, fields)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
