@@ -27,7 +27,6 @@ import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.finance.Wallet;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
-import com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.SmsCampaignRepository;
