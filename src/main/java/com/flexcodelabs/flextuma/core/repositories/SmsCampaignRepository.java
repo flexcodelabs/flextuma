@@ -1,5 +1,6 @@
 package com.flexcodelabs.flextuma.core.repositories;
 
+import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsCampaign;
 import com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus;
 import org.springframework.data.domain.Pageable;
@@ -8,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,4 +22,6 @@ public interface SmsCampaignRepository extends BaseRepository<SmsCampaign, UUID>
             @Param("status") SmsCampaignStatus status,
             @Param("now") LocalDateTime now,
             Pageable pageable);
+
+    long countByCreatedByAndStatusIn(User user, Collection<SmsCampaignStatus> statuses);
 }

@@ -14,4 +14,6 @@ public interface WalletRepository extends JpaRepository<Wallet, UUID>, JpaSpecif
     List<Wallet> findByCreatedBy(User user);
 
     List<Wallet> findByCreatedByAndBalanceGreaterThan(User user, java.math.BigDecimal balance);
+
+    java.util.Optional<Wallet> findTopByCreatedByOrderByCreatedDesc(User user);
 }

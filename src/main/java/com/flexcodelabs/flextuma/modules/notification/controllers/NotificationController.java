@@ -1,10 +1,14 @@
 package com.flexcodelabs.flextuma.modules.notification.controllers;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.flexcodelabs.flextuma.core.dtos.Pagination;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
+import com.flexcodelabs.flextuma.modules.dashboard.dtos.DashboardNotificationDTO;
+import com.flexcodelabs.flextuma.modules.dashboard.services.DashboardService;
 import com.flexcodelabs.flextuma.modules.notification.services.NotificationService;
 
 import java.util.Map;
@@ -15,6 +19,16 @@ import java.util.Map;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final DashboardService dashboardService;
+
+    @GetMapping()
+    public ResponseEntity<Pagination<DashboardNotificationDTO>> listRecentNotifications(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "15") int pageSize) {
+        int safePage = Math.max(1, page);
+        int safePageSize = Math.max(1, pageSize);
+        return ResponseEntity.ok(dashboardService.getRecentNotifications(PageRequest.of(safePage - 1, safePageSize)));
+    }
 
     @PostMapping()
     public ResponseEntity<SmsLog> send(

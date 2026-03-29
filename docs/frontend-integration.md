@@ -37,3 +37,130 @@ The API uses standard HTTP status codes:
 - `401 Unauthorized`: Invalid PAT or session.
 - `403 Forbidden`: Insufficient permissions.
 - `429 Too Many Requests`: Rate limit exceeded (Bucket4j).
+
+## 4. Dashboard Integration
+
+The dashboard can now use user-scoped summary data directly from the backend. All data below is filtered to the currently authenticated user.
+
+### Summary Endpoint
+
+- `GET /api/dashboard/summary`
+
+Example response:
+
+```json
+{
+  "userId": "6269df23-f8a0-4776-bd89-3015521bc19d",
+  "username": "admin",
+  "sent": 2847,
+  "failed": 23,
+  "balanceAmount": 50000,
+  "balance": "TZS 50000",
+  "currency": "TZS",
+  "activeCampaigns": 3,
+  "today": 156,
+  "thisWeek": 892,
+  "thisMonth": 2847,
+  "successRate": 99.2,
+  "statusBreakdown": {
+    "sent": 84.5,
+    "failed": 0.7,
+    "pending": 10.3,
+    "other": 4.5
+  }
+}
+```
+
+How to use it:
+- KPI cards: `sent`, `failed`, `balance`, `activeCampaigns`
+- Time cards: `today`, `thisWeek`, `thisMonth`
+- Success widget: `successRate`
+- Doughnut or stacked chart: `statusBreakdown`
+
+Example fetch:
+
+```javascript
+const response = await fetch('/api/dashboard/summary', {
+  method: 'GET',
+  credentials: 'include'
+});
+
+if (!response.ok) {
+  throw new Error('Failed to load dashboard summary');
+}
+
+const summary = await response.json();
+```
+
+### Notifications Feed
+
+- `GET /api/notifications?page=1&pageSize=15`
+
+This endpoint now follows the project pagination style instead of using a custom limit parameter.
+
+Example response:
+
+```json
+{
+  "page": 1,
+  "total": 42,
+  "pageSize": 15,
+  "data": [
+    {
+      "id": "2f7fcb14-f99d-4983-9a27-104e55f96eb1",
+      "phoneNumber": "+255700000000",
+      "message": "Your OTP is 1234",
+      "status": "delivered",
+      "provider": "BEEM",
+      "createdAt": "2026-03-29T12:00:00",
+      "updatedAt": "2026-03-29T12:00:10"
+    }
+  ]
+}
+```
+
+Recommended usage:
+- Recent activity list: render `data`
+- Pager or infinite scroll: use `page`, `pageSize`, and `total`
+- Status pill: map `sent`, `delivered`, `failed`, `pending`, `processing`
+
+Example fetch:
+
+```javascript
+async function loadNotifications(page = 1, pageSize = 15) {
+  const response = await fetch(
+    `/api/notifications?page=${page}&pageSize=${pageSize}`,
+    { credentials: 'include' }
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to load notifications');
+  }
+
+  return response.json();
+}
+```
+
+### Existing Endpoints Still Available
+
+The dashboard can still consume the existing raw resources when needed:
+- `GET /api/wallets`
+- `GET /api/campaigns`
+- `GET /api/smsLogs`
+- `POST /api/logout`
+
+Recommended pattern:
+- Use `/api/dashboard/summary` for top-level dashboard widgets
+- Use `/api/notifications` for recent message activity
+- Use the existing resource endpoints for full management pages and drill-down tables
+
+### SPA Routing
+
+The backend now serves the frontend `index.html` for any non-API route.
+
+Examples:
+- `/dashboard`
+- `/dashboard/campaigns`
+- `/settings/profile`
+
+These routes will return the client app entry file, while `/api/**` remains reserved for backend APIs.

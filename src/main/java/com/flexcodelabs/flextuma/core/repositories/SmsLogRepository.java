@@ -1,12 +1,17 @@
 package com.flexcodelabs.flextuma.core.repositories;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 
@@ -23,4 +28,13 @@ public interface SmsLogRepository extends BaseRepository<SmsLog, UUID>,
 			org.springframework.data.domain.Pageable pageable);
 
 	Optional<SmsLog> findByProviderResponse(String providerResponse);
+
+	Page<SmsLog> findByCreatedByOrderByCreatedDesc(User user, Pageable pageable);
+
+	long countByCreatedByAndStatus(User user, SmsLogStatus status);
+
+	long countByCreatedByAndStatusIn(User user, Collection<SmsLogStatus> statuses);
+
+	long countByCreatedByAndStatusInAndCreatedGreaterThanEqual(User user, Collection<SmsLogStatus> statuses,
+			LocalDateTime created);
 }
