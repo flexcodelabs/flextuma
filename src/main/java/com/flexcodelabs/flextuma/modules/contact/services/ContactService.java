@@ -1,13 +1,20 @@
 package com.flexcodelabs.flextuma.modules.contact.services;
 
+import java.util.List;
 import java.util.UUID;
 
+import org.hibernate.Hibernate;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.flexcodelabs.flextuma.core.dtos.Pagination;
+import com.flexcodelabs.flextuma.core.entities.auth.Role;
+import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.contact.Contact;
+import com.flexcodelabs.flextuma.core.entities.metadata.AbstractMetadataEntity;
 import com.flexcodelabs.flextuma.core.repositories.ContactRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 
@@ -70,6 +77,46 @@ public class ContactService extends BaseService<Contact> {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Pagination<Contact> findAllPaginated(Pageable pageable, List<String> filter, String fields, String rootJoin) {
+        Pagination<Contact> pagination = super.findAllPaginated(pageable, filter, fields, rootJoin);
+        pagination.getData().forEach(this::initializeForSerialization);
+        return pagination;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Contact> findAll(String fields, List<String> filter, String rootJoin) {
+        List<Contact> contacts = super.findAll(fields, filter, rootJoin);
+        contacts.forEach(this::initializeForSerialization);
+        return contacts;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<Contact> findById(UUID id, String fields) {
+        java.util.Optional<Contact> contact = super.findById(id, fields);
+        contact.ifPresent(this::initializeForSerialization);
+        return contact;
+    }
+
+    @Override
+    @Transactional
+    public Contact save(Contact entity) {
+        Contact saved = super.save(entity);
+        initializeForSerialization(saved);
+        return saved;
+    }
+
+    @Override
+    @Transactional
+    public Contact update(UUID id, Contact entity) {
+        Contact updated = super.update(id, entity);
+        initializeForSerialization(updated);
+        return updated;
+    }
+
+    @Override
     protected void validateDelete(Contact entity) {
         // Clear relationships before deletion to avoid foreign key constraints
         entity.getLists().clear();
@@ -100,5 +147,32 @@ public class ContactService extends BaseService<Contact> {
         onPostDelete(id);
 
         return java.util.Map.of("message", getEntitySingular() + " deleted successfully");
+    }
+
+    private void initializeForSerialization(Contact contact) {
+        Hibernate.initialize(contact.getLists());
+        Hibernate.initialize(contact.getTags());
+        initializeUser(contact.getCreatedBy());
+        initializeUser(contact.getUpdatedBy());
+
+        contact.getLists().forEach(this::initializeMetadataEntity);
+        contact.getTags().forEach(this::initializeMetadataEntity);
+    }
+
+    private void initializeMetadataEntity(AbstractMetadataEntity entity) {
+        initializeUser(entity.getCreatedBy());
+        initializeUser(entity.getUpdatedBy());
+    }
+
+    private void initializeUser(User user) {
+        if (user == null) {
+            return;
+        }
+
+        Hibernate.initialize(user);
+        Hibernate.initialize(user.getRoles());
+        for (Role role : user.getRoles()) {
+            Hibernate.initialize(role.getPrivileges());
+        }
     }
 }

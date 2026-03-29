@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.hibernate.LazyInitializationException;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -67,5 +68,23 @@ class JacksonConfigTest {
         EmptyBean bean = new EmptyBean();
         String json = objectMapper.writeValueAsString(bean);
         assertEquals("{}", json);
+    }
+
+    static class LazyBean {
+        public String getName() {
+            return "test";
+        }
+
+        public Object getLazyRelation() {
+            throw new LazyInitializationException("no session");
+        }
+    }
+
+    @Test
+    void objectMapper_shouldSkipLazyFieldsThatCannotBeInitialized() throws JsonProcessingException {
+        String json = objectMapper.writeValueAsString(new LazyBean());
+
+        assertTrue(json.contains("\"name\":\"test\""));
+        assertFalse(json.contains("lazyRelation"));
     }
 }
