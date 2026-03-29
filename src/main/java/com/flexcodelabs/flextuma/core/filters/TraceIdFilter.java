@@ -35,12 +35,19 @@ public class TraceIdFilter extends OncePerRequestFilter {
         MDC.put(TRACE_ID_KEY, traceId);
         response.setHeader(TRACE_HEADER, traceId);
 
+        String username = resolveUsername();
+        if (username != null) {
+            MDC.put(USERNAME_KEY, username);
+        }
+
         try {
             filterChain.doFilter(request, response);
 
-            String username = resolveUsername();
-            if (username != null) {
-                MDC.put(USERNAME_KEY, username);
+            if (username == null) {
+                String resolvedAfterChain = resolveUsername();
+                if (resolvedAfterChain != null) {
+                    MDC.put(USERNAME_KEY, resolvedAfterChain);
+                }
             }
         } finally {
             MDC.remove(TRACE_ID_KEY);
