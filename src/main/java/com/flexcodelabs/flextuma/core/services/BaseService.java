@@ -446,7 +446,7 @@ public abstract class BaseService<T extends BaseEntity> {
 	}
 
 	protected void initializeAssociationsForResponse(Object entity, int depth) {
-		if (entity == null || depth < 0) {
+		if (!shouldProcessEntity(entity, depth)) {
 			return;
 		}
 
@@ -456,30 +456,47 @@ public abstract class BaseService<T extends BaseEntity> {
 			return;
 		}
 
+		processAssociations(entity, managedType, depth);
+	}
+
+	private boolean shouldProcessEntity(Object entity, int depth) {
+		return entity != null && depth >= 0;
+	}
+
+	private void processAssociations(Object entity, ManagedType<?> managedType, int depth) {
 		BeanWrapper wrapper = new BeanWrapperImpl(entity);
 		for (Attribute<?, ?> attribute : managedType.getAttributes()) {
-			if (!attribute.isAssociation() || !wrapper.isReadableProperty(attribute.getName())) {
+			if (!isProcessableAssociation(attribute, wrapper)) {
 				continue;
 			}
 
 			Object value = wrapper.getPropertyValue(attribute.getName());
-			if (value == null) {
-				continue;
+			if (value != null) {
+				Hibernate.initialize(value);
+				processAssociationValue(value, depth);
 			}
+		}
+	}
 
-			Hibernate.initialize(value);
-			if (depth == 0) {
-				continue;
-			}
+	private boolean isProcessableAssociation(Attribute<?, ?> attribute, BeanWrapper wrapper) {
+		return attribute.isAssociation() && wrapper.isReadableProperty(attribute.getName());
+	}
 
-			if (value instanceof Collection<?> collection) {
-				for (Object item : collection) {
-					initializeSingularAssociations(item, depth - 1);
-				}
-				continue;
-			}
+	private void processAssociationValue(Object value, int depth) {
+		if (depth == 0) {
+			return;
+		}
 
+		if (value instanceof Collection<?> collection) {
+			processCollectionAssociations(collection, depth);
+		} else {
 			initializeSingularAssociations(value, depth - 1);
+		}
+	}
+
+	private void processCollectionAssociations(Collection<?> collection, int depth) {
+		for (Object item : collection) {
+			initializeSingularAssociations(item, depth - 1);
 		}
 	}
 
@@ -496,18 +513,17 @@ public abstract class BaseService<T extends BaseEntity> {
 
 		BeanWrapper wrapper = new BeanWrapperImpl(entity);
 		for (Attribute<?, ?> attribute : managedType.getAttributes()) {
-			if (!attribute.isAssociation() || attribute.isCollection() || !wrapper.isReadableProperty(attribute.getName())) {
+			if (!attribute.isAssociation() || attribute.isCollection()
+					|| !wrapper.isReadableProperty(attribute.getName())) {
 				continue;
 			}
 
 			Object value = wrapper.getPropertyValue(attribute.getName());
-			if (value == null) {
-				continue;
-			}
-
-			Hibernate.initialize(value);
-			if (depth > 0) {
-				initializeSingularAssociations(value, depth - 1);
+			if (value != null) {
+				Hibernate.initialize(value);
+				if (depth > 0) {
+					initializeSingularAssociations(value, depth - 1);
+				}
 			}
 		}
 	}

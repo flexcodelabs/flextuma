@@ -3,6 +3,7 @@ package com.flexcodelabs.flextuma.modules.notification.services;
 import java.util.Map;
 import java.util.Optional;
 
+import org.hibernate.Hibernate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -146,6 +147,28 @@ public class NotificationService {
                         }
                 }
 
-                return logRepository.save(log);
+                SmsLog savedLog = logRepository.save(log);
+                initializeForResponse(savedLog);
+                return savedLog;
+        }
+
+        private void initializeForResponse(SmsLog smsLog) {
+                Hibernate.initialize(smsLog);
+
+                if (smsLog.getCreatedBy() != null) {
+                        Hibernate.initialize(smsLog.getCreatedBy());
+                }
+
+                if (smsLog.getUpdatedBy() != null) {
+                        Hibernate.initialize(smsLog.getUpdatedBy());
+                }
+
+                if (smsLog.getConnector() != null) {
+                        Hibernate.initialize(smsLog.getConnector());
+                }
+
+                if (smsLog.getTemplate() != null) {
+                        Hibernate.initialize(smsLog.getTemplate());
+                }
         }
 }
