@@ -3,7 +3,6 @@ package com.flexcodelabs.flextuma.modules.notification.services;
 import java.util.Map;
 import java.util.Optional;
 
-import org.hibernate.Hibernate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +20,7 @@ import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
+import com.flexcodelabs.flextuma.core.services.EntityResponseInitializer;
 import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
 import com.flexcodelabs.flextuma.core.services.RateLimiterService;
 import java.util.UUID;
@@ -41,6 +41,7 @@ public class NotificationService {
         private final WalletService walletService;
         private final RateLimiterService rateLimiterService;
         private final SmsSegmentCalculator segmentCalculator;
+        private final EntityResponseInitializer entityResponseInitializer;
 
         @Value("${flextuma.sms.price-per-segment:1.0}")
         private BigDecimal pricePerSegment;
@@ -148,27 +149,7 @@ public class NotificationService {
                 }
 
                 SmsLog savedLog = logRepository.save(log);
-                initializeForResponse(savedLog);
+                entityResponseInitializer.initialize(savedLog);
                 return savedLog;
-        }
-
-        private void initializeForResponse(SmsLog smsLog) {
-                Hibernate.initialize(smsLog);
-
-                if (smsLog.getCreatedBy() != null) {
-                        Hibernate.initialize(smsLog.getCreatedBy());
-                }
-
-                if (smsLog.getUpdatedBy() != null) {
-                        Hibernate.initialize(smsLog.getUpdatedBy());
-                }
-
-                if (smsLog.getConnector() != null) {
-                        Hibernate.initialize(smsLog.getConnector());
-                }
-
-                if (smsLog.getTemplate() != null) {
-                        Hibernate.initialize(smsLog.getTemplate());
-                }
         }
 }

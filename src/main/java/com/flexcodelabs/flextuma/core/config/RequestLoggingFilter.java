@@ -26,7 +26,8 @@ import com.flexcodelabs.flextuma.core.security.AuthenticatedUserCaptureFilter;
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger("FLEXTUMA");
-    private static final String USERNAME_KEY = "username";
+    private static final String USERNAME = "username";
+    private static final String SYSTEM = "SYSTEM";
 
     @Override
     protected boolean shouldNotFilterErrorDispatch() {
@@ -84,7 +85,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         String coloredMethod = logColor + request.getMethod() + reset;
         String coloredUri = logColor + fullUri + reset;
 
-        org.slf4j.MDC.put(USERNAME_KEY, username);
+        org.slf4j.MDC.put(USERNAME, username);
         try {
             if (isError) {
                 log.error("{} {} {} {} {}ms - Status: {}", statusLog, userInfo, coloredMethod, coloredUri, duration,
@@ -94,25 +95,73 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                         status);
             }
         } finally {
-            org.slf4j.MDC.remove(USERNAME_KEY);
+            org.slf4j.MDC.remove(USERNAME);
         }
     }
 
     private String getUsername(HttpServletRequest request) {
-        Object capturedUsername = request.getAttribute(AuthenticatedUserCaptureFilter.REQUEST_USERNAME_ATTRIBUTE);
-        if (capturedUsername instanceof String username
-                && !username.trim().isEmpty()
-                && !"SYSTEM".equalsIgnoreCase(username)) {
+        String username = getCapturedUsername(request);
+        if (username != null) {
             return username;
         }
 
+        username = getPrincipalUsername(request);
+        if (username != null) {
+            return username;
+        }
+
+        username = getAuthenticationUsername();
+        if (username != null) {
+            return username;
+        }
+
+        username = getSessionUsername(request);
+        if (username != null) {
+            return username;
+        }
+
+        username = getLoginUsername(request);
+        if (username != null) {
+            return username;
+        }
+
+        log.debug("Returning SYSTEM as fallback");
+        return SYSTEM;
+    }
+
+    private String getCapturedUsername(HttpServletRequest request) {
+        Object capturedUsername = request.getAttribute(AuthenticatedUserCaptureFilter.REQUEST_USERNAME_ATTRIBUTE);
+        if (capturedUsername instanceof String username
+                && !username.trim().isEmpty()
+                && !SYSTEM.equalsIgnoreCase(username)) {
+            return username;
+        }
+        return null;
+    }
+
+    private String getPrincipalUsername(HttpServletRequest request) {
         Principal principal = request.getUserPrincipal();
         if (principal != null && principal.getName() != null && !principal.getName().trim().isEmpty()) {
             return principal.getName();
         }
+        return null;
+    }
 
+    private String getAuthenticationUsername() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        logAuthenticationDetails(auth);
 
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            String username = auth.getName();
+            if (username != null && !username.trim().isEmpty() && !SYSTEM.equalsIgnoreCase(username)) {
+                log.debug("Returning username: {}", username);
+                return username;
+            }
+        }
+        return null;
+    }
+
+    private void logAuthenticationDetails(Authentication auth) {
         log.debug("Authentication found: {}", auth != null);
         if (auth != null) {
             log.debug("Auth class: {}", auth.getClass().getSimpleName());
@@ -124,15 +173,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         } else {
             log.debug("Authentication is null");
         }
+    }
 
-        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
-            String username = auth.getName();
-            if (username != null && !username.trim().isEmpty() && !"SYSTEM".equalsIgnoreCase(username)) {
-                log.debug("Returning username: {}", username);
-                return username;
-            }
-        }
-
+    private String getSessionUsername(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session != null) {
             Object contextAttr = session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
@@ -142,21 +185,22 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                         && !"anonymousUser".equals(sessionAuth.getPrincipal())) {
                     String sessionUsername = sessionAuth.getName();
                     if (sessionUsername != null && !sessionUsername.trim().isEmpty()
-                            && !"SYSTEM".equalsIgnoreCase(sessionUsername)) {
+                            && !SYSTEM.equalsIgnoreCase(sessionUsername)) {
                         return sessionUsername;
                     }
                 }
             }
         }
+        return null;
+    }
 
+    private String getLoginUsername(HttpServletRequest request) {
         if (request != null && request.getRequestURI().contains("/login")) {
-            String loginUsername = request.getParameter(USERNAME_KEY);
+            String loginUsername = request.getParameter(USERNAME);
             if (loginUsername != null && !loginUsername.trim().isEmpty()) {
                 return loginUsername;
             }
         }
-
-        log.debug("Returning SYSTEM as fallback");
-        return "SYSTEM";
+        return null;
     }
 }

@@ -16,11 +16,7 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.*;
 import jakarta.persistence.metamodel.Attribute;
 import jakarta.persistence.metamodel.EntityType;
-import jakarta.persistence.metamodel.ManagedType;
-import org.hibernate.Hibernate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -54,10 +50,16 @@ public abstract class BaseService<T extends BaseEntity> {
 	}
 
 	private CurrentUserResolver currentUserResolver;
+	private EntityResponseInitializer entityResponseInitializer;
 
 	@org.springframework.beans.factory.annotation.Autowired
 	public void setCurrentUserResolver(CurrentUserResolver currentUserResolver) {
 		this.currentUserResolver = currentUserResolver;
+	}
+
+	@Autowired
+	public void setEntityResponseInitializer(EntityResponseInitializer entityResponseInitializer) {
+		this.entityResponseInitializer = entityResponseInitializer;
 	}
 
 	protected abstract JpaRepository<T, UUID> getRepository();
@@ -182,7 +184,7 @@ public abstract class BaseService<T extends BaseEntity> {
 	}
 
 	private Pagination<T> buildPaginatedResponse(Page<T> resultPage, Pageable pageable) {
-		resultPage.getContent().forEach(entity -> initializeAssociationsForResponse(entity, 1));
+		resultPage.getContent().forEach(this::initializeAssociationsForResponse);
 		return Pagination.<T>builder()
 				.page(pageable.getPageNumber() + 1)
 				.total(resultPage.getTotalElements())
@@ -196,7 +198,7 @@ public abstract class BaseService<T extends BaseEntity> {
 		checkPermission(getReadPermission());
 		Specification<T> spec = buildTenantSpec();
 		List<T> results = getRepositoryAsExecutor().findAll(spec);
-		results.forEach(entity -> initializeAssociationsForResponse(entity, 1));
+		results.forEach(this::initializeAssociationsForResponse);
 		return results;
 	}
 
@@ -223,7 +225,7 @@ public abstract class BaseService<T extends BaseEntity> {
 			spec = spec.and(buildFetchSpec(fields));
 		}
 		List<T> results = getRepositoryAsExecutor().findAll(spec);
-		results.forEach(entity -> initializeAssociationsForResponse(entity, 1));
+		results.forEach(this::initializeAssociationsForResponse);
 		return results;
 	}
 
@@ -231,7 +233,7 @@ public abstract class BaseService<T extends BaseEntity> {
 	public Optional<T> findById(UUID id) {
 		checkPermission(getReadPermission());
 		Optional<T> result = getRepository().findById(id);
-		result.ifPresent(entity -> initializeAssociationsForResponse(entity, 1));
+		result.ifPresent(this::initializeAssociationsForResponse);
 		return result;
 	}
 
@@ -244,7 +246,7 @@ public abstract class BaseService<T extends BaseEntity> {
 			spec = spec.and(buildFetchSpec(fields));
 		}
 		Optional<T> result = getRepositoryAsExecutor().findOne(spec);
-		result.ifPresent(entity -> initializeAssociationsForResponse(entity, 1));
+		result.ifPresent(this::initializeAssociationsForResponse);
 		return result;
 	}
 
@@ -253,7 +255,7 @@ public abstract class BaseService<T extends BaseEntity> {
 		checkPermission(getAddPermission());
 		onPreSave(entity);
 		T saved = getRepository().save(entity);
-		initializeAssociationsForResponse(saved, 1);
+		initializeAssociationsForResponse(saved);
 		onPostSave(saved);
 		eventPublisher.publishEvent(new EntityEvent<>(this, saved, EntityEvent.EntityEventType.CREATED));
 		return saved;
@@ -269,7 +271,7 @@ public abstract class BaseService<T extends BaseEntity> {
 		String[] excludedFields = getNullPropertyNames(entity);
 		org.springframework.beans.BeanUtils.copyProperties(entity, existing, excludedFields);
 		T saved = getRepository().save(existing);
-		initializeAssociationsForResponse(saved, 1);
+		initializeAssociationsForResponse(saved);
 		eventPublisher.publishEvent(new EntityEvent<>(this, saved, EntityEvent.EntityEventType.UPDATED));
 		return saved;
 	}
@@ -445,97 +447,9 @@ public abstract class BaseService<T extends BaseEntity> {
 	protected void onPostSave(T entity) {
 	}
 
-	protected void initializeAssociationsForResponse(Object entity, int depth) {
-		if (!shouldProcessEntity(entity, depth)) {
-			return;
-		}
-
-		Hibernate.initialize(entity);
-		ManagedType<?> managedType = resolveManagedType(Hibernate.getClass(entity));
-		if (managedType == null) {
-			return;
-		}
-
-		processAssociations(entity, managedType, depth);
-	}
-
-	private boolean shouldProcessEntity(Object entity, int depth) {
-		return entity != null && depth >= 0;
-	}
-
-	private void processAssociations(Object entity, ManagedType<?> managedType, int depth) {
-		BeanWrapper wrapper = new BeanWrapperImpl(entity);
-		for (Attribute<?, ?> attribute : managedType.getAttributes()) {
-			if (!isProcessableAssociation(attribute, wrapper)) {
-				continue;
-			}
-
-			Object value = wrapper.getPropertyValue(attribute.getName());
-			if (value != null) {
-				Hibernate.initialize(value);
-				processAssociationValue(value, depth);
-			}
-		}
-	}
-
-	private boolean isProcessableAssociation(Attribute<?, ?> attribute, BeanWrapper wrapper) {
-		return attribute.isAssociation() && wrapper.isReadableProperty(attribute.getName());
-	}
-
-	private void processAssociationValue(Object value, int depth) {
-		if (depth == 0) {
-			return;
-		}
-
-		if (value instanceof Collection<?> collection) {
-			processCollectionAssociations(collection, depth);
-		} else {
-			initializeSingularAssociations(value, depth - 1);
-		}
-	}
-
-	private void processCollectionAssociations(Collection<?> collection, int depth) {
-		for (Object item : collection) {
-			initializeSingularAssociations(item, depth - 1);
-		}
-	}
-
-	private void initializeSingularAssociations(Object entity, int depth) {
-		if (entity == null || depth < 0) {
-			return;
-		}
-
-		Hibernate.initialize(entity);
-		ManagedType<?> managedType = resolveManagedType(Hibernate.getClass(entity));
-		if (managedType == null) {
-			return;
-		}
-
-		BeanWrapper wrapper = new BeanWrapperImpl(entity);
-		for (Attribute<?, ?> attribute : managedType.getAttributes()) {
-			if (!attribute.isAssociation() || attribute.isCollection()
-					|| !wrapper.isReadableProperty(attribute.getName())) {
-				continue;
-			}
-
-			Object value = wrapper.getPropertyValue(attribute.getName());
-			if (value != null) {
-				Hibernate.initialize(value);
-				if (depth > 0) {
-					initializeSingularAssociations(value, depth - 1);
-				}
-			}
-		}
-	}
-
-	private ManagedType<?> resolveManagedType(Class<?> javaType) {
-		try {
-			if (entityManager == null || entityManager.getMetamodel() == null) {
-				return null;
-			}
-			return entityManager.getMetamodel().managedType(javaType);
-		} catch (IllegalArgumentException ex) {
-			return null;
+	protected void initializeAssociationsForResponse(Object entity) {
+		if (entityResponseInitializer != null) {
+			entityResponseInitializer.initialize(entity);
 		}
 	}
 
