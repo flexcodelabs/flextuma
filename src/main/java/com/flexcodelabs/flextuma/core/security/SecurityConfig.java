@@ -10,6 +10,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisHttpSession;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
@@ -60,6 +61,7 @@ public class SecurityConfig {
                             .requestMatchers("/api/register").permitAll()
                             .requestMatchers("/").permitAll()
                             .requestMatchers("/assets/**").permitAll()
+                            .requestMatchers(new RegexRequestMatcher("^/(?!api(?:/|$)).*", null)).permitAll()
                             .anyRequest().authenticated())
                     .httpBasic(Customizer.withDefaults())
                     .addFilterBefore(patAuthenticationFilter,

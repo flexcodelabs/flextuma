@@ -63,6 +63,10 @@ public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
     }
 
     private boolean shouldSkipPasswordChangeCheck(String path) {
+        if (path == null || !path.startsWith("/api/")) {
+            return true;
+        }
+
         return path.equals("/api/login") ||
                 path.equals("/api/changePassword") ||
                 path.equals("/api/logout") ||

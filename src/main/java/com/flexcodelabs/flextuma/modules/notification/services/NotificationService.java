@@ -125,7 +125,8 @@ public class NotificationService {
                         SmsTemplate template, Map<String, String> metadata) {
                 SmsSegmentResult segmentResult = segmentCalculator.calculate(content);
                 if (connector.getCode() != null && connector.getCode().equals(connector.getProvider() + "_SYSTEM")) {
-                        BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
+                        BigDecimal cost = BigDecimal.valueOf(Math.ceil(BigDecimal.valueOf(segmentResult.segments())
+                                        .divide(pricePerSegment).doubleValue()));
                         walletService.debit(user, cost, "SMS send to " + phoneNumber, null);
                 }
 

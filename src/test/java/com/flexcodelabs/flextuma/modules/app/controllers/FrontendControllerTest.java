@@ -40,6 +40,13 @@ class FrontendControllerTest {
     }
 
     @Test
+    void serveCatchAll_shouldReturnIndexForLoginRoute() throws Exception {
+        mockMvc.perform(get("/login"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("<html><body>app</body></html>"));
+    }
+
+    @Test
     void serveCatchAll_shouldReturnIndexForDottedNonApiRoutes() throws Exception {
         mockMvc.perform(get("/foo.bar"))
                 .andExpect(status().isOk())
