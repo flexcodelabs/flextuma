@@ -30,6 +30,7 @@ public class CampaignDispatchWorker {
     private final SmsLogRepository logRepository;
     private final WalletService walletService;
     private final SmsSegmentCalculator segmentCalculator;
+    private final PersonalNotificationService personalNotificationService;
 
     @Value("${flextuma.sms.price-per-segment:1.0}")
     private BigDecimal pricePerSegment;
@@ -77,6 +78,7 @@ public class CampaignDispatchWorker {
 
             campaign.setStatus(SmsCampaignStatus.COMPLETED);
             campaignRepository.save(campaign);
+            personalNotificationService.notifyCampaignCompleted(campaign.getCreatedBy(), campaign.getName());
             log.info("Campaign [{}] processing completed successfully", campaign.getName());
 
         } catch (Exception e) {

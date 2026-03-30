@@ -164,3 +164,137 @@ Examples:
 - `/settings/profile`
 
 These routes will return the client app entry file, while `/api/**` remains reserved for backend APIs.
+
+## 5. Personal Notifications Integration
+
+The app also supports user-facing personal notifications for dropdowns, badges, and a full notification center.
+
+### Personal Notifications List
+
+- `GET /api/personalNotifications?page=1&pageSize=10`
+
+Response shape:
+
+```json
+{
+  "page": 1,
+  "total": 12,
+  "pageSize": 10,
+  "personalNotifications": [
+    {
+      "id": "0dbe588d-7b7e-4bb9-a6e9-9fa1228a19f4",
+      "title": "Low Balance Alert",
+      "message": "Your wallet balance is below TZS 10,000. Current balance: TZS 9500.",
+      "type": "LOW_BALANCE_ALERT",
+      "linkUrl": "/finance/wallet",
+      "readAt": null,
+      "created": "2026-03-30T16:20:00",
+      "updated": "2026-03-30T16:20:00"
+    }
+  ]
+}
+```
+
+Use this for:
+- full “View All Notifications” page
+- paginated notification center
+- notification history screens
+
+### Personal Notifications Summary
+
+- `GET /api/personalNotifications/summary?pageSize=5`
+
+Use this for the header bell dropdown like the one in your screenshot.
+
+```json
+{
+  "unreadCount": 3,
+  "notifications": [
+    {
+      "id": "0dbe588d-7b7e-4bb9-a6e9-9fa1228a19f4",
+      "title": "Low Balance Alert",
+      "message": "Your wallet balance is below TZS 10,000. Current balance: TZS 9500.",
+      "type": "LOW_BALANCE_ALERT",
+      "linkUrl": "/finance/wallet",
+      "readAt": null,
+      "created": "2026-03-30T16:20:00",
+      "updated": "2026-03-30T16:20:00"
+    },
+    {
+      "id": "1f0e8a6a-1d43-48f4-a0ae-0f1b6de8697b",
+      "title": "Campaign Completed",
+      "message": "Summer Sale 2024 has finished sending.",
+      "type": "CAMPAIGN_COMPLETED",
+      "linkUrl": "/campaigns",
+      "readAt": null,
+      "created": "2026-03-30T15:55:00",
+      "updated": "2026-03-30T15:55:00"
+    }
+  ]
+}
+```
+
+### Mark One Notification as Read
+
+- `POST /api/personalNotifications/{id}/read`
+
+Recommended when:
+- user clicks a notification item
+- user opens a notification detail
+- user navigates through a notification deep link
+
+### Mark All Notifications as Read
+
+- `POST /api/personalNotifications/readAll`
+
+Example response:
+
+```json
+{
+  "message": "Notifications marked as read",
+  "updated": 3
+}
+```
+
+### Example Frontend Flow
+
+```javascript
+async function loadPersonalNotificationSummary(pageSize = 5) {
+  const response = await fetch(
+    `/api/personalNotifications/summary?pageSize=${pageSize}`,
+    { credentials: 'include' }
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to load personal notifications');
+  }
+
+  return response.json();
+}
+
+async function markNotificationRead(id) {
+  const response = await fetch(`/api/personalNotifications/${id}/read`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to mark notification as read');
+  }
+
+  return response.json();
+}
+```
+
+Recommended UI behavior:
+- use `unreadCount` for the blue badge count
+- render `notifications` in the dropdown panel
+- show relative time from `created`
+- navigate to `linkUrl` when present
+- for “View All Notifications”, call `GET /api/personalNotifications?page=1&pageSize=10`
+
+### Current Automatic Notification Types
+
+These are generated from real backend events:
+- `LOW_BALANCE_ALERT`
+- `CAMPAIGN_COMPLETED`

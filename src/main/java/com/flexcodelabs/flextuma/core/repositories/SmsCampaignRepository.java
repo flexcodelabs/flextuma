@@ -15,13 +15,15 @@ import java.util.UUID;
 
 @Repository
 public interface SmsCampaignRepository extends BaseRepository<SmsCampaign, UUID>,
-        org.springframework.data.jpa.repository.JpaSpecificationExecutor<SmsCampaign> {
+                org.springframework.data.jpa.repository.JpaSpecificationExecutor<SmsCampaign> {
 
-    @Query("SELECT c FROM SmsCampaign c WHERE c.status = :status AND c.scheduledAt <= :now")
-    List<SmsCampaign> findDueCampaigns(
-            @Param("status") SmsCampaignStatus status,
-            @Param("now") LocalDateTime now,
-            Pageable pageable);
+        @Query("SELECT c FROM SmsCampaign c WHERE c.status = :status AND c.scheduledAt <= :now")
+        List<SmsCampaign> findDueCampaigns(
+                        @Param("status") SmsCampaignStatus status,
+                        @Param("now") LocalDateTime now,
+                        Pageable pageable);
 
-    long countByCreatedByAndStatusIn(User user, Collection<SmsCampaignStatus> statuses);
+        long countByCreatedByAndStatusIn(User user, Collection<SmsCampaignStatus> statuses);
+
+        long countByStatusIn(Collection<SmsCampaignStatus> statuses);
 }

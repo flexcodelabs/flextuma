@@ -7,6 +7,7 @@ import com.flexcodelabs.flextuma.core.enums.TransactionType;
 import com.flexcodelabs.flextuma.core.repositories.WalletRepository;
 import com.flexcodelabs.flextuma.core.repositories.WalletTransactionRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
+import com.flexcodelabs.flextuma.modules.notification.services.PersonalNotificationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,6 +29,7 @@ public class WalletService extends BaseService<Wallet> {
 
     private final WalletRepository repository;
     private final WalletTransactionRepository transactionRepository;
+    private final PersonalNotificationService personalNotificationService;
 
     @Value("${flextuma.sms.price-per-segment:20.0}")
     private BigDecimal smsPricePerSegment;
@@ -62,6 +64,7 @@ public class WalletService extends BaseService<Wallet> {
         wallet.setBalance(wallet.getBalance().subtract(amount));
 
         Wallet savedWallet = repository.save(wallet);
+        personalNotificationService.notifyLowBalance(user, savedWallet.getBalance());
 
         WalletTransaction transaction = new WalletTransaction();
         transaction.setWallet(savedWallet);

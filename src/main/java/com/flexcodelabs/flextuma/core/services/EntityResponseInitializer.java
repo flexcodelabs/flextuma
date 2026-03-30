@@ -35,28 +35,41 @@ public class EntityResponseInitializer {
 
         BeanWrapper wrapper = new BeanWrapperImpl(entity);
         for (Attribute<?, ?> attribute : managedType.getAttributes()) {
-            if (!attribute.isAssociation() || !wrapper.isReadableProperty(attribute.getName())) {
-                continue;
-            }
+            processAttribute(wrapper, attribute, depth);
+        }
+    }
 
-            Object value = wrapper.getPropertyValue(attribute.getName());
-            if (value == null) {
-                continue;
-            }
+    private void processAttribute(BeanWrapper wrapper, Attribute<?, ?> attribute, int depth) {
+        if (!shouldProcessAttribute(wrapper, attribute)) {
+            return;
+        }
 
-            Hibernate.initialize(value);
-            if (depth == 0) {
-                continue;
-            }
+        Object value = wrapper.getPropertyValue(attribute.getName());
+        if (value == null) {
+            return;
+        }
 
-            if (value instanceof Collection<?> collection) {
-                for (Object item : collection) {
-                    initializeSingularAssociations(item, depth - 1);
-                }
-                continue;
-            }
+        Hibernate.initialize(value);
+        if (depth > 0) {
+            processAttributeValue(value, depth);
+        }
+    }
 
+    private boolean shouldProcessAttribute(BeanWrapper wrapper, Attribute<?, ?> attribute) {
+        return attribute.isAssociation() && wrapper.isReadableProperty(attribute.getName());
+    }
+
+    private void processAttributeValue(Object value, int depth) {
+        if (value instanceof Collection<?> collection) {
+            processCollection(collection, depth);
+        } else {
             initializeSingularAssociations(value, depth - 1);
+        }
+    }
+
+    private void processCollection(Collection<?> collection, int depth) {
+        for (Object item : collection) {
+            initializeSingularAssociations(item, depth - 1);
         }
     }
 
@@ -73,18 +86,17 @@ public class EntityResponseInitializer {
 
         BeanWrapper wrapper = new BeanWrapperImpl(entity);
         for (Attribute<?, ?> attribute : managedType.getAttributes()) {
-            if (!attribute.isAssociation() || attribute.isCollection() || !wrapper.isReadableProperty(attribute.getName())) {
+            if (!attribute.isAssociation() || attribute.isCollection()
+                    || !wrapper.isReadableProperty(attribute.getName())) {
                 continue;
             }
 
             Object value = wrapper.getPropertyValue(attribute.getName());
-            if (value == null) {
-                continue;
-            }
-
-            Hibernate.initialize(value);
-            if (depth > 0) {
-                initializeSingularAssociations(value, depth - 1);
+            if (value != null) {
+                Hibernate.initialize(value);
+                if (depth > 0) {
+                    initializeSingularAssociations(value, depth - 1);
+                }
             }
         }
     }

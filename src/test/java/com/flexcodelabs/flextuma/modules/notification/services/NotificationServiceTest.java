@@ -9,6 +9,7 @@ import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
+import com.flexcodelabs.flextuma.core.services.EntityResponseInitializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,6 +61,9 @@ class NotificationServiceTest {
 
         @Mock
         private SmsSegmentCalculator segmentCalculator;
+
+        @Mock
+        private EntityResponseInitializer entityResponseInitializer;
 
         @InjectMocks
         private NotificationService notificationService;
