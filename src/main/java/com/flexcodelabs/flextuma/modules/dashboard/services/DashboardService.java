@@ -25,6 +25,7 @@ import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.SmsCampaignRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.WalletRepository;
+import com.flexcodelabs.flextuma.core.security.SecurityUtils;
 import com.flexcodelabs.flextuma.modules.dashboard.dtos.DashboardNotificationDTO;
 import com.flexcodelabs.flextuma.modules.dashboard.dtos.DashboardSummaryDTO;
 
@@ -49,21 +50,51 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public DashboardSummaryDTO getSummary() {
         User user = getCurrentUser();
-        Wallet wallet = walletRepository.findTopByCreatedByOrderByCreatedDesc(user).orElseGet(Wallet::new);
+        boolean isAdmin = SecurityUtils.getCurrentUserAuthorities().contains("SUPER_ADMIN");
 
-        long successfulMessages = smsLogRepository.countByCreatedByAndStatusIn(user, SUCCESS_STATUSES);
-        long failedMessages = smsLogRepository.countByCreatedByAndStatus(user, SmsLogStatus.FAILED);
-        long todayMessages = countMessagesSince(user, startOfToday());
-        long weeklyMessages = countMessagesSince(user, LocalDateTime.now().minusDays(7));
-        long monthlyMessages = countMessagesSince(user, startOfMonth());
-        long activeCampaigns = smsCampaignRepository.countByCreatedByAndStatusIn(user, ACTIVE_CAMPAIGN_STATUSES);
+        Wallet wallet;
+        BigDecimal balanceAmount;
+        String currency;
 
-        long pendingMessages = smsLogRepository.countByCreatedByAndStatus(user, SmsLogStatus.PENDING);
-        long processingMessages = smsLogRepository.countByCreatedByAndStatus(user, SmsLogStatus.PROCESSING);
+        if (isAdmin) {
+            balanceAmount = walletRepository.sumAllBalances();
+            currency = "TZS";
+        } else {
+            wallet = walletRepository.findTopByCreatedByOrderByCreatedDesc(user).orElseGet(Wallet::new);
+            balanceAmount = wallet.getBalance() != null ? wallet.getBalance() : BigDecimal.ZERO;
+            currency = wallet.getCurrency() != null ? wallet.getCurrency() : "TZS";
+        }
+
+        long successfulMessages;
+        long failedMessages;
+        long todayMessages;
+        long weeklyMessages;
+        long monthlyMessages;
+        long activeCampaigns;
+        long pendingMessages;
+        long processingMessages;
+
+        if (isAdmin) {
+            successfulMessages = smsLogRepository.countByStatusIn(SUCCESS_STATUSES);
+            failedMessages = smsLogRepository.countByStatus(SmsLogStatus.FAILED);
+            todayMessages = countAllMessagesSince(startOfToday());
+            weeklyMessages = countAllMessagesSince(LocalDateTime.now().minusDays(7));
+            monthlyMessages = countAllMessagesSince(startOfMonth());
+            activeCampaigns = smsCampaignRepository.countByStatusIn(ACTIVE_CAMPAIGN_STATUSES);
+            pendingMessages = smsLogRepository.countByStatus(SmsLogStatus.PENDING);
+            processingMessages = smsLogRepository.countByStatus(SmsLogStatus.PROCESSING);
+        } else {
+            successfulMessages = smsLogRepository.countByCreatedByAndStatusIn(user, SUCCESS_STATUSES);
+            failedMessages = smsLogRepository.countByCreatedByAndStatus(user, SmsLogStatus.FAILED);
+            todayMessages = countMessagesSince(user, startOfToday());
+            weeklyMessages = countMessagesSince(user, LocalDateTime.now().minusDays(7));
+            monthlyMessages = countMessagesSince(user, startOfMonth());
+            activeCampaigns = smsCampaignRepository.countByCreatedByAndStatusIn(user, ACTIVE_CAMPAIGN_STATUSES);
+            pendingMessages = smsLogRepository.countByCreatedByAndStatus(user, SmsLogStatus.PENDING);
+            processingMessages = smsLogRepository.countByCreatedByAndStatus(user, SmsLogStatus.PROCESSING);
+        }
+
         long totalStatusCount = successfulMessages + failedMessages + pendingMessages + processingMessages;
-
-        BigDecimal balanceAmount = wallet.getBalance() != null ? wallet.getBalance() : BigDecimal.ZERO;
-        String currency = wallet.getCurrency() != null ? wallet.getCurrency() : "TZS";
 
         return DashboardSummaryDTO.builder()
                 .userId(user.getId())
@@ -78,8 +109,9 @@ public class DashboardService {
                 .thisWeek(weeklyMessages)
                 .thisMonth(monthlyMessages)
                 .successRate(calculateSuccessRate(successfulMessages, failedMessages))
-                .statusBreakdown(buildStatusBreakdown(successfulMessages, failedMessages, pendingMessages, processingMessages,
-                        totalStatusCount))
+                .statusBreakdown(
+                        buildStatusBreakdown(successfulMessages, failedMessages, pendingMessages, processingMessages,
+                                totalStatusCount))
                 .build();
     }
 
@@ -105,6 +137,10 @@ public class DashboardService {
 
     private long countMessagesSince(User user, LocalDateTime start) {
         return smsLogRepository.countByCreatedByAndStatusInAndCreatedGreaterThanEqual(user, SUCCESS_STATUSES, start);
+    }
+
+    private long countAllMessagesSince(LocalDateTime start) {
+        return smsLogRepository.countByStatusInAndCreatedGreaterThanEqual(SUCCESS_STATUSES, start);
     }
 
     private LocalDateTime startOfToday() {

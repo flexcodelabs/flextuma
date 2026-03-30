@@ -1,16 +1,20 @@
 package com.flexcodelabs.flextuma.modules.notification.services;
 
-import com.flexcodelabs.flextuma.core.entities.auth.User;
-import com.flexcodelabs.flextuma.core.entities.sms.SmsCampaign;
-import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
-import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
-import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
-import com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus;
-import com.flexcodelabs.flextuma.core.helpers.SmsSegmentCalculator;
-import com.flexcodelabs.flextuma.core.helpers.SmsSegmentResult;
-import com.flexcodelabs.flextuma.core.repositories.SmsCampaignRepository;
-import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
-import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,15 +24,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import com.flexcodelabs.flextuma.core.entities.auth.User;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsCampaign;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
+import com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus;
+import com.flexcodelabs.flextuma.core.helpers.SmsSegmentCalculator;
+import com.flexcodelabs.flextuma.core.helpers.SmsSegmentResult;
+import com.flexcodelabs.flextuma.core.repositories.SmsCampaignRepository;
+import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
+import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
 
 @ExtendWith(MockitoExtension.class)
 class CampaignDispatchWorkerTest {
@@ -44,6 +50,9 @@ class CampaignDispatchWorkerTest {
 
     @Mock
     private SmsSegmentCalculator segmentCalculator;
+
+    @Mock
+    private PersonalNotificationService personalNotificationService;
 
     @InjectMocks
     private CampaignDispatchWorker worker;
@@ -90,6 +99,7 @@ class CampaignDispatchWorkerTest {
         verify(campaignRepository, atLeastOnce()).save(campaign);
         verify(walletService, times(2)).debit(eq(adminUser), any(BigDecimal.class), anyString(), any());
         verify(logRepository, times(2)).save(any(SmsLog.class));
+        verify(personalNotificationService).notifyCampaignCompleted(adminUser, "Test Campaign");
         assert (campaign.getStatus() == SmsCampaignStatus.COMPLETED);
     }
 

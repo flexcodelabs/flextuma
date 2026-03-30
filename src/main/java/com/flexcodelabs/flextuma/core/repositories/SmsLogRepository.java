@@ -37,4 +37,10 @@ public interface SmsLogRepository extends BaseRepository<SmsLog, UUID>,
 
 	long countByCreatedByAndStatusInAndCreatedGreaterThanEqual(User user, Collection<SmsLogStatus> statuses,
 			LocalDateTime created);
+
+	long countByStatus(SmsLogStatus status);
+
+	long countByStatusIn(Collection<SmsLogStatus> statuses);
+
+	long countByStatusInAndCreatedGreaterThanEqual(Collection<SmsLogStatus> statuses, LocalDateTime created);
 }
