@@ -50,15 +50,15 @@ public class CampaignDispatchWorker {
         log.info("CampaignDispatchWorker: Processing {} scheduled campaign(s)", dueCampaigns.size());
 
         for (SmsCampaign campaign : dueCampaigns) {
-            processSingleCampaign(campaign);
+            if (campaignRepository.claimScheduledCampaign(campaign.getId(), SmsCampaignStatus.SCHEDULED,
+                    SmsCampaignStatus.PROCESSING) == 1) {
+                processSingleCampaign(campaign);
+            }
         }
     }
 
     private void processSingleCampaign(SmsCampaign campaign) {
         try {
-            campaign.setStatus(SmsCampaignStatus.PROCESSING);
-            campaignRepository.save(campaign);
-
             String recipientsStr = campaign.getRecipients();
             if (recipientsStr == null || recipientsStr.isBlank()) {
                 campaign.setStatus(SmsCampaignStatus.COMPLETED);

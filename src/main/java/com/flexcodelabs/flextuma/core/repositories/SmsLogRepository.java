@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Modifying;
 
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
@@ -27,7 +28,13 @@ public interface SmsLogRepository extends BaseRepository<SmsLog, UUID>,
 			@org.springframework.data.repository.query.Param("now") java.time.LocalDateTime now,
 			org.springframework.data.domain.Pageable pageable);
 
-	Optional<SmsLog> findByProviderResponse(String providerResponse);
+	Optional<SmsLog> findByProviderMessageId(String providerMessageId);
+
+	@Modifying
+	@org.springframework.data.jpa.repository.Query("UPDATE SmsLog s SET s.status = :processing WHERE s.id = :id AND s.status = :pending")
+	int claimPendingMessage(@org.springframework.data.repository.query.Param("id") UUID id,
+			@org.springframework.data.repository.query.Param("pending") SmsLogStatus pending,
+			@org.springframework.data.repository.query.Param("processing") SmsLogStatus processing);
 
 	Page<SmsLog> findByCreatedByOrderByCreatedDesc(User user, Pageable pageable);
 

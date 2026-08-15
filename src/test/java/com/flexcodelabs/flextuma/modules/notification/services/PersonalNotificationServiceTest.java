@@ -28,6 +28,7 @@ import com.flexcodelabs.flextuma.core.enums.PersonalNotificationType;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.PersonalNotificationRepository;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
+import com.flexcodelabs.flextuma.core.services.EntityAssociationReferenceResolver;
 import com.flexcodelabs.flextuma.core.services.EntityResponseInitializer;
 import com.flexcodelabs.flextuma.modules.notification.dtos.NotificationSummaryDTO;
 
@@ -49,12 +50,15 @@ class PersonalNotificationServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private EntityAssociationReferenceResolver entityAssociationReferenceResolver;
+
     private PersonalNotificationService service;
     private MockedStatic<SecurityUtils> securityUtilsMock;
 
     @BeforeEach
     void setUp() {
-        service = new PersonalNotificationService(repository, currentUserResolver);
+        service = new PersonalNotificationService(repository, currentUserResolver, entityAssociationReferenceResolver);
         service.setEntityResponseInitializer(entityResponseInitializer);
         service.setEventPublisher(eventPublisher);
         securityUtilsMock = Mockito.mockStatic(SecurityUtils.class);
@@ -99,6 +103,7 @@ class PersonalNotificationServiceTest {
         assertEquals(PersonalNotificationType.LOW_BALANCE_ALERT, saved.getType());
         assertEquals("/finance/wallet", saved.getLinkUrl());
         assertEquals("LOW_BALANCE_" + user.getId(), saved.getCode());
+        verify(entityAssociationReferenceResolver).resolve(saved);
     }
 
     @Test

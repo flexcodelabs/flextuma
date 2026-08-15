@@ -9,6 +9,7 @@ import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
+import com.flexcodelabs.flextuma.core.services.EntityAssociationReferenceResolver;
 import com.flexcodelabs.flextuma.core.services.EntityResponseInitializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,9 @@ class NotificationServiceTest {
 
         @Mock
         private EntityResponseInitializer entityResponseInitializer;
+
+        @Mock
+        private EntityAssociationReferenceResolver entityAssociationReferenceResolver;
 
         @InjectMocks
         private NotificationService notificationService;
@@ -185,6 +189,7 @@ class NotificationServiceTest {
                 assertEquals(template, capturedLog.getTemplate());
                 assertEquals(connector, capturedLog.getConnector());
                 assertEquals(SmsLogStatus.PENDING, capturedLog.getStatus());
+                verify(entityAssociationReferenceResolver).resolve(capturedLog);
 
                 assertNotNull(result);
         }

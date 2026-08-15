@@ -43,7 +43,8 @@ public class PatAuthenticationFilter extends OncePerRequestFilter {
             if (patOpt.isPresent()) {
                 PersonalAccessToken pat = patOpt.get();
 
-                if (pat.getExpiresAt() == null || pat.getExpiresAt().isAfter(LocalDateTime.now())) {
+                if (Boolean.TRUE.equals(pat.getActive())
+                        && (pat.getExpiresAt() == null || pat.getExpiresAt().isAfter(LocalDateTime.now()))) {
                     User user = pat.getUser();
 
                     Set<SimpleGrantedAuthority> authorities = user.getRoles().stream()

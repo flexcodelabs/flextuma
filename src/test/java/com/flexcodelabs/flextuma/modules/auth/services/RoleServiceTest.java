@@ -79,7 +79,8 @@ class RoleServiceTest {
         role.setId(id);
         role.setSystem(true);
 
-        when(repository.findById(id)).thenReturn(Optional.of(role));
+        when(repository.findOne(org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<Role>>any()))
+                .thenReturn(Optional.of(role));
 
         assertThrows(IllegalStateException.class, () -> service.delete(id));
         verify(repository, never()).deleteById(any());
@@ -93,7 +94,8 @@ class RoleServiceTest {
         role.setId(id);
         role.setSystem(false);
 
-        when(repository.findById(id)).thenReturn(Optional.of(role));
+        when(repository.findOne(org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<Role>>any()))
+                .thenReturn(Optional.of(role));
 
         // Mock the native query execution
         Query query = mock(Query.class);

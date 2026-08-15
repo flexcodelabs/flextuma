@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -60,6 +61,8 @@ class CampaignDispatchWorkerTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(worker, "pricePerSegment", new BigDecimal("1.5"));
+        lenient().when(campaignRepository.claimScheduledCampaign(any(), eq(SmsCampaignStatus.SCHEDULED),
+                eq(SmsCampaignStatus.PROCESSING))).thenReturn(1);
     }
 
     @Test

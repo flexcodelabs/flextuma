@@ -59,6 +59,7 @@ public class SecurityConfig {
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers("/api/login").permitAll()
                             .requestMatchers("/api/register").permitAll()
+							.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/webhooks/*").permitAll()
                             .requestMatchers("/").permitAll()
                             .requestMatchers("/assets/**").permitAll()
                             .requestMatchers(new RegexRequestMatcher("^/(?!api(?:/|$)).*", null)).permitAll()

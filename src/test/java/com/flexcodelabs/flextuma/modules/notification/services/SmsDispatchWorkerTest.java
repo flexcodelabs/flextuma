@@ -61,6 +61,7 @@ class SmsDispatchWorkerTest {
                 SmsSendResult.success("SMS sent successfully", "provider-msg-id-123",
                         Map.of("status", "sent", "message_id", "provider-msg-id-123")));
         when(logRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+		when(logRepository.claimPendingMessage(any(), eq(SmsLogStatus.PENDING), eq(SmsLogStatus.PROCESSING))).thenReturn(1);
 
         worker.dispatch();
 
@@ -78,6 +79,7 @@ class SmsDispatchWorkerTest {
                 .thenReturn(List.of(log));
         when(smsSender.sendSms(any(), any(), any())).thenThrow(new RuntimeException("timeout"));
         when(logRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+		when(logRepository.claimPendingMessage(any(), eq(SmsLogStatus.PENDING), eq(SmsLogStatus.PROCESSING))).thenReturn(1);
 
         worker.dispatch();
 
@@ -96,6 +98,7 @@ class SmsDispatchWorkerTest {
                 .thenReturn(List.of(log));
         when(smsSender.sendSms(any(), any(), any())).thenThrow(new RuntimeException("timeout"));
         when(logRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+		when(logRepository.claimPendingMessage(any(), eq(SmsLogStatus.PENDING), eq(SmsLogStatus.PROCESSING))).thenReturn(1);
 
         worker.dispatch();
 
@@ -113,6 +116,7 @@ class SmsDispatchWorkerTest {
                 any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(List.of(log));
         when(logRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+		when(logRepository.claimPendingMessage(any(), eq(SmsLogStatus.PENDING), eq(SmsLogStatus.PROCESSING))).thenReturn(1);
 
         worker.dispatch();
 

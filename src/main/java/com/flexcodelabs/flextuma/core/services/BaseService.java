@@ -51,6 +51,7 @@ public abstract class BaseService<T extends BaseEntity> {
 
 	private CurrentUserResolver currentUserResolver;
 	private EntityResponseInitializer entityResponseInitializer;
+	private EntityAssociationReferenceResolver entityAssociationReferenceResolver;
 
 	@org.springframework.beans.factory.annotation.Autowired
 	public void setCurrentUserResolver(CurrentUserResolver currentUserResolver) {
@@ -60,6 +61,12 @@ public abstract class BaseService<T extends BaseEntity> {
 	@Autowired
 	public void setEntityResponseInitializer(EntityResponseInitializer entityResponseInitializer) {
 		this.entityResponseInitializer = entityResponseInitializer;
+	}
+
+	@Autowired
+	public void setEntityAssociationReferenceResolver(
+			EntityAssociationReferenceResolver entityAssociationReferenceResolver) {
+		this.entityAssociationReferenceResolver = entityAssociationReferenceResolver;
 	}
 
 	protected abstract JpaRepository<T, UUID> getRepository();
@@ -177,7 +184,10 @@ public abstract class BaseService<T extends BaseEntity> {
 
 	@SuppressWarnings("unchecked")
 	private Specification<T> buildTenantSpec() {
-		return currentUserResolver.getCurrentUser()
+		Optional<com.flexcodelabs.flextuma.core.entities.auth.User> currentUser = currentUserResolver == null
+				? Optional.empty()
+				: Optional.ofNullable(currentUserResolver.getCurrentUser()).orElse(Optional.empty());
+		return currentUser
 				.map(user -> (Specification<T>) new TenantAwareSpecification<>(user,
 						SecurityUtils.getCurrentUserAuthorities()))
 				.orElse((root, query, cb) -> cb.conjunction());
@@ -232,7 +242,9 @@ public abstract class BaseService<T extends BaseEntity> {
 	@Transactional(readOnly = true)
 	public Optional<T> findById(UUID id) {
 		checkPermission(getReadPermission());
-		Optional<T> result = getRepository().findById(id);
+		Specification<T> spec = buildTenantSpec()
+				.and((root, query, cb) -> cb.equal(root.get("id"), id));
+		Optional<T> result = getRepositoryAsExecutor().findOne(spec);
 		result.ifPresent(this::initializeAssociationsForResponse);
 		return result;
 	}
@@ -254,6 +266,7 @@ public abstract class BaseService<T extends BaseEntity> {
 	public T save(T entity) {
 		checkPermission(getAddPermission());
 		onPreSave(entity);
+		prepareEntityForPersistence(entity);
 		T saved = getRepository().save(entity);
 		initializeAssociationsForResponse(saved);
 		onPostSave(saved);
@@ -264,10 +277,9 @@ public abstract class BaseService<T extends BaseEntity> {
 	@Transactional
 	public T update(UUID id, T entity) {
 		checkPermission(getUpdatePermission());
-		T existing = getRepository().findById(id)
-				.orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
-						org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
+		T existing = findAccessibleById(id);
 		onPreUpdate(entity, existing);
+		prepareEntityForPersistence(entity);
 		String[] excludedFields = getNullPropertyNames(entity);
 		org.springframework.beans.BeanUtils.copyProperties(entity, existing, excludedFields);
 		T saved = getRepository().save(existing);
@@ -302,9 +314,7 @@ public abstract class BaseService<T extends BaseEntity> {
 	public Map<String, String> delete(UUID id) {
 		checkPermission(getDeletePermission());
 
-		T entity = getRepository().findById(id)
-				.orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
-						org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
+		T entity = findAccessibleById(id);
 
 		validateDelete(entity);
 
@@ -451,6 +461,20 @@ public abstract class BaseService<T extends BaseEntity> {
 		if (entityResponseInitializer != null) {
 			entityResponseInitializer.initialize(entity);
 		}
+	}
+
+	protected void prepareEntityForPersistence(Object entity) {
+		if (entityAssociationReferenceResolver != null) {
+			entityAssociationReferenceResolver.resolve(entity);
+		}
+	}
+
+	private T findAccessibleById(UUID id) {
+		Specification<T> spec = buildTenantSpec()
+				.and((root, query, cb) -> cb.equal(root.get("id"), id));
+		return getRepositoryAsExecutor().findOne(spec)
+				.orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+						org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
 	}
 
 	private final ObjectMapper objectMapper = new ObjectMapper()

@@ -5,6 +5,7 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsCampaign;
 import com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -22,6 +23,12 @@ public interface SmsCampaignRepository extends BaseRepository<SmsCampaign, UUID>
                         @Param("status") SmsCampaignStatus status,
                         @Param("now") LocalDateTime now,
                         Pageable pageable);
+
+        @Modifying
+        @Query("UPDATE SmsCampaign c SET c.status = :processing WHERE c.id = :id AND c.status = :scheduled")
+        int claimScheduledCampaign(@Param("id") UUID id,
+                        @Param("scheduled") SmsCampaignStatus scheduled,
+                        @Param("processing") SmsCampaignStatus processing);
 
         long countByCreatedByAndStatusIn(User user, Collection<SmsCampaignStatus> statuses);
 

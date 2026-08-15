@@ -12,6 +12,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserService extends BaseService<User> {
     private final UserRepository repository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     protected boolean isAdminEntity() {
@@ -149,10 +151,14 @@ public class UserService extends BaseService<User> {
         return repository.save(user);
     }
 
-    public void changePassword(User user, String newPassword) {
-        user.setPassword(newPassword);
-        user.setChangePassword(false);
-        repository.save(user);
+    public User changePassword(User user, String newPassword) {
+        User managedUser = repository.findById(user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        managedUser.setPassword(passwordEncoder.encode(newPassword));
+        managedUser.setChangePassword(false);
+
+        return repository.save(managedUser);
     }
 
 }

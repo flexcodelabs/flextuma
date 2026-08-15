@@ -54,6 +54,9 @@ class BaseServiceTest {
     private CurrentUserResolver currentUserResolver;
 
     @Mock
+    private EntityAssociationReferenceResolver entityAssociationReferenceResolver;
+
+    @Mock
     private JpaRepository<TestEntity, UUID> repository;
 
     @Mock
@@ -139,6 +142,7 @@ class BaseServiceTest {
         service.entityManager = entityManager;
         service.setEventPublisher(eventPublisher);
         service.setCurrentUserResolver(currentUserResolver);
+        service.setEntityAssociationReferenceResolver(entityAssociationReferenceResolver);
 
         securityUtilsMock = Mockito.mockStatic(SecurityUtils.class);
         securityUtilsMock.when(SecurityUtils::getCurrentUserAuthorities)
@@ -220,6 +224,7 @@ class BaseServiceTest {
         TestEntity saved = service.save(entity);
 
         assertNotNull(saved);
+        verify(entityAssociationReferenceResolver).resolve(entity);
         verify(repository).save(entity);
         verify(eventPublisher).publishEvent(any());
     }
@@ -231,20 +236,21 @@ class BaseServiceTest {
         TestEntity updatePayload = new TestEntity();
         updatePayload.setName("new name");
 
-        when(repository.findById(id)).thenReturn(Optional.of(existing));
+        when(executor.findOne(any(Specification.class))).thenReturn(Optional.of(existing));
         when(repository.save(existing)).thenReturn(existing);
 
         TestEntity result = service.update(id, updatePayload);
 
         assertNotNull(result);
         assertEquals("new name", existing.getName());
+        verify(entityAssociationReferenceResolver).resolve(updatePayload);
         verify(repository).save(existing);
     }
 
     @Test
     void findById_shouldReturnEmpty_whenNotFound() {
         UUID id = UUID.randomUUID();
-        when(repository.findById(id)).thenReturn(Optional.empty());
+        when(executor.findOne(any(Specification.class))).thenReturn(Optional.empty());
 
         Optional<TestEntity> result = service.findById(id);
 
@@ -377,7 +383,7 @@ class BaseServiceTest {
     void delete_shouldDeleteById() {
         UUID id = UUID.randomUUID();
         TestEntity entity = new TestEntity();
-        when(repository.findById(id)).thenReturn(Optional.of(entity));
+        when(executor.findOne(any(Specification.class))).thenReturn(Optional.of(entity));
 
         // Mock the native query execution
         Query query = mock(Query.class);

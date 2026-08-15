@@ -14,7 +14,7 @@ import java.util.Set;
 /**
  * A JPA Specification that mirrors the Node.js getWhere pattern:
  *
- * - SUPER_ADMIN / ALL authority → no restriction (sees everything)
+ * - SUPER_ADMIN authority → no restriction (sees everything)
  * - User with an organisation → sees resources created by anyone in the same
  * org OR by themselves
  * - User without an organisation → sees only resources they created
@@ -30,7 +30,7 @@ public class TenantAwareSpecification<T extends BaseEntity> implements Specifica
 
     private static final String CREATED_BY = "createdBy";
     private static final String ORGANISATION = "organisation";
-    private static final Set<String> BYPASS_AUTHORITIES = Set.of("ALL", "SUPER_ADMIN");
+    private static final Set<String> BYPASS_AUTHORITIES = Set.of("SUPER_ADMIN");
 
     private final transient User currentUser;
     private final transient Set<String> userAuthorities;
