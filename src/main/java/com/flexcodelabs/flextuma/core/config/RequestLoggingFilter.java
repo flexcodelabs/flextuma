@@ -70,11 +70,16 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         if (shouldSkipLogging(fullUri)) {
             return;
         }
+
+        int status = statusOverride > 0 ? statusOverride : response.getStatus();
+        if (status == HttpServletResponse.SC_NOT_FOUND) {
+            return;
+        }
+
         request.setAttribute("REQUEST_LOGGED", true);
         String username = getUsername(request);
         long duration = System.currentTimeMillis() - startTime;
 
-        int status = statusOverride > 0 ? statusOverride : response.getStatus();
         boolean isError = status >= 400 || ex != null;
 
         String logColor = isError ? "\u001B[31m" : "\u001B[32m";
