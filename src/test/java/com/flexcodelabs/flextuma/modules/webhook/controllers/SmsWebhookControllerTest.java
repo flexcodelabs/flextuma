@@ -31,7 +31,6 @@ import com.flexcodelabs.flextuma.core.webhooks.DlrResult;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import static org.mockito.Mockito.times;
-import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class SmsWebhookControllerTest {
@@ -52,10 +51,8 @@ class SmsWebhookControllerTest {
     private NotificationService notificationService;
 
     private SmsWebhookController buildController() {
-        SmsWebhookController controller = new SmsWebhookController(logRepository, List.of(dlrParser), configService, hydratorService,
+        return new SmsWebhookController(logRepository, List.of(dlrParser), configService, hydratorService,
                 notificationService);
-        ReflectionTestUtils.setField(controller, "webhookSharedSecret", "test-secret");
-        return controller;
     }
 
     private Map<String, Object> payload(String msgId, String status) {
@@ -75,7 +72,7 @@ class SmsWebhookControllerTest {
         when(logRepository.findByProviderMessageId("msg-123")).thenReturn(Optional.of(log));
         when(logRepository.save(any())).thenReturn(log);
 
-        buildController().deliveryReport("beem", "test-secret", payload("msg-123", "delivered"));
+        buildController().deliveryReport("beem", payload("msg-123", "delivered"));
 
         verify(logRepository).findByProviderMessageId("msg-123");
         verify(logRepository).save(any());
@@ -92,22 +89,22 @@ class SmsWebhookControllerTest {
         when(logRepository.findByProviderMessageId("msg-789")).thenReturn(Optional.of(log));
         when(logRepository.save(any())).thenReturn(log);
 
-        buildController().deliveryReport("beem", "test-secret", payload("msg-789", "failed"));
+        buildController().deliveryReport("beem", payload("msg-789", "failed"));
 
         verify(logRepository).save(any());
         assertEquals(SmsLogStatus.FAILED, log.getStatus());
     }
 
     @Test
-    void deliveryReport_shouldNotSave_whenAlreadySentAndFailedDlrArrives() {
+    void deliveryReport_shouldNotSave_whenAlreadyDeliveredAndFailedDlrArrives() {
         when(dlrParser.getProvider()).thenReturn("BEEM");
         when(dlrParser.parse(any())).thenReturn(new DlrResult("msg-456", SmsLogStatus.FAILED, "failed"));
 
         SmsLog log = new SmsLog();
-        log.setStatus(SmsLogStatus.SENT);
+        log.setStatus(SmsLogStatus.DELIVERED);
         lenient().when(logRepository.findByProviderMessageId("msg-456")).thenReturn(Optional.of(log));
 
-        buildController().deliveryReport("beem", "test-secret", payload("msg-456", "failed"));
+        buildController().deliveryReport("beem", payload("msg-456", "failed"));
 
         verify(logRepository, never()).save(any());
     }
@@ -116,7 +113,7 @@ class SmsWebhookControllerTest {
     void deliveryReport_shouldNotSave_whenUnknownProvider() {
         when(dlrParser.getProvider()).thenReturn("BEEM");
 
-        buildController().deliveryReport("unknown_provider", "test-secret", payload("msg-000", "delivered"));
+        buildController().deliveryReport("unknown_provider", payload("msg-000", "delivered"));
 
         verify(logRepository, never()).save(any());
     }
@@ -126,7 +123,7 @@ class SmsWebhookControllerTest {
         when(dlrParser.getProvider()).thenReturn("BEEM");
         when(dlrParser.parse(any())).thenReturn(new DlrResult("msg-999", SmsLogStatus.SENT, "delivered"));
 
-        buildController().deliveryReport("beem", "test-secret", payload("msg-999", "delivered"));
+        buildController().deliveryReport("beem", payload("msg-999", "delivered"));
 
         verify(logRepository, never()).save(any());
     }
@@ -136,7 +133,7 @@ class SmsWebhookControllerTest {
         when(dlrParser.getProvider()).thenReturn("BEEM");
         when(dlrParser.parse(any())).thenReturn(new DlrResult("msg-001", null, "submitted"));
 
-        buildController().deliveryReport("beem", "test-secret", payload("msg-001", "submitted"));
+        buildController().deliveryReport("beem", payload("msg-001", "submitted"));
 
         verify(logRepository, never()).save(any());
     }

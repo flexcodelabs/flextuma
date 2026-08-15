@@ -72,4 +72,5 @@ class SmsConnectorTest {
 
         assertTrue(connector.getIsDefault());
     }
+
 }
