@@ -100,7 +100,7 @@ public class BeemSender implements SmsSender {
             log.info("BEEM: SMS sent successfully to {}", to);
             return SmsSendResult.success(
                     "SMS sent successfully",
-                    null,
+                    responseBody != null ? responseBody.getMessageId() : null,
                     responseMap);
         } else {
             return SmsSendResult.failure(
@@ -178,5 +178,14 @@ public class BeemSender implements SmsSender {
         private boolean valid;
         private String message;
         private int code;
+
+        @JsonProperty("message_id")
+        private String messageId;
+
+        BeemSmsResponse(boolean valid, String message, int code) {
+            this.valid = valid;
+            this.message = message;
+            this.code = code;
+        }
     }
 }

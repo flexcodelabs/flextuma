@@ -40,15 +40,16 @@ public class SmsDispatchWorker {
 
         log.debug("SmsDispatchWorker: picking up {} PENDING log(s)", pending.size());
 
-        for (SmsLog smsLog : pending) {
-            markProcessing(smsLog);
-            send(smsLog);
+		for (SmsLog smsLog : pending) {
+			if (markProcessing(smsLog)) {
+				send(smsLog);
+			}
         }
     }
 
-    private void markProcessing(SmsLog smsLog) {
-        smsLog.setStatus(SmsLogStatus.PROCESSING);
-        logRepository.save(smsLog);
+	private boolean markProcessing(SmsLog smsLog) {
+		return logRepository.claimPendingMessage(smsLog.getId(), SmsLogStatus.PENDING,
+				SmsLogStatus.PROCESSING) == 1;
     }
 
     private void send(SmsLog smsLog) {

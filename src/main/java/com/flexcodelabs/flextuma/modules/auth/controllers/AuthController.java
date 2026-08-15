@@ -9,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -194,11 +193,11 @@ public class AuthController {
                                                         .badRequest("New password and confirmation do not match"));
                 }
 
-                userService.changePassword(user, BCrypt.hashpw(request.getNewPassword(), BCrypt.gensalt()));
+                User updatedUser = userService.changePassword(user, request.getNewPassword());
 
                 securityLogService.logPasswordChange(user.getUsername(), httpRequest, true);
 
                 return ResponseEntity.ok()
-                                .body(ApiResponse.success(UserResponseDto.fromUser(user)));
+                                .body(ApiResponse.success(UserResponseDto.fromUser(updatedUser)));
         }
 }

@@ -152,7 +152,7 @@ class DataHydratorServiceTest {
         config.setUrl("http://api.example.com");
         config.setEndpoint("/users/{id}");
         config.setAuthType(AuthType.API_KEY);
-        config.setToken("api-key-123");
+        config.setApiKey("api-key-123");
         config.setMappings(new ArrayList<>());
 
         when(repository.findByTenantId("tenant1")).thenReturn(Optional.of(config));

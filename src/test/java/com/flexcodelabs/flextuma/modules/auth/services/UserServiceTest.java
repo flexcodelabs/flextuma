@@ -18,6 +18,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCrypt;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -38,13 +39,16 @@ class UserServiceTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     private MockedStatic<SecurityContextHolder> securityContextHolderMock;
 
     private UserService service;
 
     @BeforeEach
     void setUp() {
-        service = new UserService(repository);
+        service = new UserService(repository, passwordEncoder);
 
         securityContextHolderMock = Mockito.mockStatic(SecurityContextHolder.class);
         securityContextHolderMock.when(SecurityContextHolder::getContext).thenReturn(securityContext);
@@ -108,10 +112,33 @@ class UserServiceTest {
         user.setId(id);
         user.setSystem(true);
 
-        when(repository.findById(id)).thenReturn(Optional.of(user));
+        when(repository.findOne(org.mockito.ArgumentMatchers.<org.springframework.data.jpa.domain.Specification<User>>any()))
+                .thenReturn(Optional.of(user));
 
         assertThrows(IllegalStateException.class, () -> service.delete(id));
         verify(repository, never()).deleteById(any());
+    }
+
+    @Test
+    void changePassword_shouldEncodeAndSaveManagedUser() {
+        UUID id = UUID.randomUUID();
+        User detachedUser = new User();
+        detachedUser.setId(id);
+
+        User managedUser = new User();
+        managedUser.setId(id);
+        managedUser.setChangePassword(true);
+
+        when(repository.findById(id)).thenReturn(Optional.of(managedUser));
+        when(passwordEncoder.encode("new-password")).thenReturn("encoded-password");
+        when(repository.save(managedUser)).thenReturn(managedUser);
+
+        User result = service.changePassword(detachedUser, "new-password");
+
+        assertSame(managedUser, result);
+        assertEquals("encoded-password", managedUser.getPassword());
+        assertFalse(Boolean.TRUE.equals(managedUser.getChangePassword()));
+        verify(repository).save(managedUser);
     }
 
     private void mockPermissions(Set<String> permissions) {

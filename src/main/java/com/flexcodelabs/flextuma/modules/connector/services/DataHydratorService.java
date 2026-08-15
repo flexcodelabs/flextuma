@@ -123,7 +123,7 @@ public class DataHydratorService {
 
         switch (config.getAuthType()) {
             case BEARER -> headers.setBearerAuth(config.getToken());
-            case API_KEY -> headers.set("X-API-KEY", config.getToken());
+            case API_KEY -> headers.set("X-API-KEY", config.getApiKey());
             case BASIC -> headers.setBasicAuth(config.getUsername(), config.getPassword());
             case NONE -> {
                 // Intentionally empty: no authentication required

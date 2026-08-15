@@ -57,14 +57,14 @@ public class DynamicFetchSpecification<T> implements Specification<T> {
 
         for (String part : parts) {
             Attribute<?, ?> attribute = getAttribute(currentType, part);
-            if (attribute != null && attribute.isAssociation()) {
-                current = SafeFetch.fetch(current, part);
-                currentType = getTargetType(attribute);
-            } else {
-                currentType = null;
-            }
 
-            if (currentType == null) {
+            // Skip if attribute doesn't exist, is not an association, or is a collection
+            // (collections are skipped to avoid in-memory pagination issues)
+            // Also break if we can't continue processing further after fetch
+            if (attribute == null || !attribute.isAssociation() ||
+                    attribute instanceof jakarta.persistence.metamodel.PluralAttribute ||
+                    (current = SafeFetch.fetch(current, part)) == null ||
+                    (currentType = getTargetType(attribute)) == null) {
                 break;
             }
         }

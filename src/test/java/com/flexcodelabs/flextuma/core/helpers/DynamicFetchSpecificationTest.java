@@ -127,15 +127,12 @@ class DynamicFetchSpecificationTest {
         doReturn(Object.class).when(query).getResultType();
         when(rootType.getAttribute("collection")).thenReturn(pluralAttribute);
         when(pluralAttribute.isAssociation()).thenReturn(true);
-        when(pluralAttribute.getElementType()).thenReturn(targetType);
 
-        when(root.getFetches()).thenReturn(Collections.emptySet());
-        when(root.fetch("collection", JoinType.LEFT)).thenReturn(mock(Fetch.class));
         when(cb.conjunction()).thenReturn(mock(Predicate.class));
 
         spec.toPredicate(root, query, cb);
 
-        verify(root).fetch("collection", JoinType.LEFT);
+        verify(root, never()).fetch("collection", JoinType.LEFT);
     }
 
     @Test
@@ -243,7 +240,7 @@ class DynamicFetchSpecificationTest {
 
         // SingularAttribute returns null Type (not instance of ManagedType)
         Type nonManagedType = mock(Type.class);
-        when(singularAttribute.getType()).thenReturn(nonManagedType);
+        lenient().when(singularAttribute.getType()).thenReturn(nonManagedType);
 
         when(cb.conjunction()).thenReturn(mock(Predicate.class));
 
@@ -264,13 +261,13 @@ class DynamicFetchSpecificationTest {
 
         // PluralAttribute returns null element Type
         Type nonManagedType = mock(Type.class);
-        when(pluralAttribute.getElementType()).thenReturn(nonManagedType);
+        lenient().when(pluralAttribute.getElementType()).thenReturn(nonManagedType);
 
         when(cb.conjunction()).thenReturn(mock(Predicate.class));
 
         spec.toPredicate(root, query, cb);
 
-        verify(root).fetch("collection", JoinType.LEFT);
+        verify(root, never()).fetch("collection", JoinType.LEFT);
     }
 
     /**

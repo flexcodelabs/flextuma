@@ -20,6 +20,7 @@ import com.flexcodelabs.flextuma.core.enums.PersonalNotificationType;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.PersonalNotificationRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
+import com.flexcodelabs.flextuma.core.services.EntityAssociationReferenceResolver;
 import com.flexcodelabs.flextuma.modules.notification.dtos.NotificationSummaryDTO;
 
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class PersonalNotificationService extends BaseService<PersonalNotificatio
 
     private final PersonalNotificationRepository repository;
     private final CurrentUserResolver currentUserResolver;
+    private final EntityAssociationReferenceResolver entityAssociationReferenceResolver;
 
     @Override
     protected JpaRepository<PersonalNotification, UUID> getRepository() {
@@ -156,6 +158,7 @@ public class PersonalNotificationService extends BaseService<PersonalNotificatio
         notification.setLinkUrl("/finance/wallet");
         notification.setCode("LOW_BALANCE_" + user.getId());
         notification.setReadAt(null);
+        entityAssociationReferenceResolver.resolve(notification);
         repository.save(notification);
     }
 
@@ -173,6 +176,7 @@ public class PersonalNotificationService extends BaseService<PersonalNotificatio
                 : campaignName) + " has finished sending.");
         notification.setLinkUrl("/campaigns");
         notification.setCode("CAMPAIGN_COMPLETED_" + UUID.randomUUID());
+        entityAssociationReferenceResolver.resolve(notification);
         repository.save(notification);
     }
 

@@ -20,6 +20,7 @@ import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
+import com.flexcodelabs.flextuma.core.services.EntityAssociationReferenceResolver;
 import com.flexcodelabs.flextuma.core.services.EntityResponseInitializer;
 import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
 import com.flexcodelabs.flextuma.core.services.RateLimiterService;
@@ -42,6 +43,7 @@ public class NotificationService {
         private final RateLimiterService rateLimiterService;
         private final SmsSegmentCalculator segmentCalculator;
         private final EntityResponseInitializer entityResponseInitializer;
+        private final EntityAssociationReferenceResolver entityAssociationReferenceResolver;
 
         @Value("${flextuma.sms.price-per-segment:1.0}")
         private BigDecimal pricePerSegment;
@@ -148,6 +150,7 @@ public class NotificationService {
                         }
                 }
 
+                entityAssociationReferenceResolver.resolve(log);
                 SmsLog savedLog = logRepository.save(log);
                 entityResponseInitializer.initialize(savedLog);
                 return savedLog;
