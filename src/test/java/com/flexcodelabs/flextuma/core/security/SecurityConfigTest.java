@@ -17,6 +17,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.session.web.http.CookieSerializer;
+
+import com.flexcodelabs.flextuma.core.config.PasswordEncoderConfig;
 import org.springframework.session.web.http.DefaultCookieSerializer;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -31,7 +33,7 @@ class SecurityConfigTest {
 
     @Test
     void passwordEncoder_shouldReturnBCryptPasswordEncoder() {
-        PasswordEncoder encoder = securityConfig.passwordEncoder();
+        PasswordEncoder encoder = new PasswordEncoderConfig().passwordEncoder();
 
         assertNotNull(encoder);
         assertInstanceOf(BCryptPasswordEncoder.class, encoder);
@@ -39,7 +41,7 @@ class SecurityConfigTest {
 
     @Test
     void passwordEncoder_shouldEncodePasswords() {
-        PasswordEncoder encoder = securityConfig.passwordEncoder();
+        PasswordEncoder encoder = new PasswordEncoderConfig().passwordEncoder();
         String rawPassword = "testPassword123";
 
         String encoded = encoder.encode(rawPassword);
