@@ -27,7 +27,8 @@ Provide secrets through the platform secret manager, never in the image, reposit
 | `HIKARI_MAX_POOL`, `HIKARI_MIN_IDLE` | Recommended | Size across all replicas below PostgreSQL’s connection limit. |
 | `SESSION_TIMEOUT` | Recommended | Session lifetime, e.g. `30m`. |
 | `SMS_PRICE_PER_SEGMENT` | Yes | Decimal cost used for wallet accounting; confirm the business unit and currency. |
-| `FLEXTUMA_WEBHOOKS_SMS_SHARED_SECRET` | Yes, for DLRs | Shared callback secret supplied by providers in `X-Flextuma-Webhook-Secret`; use a high-entropy secret from the secret manager. |
+| `FLEXTUMA_SMS_BEEM_DELIVERY_POLL_INTERVAL_MS` | Optional | Beem delivery-report polling interval in milliseconds; defaults to `60000`. Beem polling starts five minutes after send. |
+| `FLEXTUMA_SMS_BEEM_DELIVERY_MINIMUM_DELAY_MINUTES` | Optional | Minimum wait before the first Beem delivery lookup; defaults to `5`, as recommended by Beem. |
 | `APP_FRONTEND_DIRECTORY` | If serving UI | Read-only directory containing `index.html` and assets. |
 | `APP_UPLOAD_DIRECTORY` | If app uploads are enabled | Durable, access-controlled storage; `/tmp` loses uploads on restart. |
 | `LOG_MIN_LEVEL`, `LOG_RETENTION_DAYS` | Recommended | Tune for operating requirements; database log retention has storage impact. |

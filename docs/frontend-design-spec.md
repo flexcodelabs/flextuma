@@ -430,8 +430,8 @@ Both follow the same pattern:
 | URL | Text | Provider API base URL |
 | API Key | Password input | Write-only; shows masked on read |
 | Secret | Password input | Write-only; shows masked on read |
-| Sender ID | Text | Optional — display name on SMS |
-| Extra Settings | JSON editor or key-value pairs | Optional |
+| Sender ID | Text | Required for BEEM and NEXT; must be an active provider sender ID |
+| Extra Settings | JSON editor or key-value pairs | For BEEM, optional `encoding` and `schedule_time` fields, e.g. `{"encoding":"0","schedule_time":""}` |
 | Default | Toggle | One connector should be default |
 
 > **Important:** `key` and `secret` are write-only. On GET, the API returns masked values (e.g. `****abcd`). The form should leave these fields blank on edit and only send them if the user explicitly types new values.
@@ -986,9 +986,10 @@ When creating or updating entities via `POST` / `PUT` requests, submit a JSON bo
   "key": "api-key-here",
   "secret": "api-secret-here",
   "isDefault": true,
-  "extraSettings": "{\"timeout\": 5000}"
+  "extraSettings": "{\"encoding\":\"0\",\"schedule_time\":\"\"}"
 }
 ```
+* **BEEM:** Use `https://apisms.beem.africa/v1/send`; `key`, `secret`, and an active `senderId` are required. `extraSettings.schedule_time` is optional GMT+0 in `yyyy-mm-dd hh:mm` format.
 * **key, secret:** Write-only fields. Appears masked (`****abcd`) in reads. Do not send on `PUT` unless changing.
 
 ### 13.9 ConnectorConfig

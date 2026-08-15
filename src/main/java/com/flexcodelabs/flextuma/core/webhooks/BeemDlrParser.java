@@ -21,12 +21,12 @@ public class BeemDlrParser implements DlrParser {
 
     @Override
     public DlrResult parse(Map<String, Object> payload) {
-        String messageId = String.valueOf(payload.getOrDefault("messageID", ""));
+        String messageId = String.valueOf(payload.getOrDefault("request_id", payload.getOrDefault("messageID", "")));
         String rawStatus = String.valueOf(payload.getOrDefault("status", "")).toLowerCase();
 
         SmsLogStatus status = null;
         if (DELIVERED_STATUSES.contains(rawStatus)) {
-            status = SmsLogStatus.SENT;
+            status = SmsLogStatus.DELIVERED;
         } else if (FAILED_STATUSES.contains(rawStatus)) {
             status = SmsLogStatus.FAILED;
         }

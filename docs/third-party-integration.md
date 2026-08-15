@@ -6,7 +6,7 @@ Flextuma currently integrates with:
 
 | Party | Direction | Mechanism |
 | --- | --- | --- |
-| BEEM SMS | Outbound SMS; intended inbound delivery reports | JSON over HTTPS using provider credentials. |
+| BEEM SMS | Outbound SMS and delivery-report polling | JSON over HTTPS using HTTP Basic credentials. |
 | NextSMS | Outbound SMS; intended inbound delivery reports | JSON over HTTPS using Basic authentication. |
 | Tenant/customer data API | Outbound recipient lookup and member hydration | Configurable GET requests plus JSONPath field mapping. |
 | Client/automation | Inbound API requests | Session cookie or personal access token (PAT) in `X-API-KEY`. |
@@ -23,7 +23,7 @@ X-API-KEY: ft_<token-value>
 
 PATs act as the owning user and inherit that user’s privileges. Use one token per integration, give it an expiry, rotate it, and disable/delete it when no longer needed. Do not put PATs in browser code, query strings, logs, or support tickets.
 
-All API paths other than login, registration, and frontend assets require authentication under the active security configuration. In particular, there is no separate, functioning API-key scheme for anonymous webhooks despite the `flextuma.auth.api-key-endpoints` configuration property.
+All API paths other than login, registration, frontend assets, and the one-segment DLR callback path (`POST /api/webhooks/{provider}`) require authentication under the active security configuration. There is no separate, functioning API-key scheme for anonymous webhooks despite the `flextuma.auth.api-key-endpoints` configuration property.
 
 ## SMS provider setup
 
@@ -31,13 +31,38 @@ Create an SMS connector using `POST /api/connectors` with the provider string, p
 
 ### BEEM
 
-The BEEM adapter sends a JSON request with `source_addr`, `message`, `schedule_time`, `encoding`, and a one-item `recipients` list. It supplies credentials both as `api_key`/`secret_key` headers and HTTP Basic authentication. Configure the provider endpoint and sender ID supplied by BEEM. Confirm the expected response contains an actual provider message ID before enabling delivery reports.
+Configure the connector with `provider: "BEEM"`, URL `https://apisms.beem.africa/v1/send`, the BEEM API key in `key`, the BEEM secret key in `secret`, and an active BEEM sender ID in `senderId`. The adapter sends HTTP Basic authentication (`key:secret`) and this JSON body:
+
+```json
+{
+  "source_addr": "ACME",
+  "schedule_time": "",
+  "encoding": "0",
+  "message": "Hello world",
+  "recipients": [{ "recipient_id": "1", "dest_addr": "255700000001" }]
+}
+```
+
+Set optional Beem request fields through `extraSettings`, for example `{"encoding":"0","schedule_time":"2026-08-15 10:30"}`. `schedule_time` is GMT+0 in `yyyy-mm-dd hh:mm` format. Beem returns `request_id`; Flextuma stores it as `providerMessageId` for delivery tracking.
 
 ### NextSMS
 
 The NextSMS adapter sends `{ "from", "to", "text" }` as JSON and uses HTTP Basic authentication (`key:secret`). It records `messages[0].messageId` when provided. Configure the exact NextSMS endpoint and approved sender ID from the provider account.
 
 ### Delivery reports (DLRs)
+
+#### BEEM polling (primary)
+
+Beem’s documented delivery mechanism is polling, not callback registration. Starting five minutes after a successful send, Flextuma polls the following endpoint for BEEM messages in `SENT` status:
+
+```http
+GET https://dlrapi.beem.africa/public/v1/delivery-reports?dest_addr={recipient}&request_id={providerMessageId}
+Authorization: Basic base64(key:secret)
+```
+
+The polling interval defaults to 60 seconds and is configurable with `flextuma.sms.beem.delivery-poll-interval-ms`. A Beem `DELIVERED` status becomes `DELIVERED`, `UNDELIVERED` becomes `FAILED`, and `PENDING` remains `SENT` until a terminal status is returned.
+
+#### Provider callbacks (optional)
 
 The implemented route is:
 
@@ -47,9 +72,9 @@ POST https://<public-host>/api/webhooks/NEXT
 Content-Type: application/json
 ```
 
-BEEM parser expects `messageID` and `status`; Next parser expects `message_id` (or `messageId`) and `status`. The documented source comment incorrectly describes `/api/webhooks/sms/{provider}/dlr`; that route does not exist.
+The callback path is public and accepts no custom authentication header. Beem callbacks are correlated with `request_id` (with legacy `messageID` accepted) plus `status`; Next callbacks use `message_id` (or `messageId`) plus `status`. The callback route is optional for Beem because polling is the supported integration.
 
-DLR routes are public only for the one-segment callback path and require the `X-Flextuma-Webhook-Secret` header. Set `FLEXTUMA_WEBHOOKS_SMS_SHARED_SECRET` from the deployment secret manager and configure the same high-entropy value at the provider. Requests with a missing/incorrect secret are rejected. The callback now correlates using `providerMessageId`; verify the provider’s response/callback message-ID shape in staging before enabling it.
+DLR routes are public only for the one-segment callback path. The callback correlates using `providerMessageId`; validate the provider callback payload in staging before relying on it.
 
 ## Tenant/customer data API
 
@@ -77,8 +102,8 @@ These are code-observed findings as of this repository revision, ordered by impa
 
 | Priority | Finding | Impact and recommended action |
 | --- | --- | --- |
-| Resolved | DLR endpoint authentication and lookup were incompatible with provider callbacks. | The callback path is now narrowly public, requires a constant-time compared shared secret, and correlates with `providerMessageId`. Upgrade next to provider-specific HMAC signatures, timestamp/replay controls, and IP allowlists where supported. |
-| Resolved | BEEM did not retain its response message ID. | The adapter now reads `message_id` and saves it as `providerMessageId`; validate the exact live provider schema during staging. |
+| Resolved | BEEM delivery tracking used a callback-only shape that did not match the documented API. | The adapter stores Beem `request_id` and polls the documented delivery endpoint after five minutes. |
+| Resolved | Generic callback IDs did not match Beem delivery identifiers. | The public callback parser accepts Beem `request_id` (and legacy `messageID`) and correlates through `providerMessageId`. |
 | Resolved | Generic single-record read, update, and delete skipped the tenant specification. | These operations now use the tenant-scoped specification. Maintain cross-tenant authorization tests as new endpoints are added. |
 | Resolved | Raw dispatch used `content` while the queue required `message`. | The trigger now maps its request content to the required queue field. |
 | Resolved | PAT authentication ignored a token’s `active` flag. | Inactive tokens are now rejected. |
@@ -94,4 +119,4 @@ These are code-observed findings as of this repository revision, ordered by impa
 
 ## Minimum acceptance tests
 
-Before enabling any external party in production, automate these tests: valid and invalid PAT authentication; provider credential rejection; one successful send and one provider failure; idempotent retry behavior; a signed DLR that changes the correct SMS log; malformed/duplicate/out-of-order DLRs; tenant API timeout/5xx/oversize response; recipient pagination; wallet debit/refund reconciliation; and authorization isolation between organisations.
+Before enabling any external party in production, automate these tests: valid and invalid PAT authentication; provider credential rejection; one successful send and one provider failure; Beem `request_id` persistence; Beem delivery polling for `PENDING`, `DELIVERED`, and `UNDELIVERED`; malformed/duplicate/out-of-order callbacks; tenant API timeout/5xx/oversize response; recipient pagination; wallet debit/refund reconciliation; and authorization isolation between organisations.

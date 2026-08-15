@@ -17,15 +17,15 @@ class BeemDlrParserTest {
     }
 
     @Test
-    void parse_withDeliveredStatus_shouldReturnSent() {
+    void parse_withDeliveredStatus_shouldReturnDelivered() {
         Map<String, Object> payload = Map.of(
-                "messageID", "12345",
+                "request_id", "12345",
                 "status", "Delivered");
 
         DlrResult result = parser.parse(payload);
 
         assertEquals("12345", result.messageId());
-        assertEquals(SmsLogStatus.SENT, result.status());
+        assertEquals(SmsLogStatus.DELIVERED, result.status());
         assertEquals("delivered", result.rawStatus());
     }
 

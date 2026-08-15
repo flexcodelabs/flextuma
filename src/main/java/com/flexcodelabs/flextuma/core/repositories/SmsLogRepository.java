@@ -22,6 +22,8 @@ public interface SmsLogRepository extends BaseRepository<SmsLog, UUID>,
 
 	List<SmsLog> findTop50ByStatusOrderByCreatedAsc(SmsLogStatus status);
 
+	List<SmsLog> findTop50ByStatusAndProviderMessageIdIsNotNullOrderByCreatedAsc(SmsLogStatus status);
+
 	@org.springframework.data.jpa.repository.Query("SELECT s FROM SmsLog s WHERE s.status = :status AND (s.scheduledAt IS NULL OR s.scheduledAt <= :now) ORDER BY s.created ASC")
 	List<SmsLog> findDueMessages(
 			@org.springframework.data.repository.query.Param("status") SmsLogStatus status,

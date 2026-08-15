@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
@@ -25,15 +24,12 @@ import com.flexcodelabs.flextuma.core.webhooks.DlrParser;
 import com.flexcodelabs.flextuma.core.webhooks.DlrResult;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 
 /**
  * Receives Delivery Report (DLR) callbacks from SMS providers.
  *
  * <p>
- * Endpoint: {@code POST /api/webhooks/sms/{provider}/dlr}
+ * Endpoint: {@code POST /api/webhooks/{provider}}
  *
  * <p>
  * The {@code provider} path variable must match the
@@ -55,9 +51,6 @@ public class SmsWebhookController {
     private final DataHydratorService hydratorService;
     private final NotificationService notificationService;
 
-    @Value("${flextuma.webhooks.sms.shared-secret:}")
-    private String webhookSharedSecret;
-
     public SmsWebhookController(SmsLogRepository logRepository, List<DlrParser> dlrParsers,
             ConnectorConfigService configService, DataHydratorService hydratorService,
             NotificationService notificationService) {
@@ -71,16 +64,7 @@ public class SmsWebhookController {
     @PostMapping("/{provider}")
     public ResponseEntity<Void> deliveryReport(
             @PathVariable String provider,
-            @RequestHeader(value = "X-Flextuma-Webhook-Secret", required = false) String providedSecret,
             @RequestBody Map<String, Object> payload) {
-
-        if (webhookSharedSecret.isBlank() || providedSecret == null
-                || !MessageDigest.isEqual(webhookSharedSecret.getBytes(StandardCharsets.UTF_8),
-                        providedSecret.getBytes(StandardCharsets.UTF_8))) {
-            log.warn("Rejected DLR from provider [{}] due to invalid webhook credential", provider);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
         log.debug("DLR received from provider [{}]: {}", provider, payload);
 
         DlrParser parser = dlrParsers.stream()
@@ -114,8 +98,8 @@ public class SmsWebhookController {
 
         SmsLog smsLog = logOpt.get();
 
-        if (SmsLogStatus.SENT.equals(smsLog.getStatus()) && SmsLogStatus.FAILED.equals(result.status())) {
-            log.warn("DLR: ignoring FAILED update for already-SENT log [{}]", smsLog.getId());
+        if (SmsLogStatus.DELIVERED.equals(smsLog.getStatus()) && SmsLogStatus.FAILED.equals(result.status())) {
+            log.warn("DLR: ignoring FAILED update for already-DELIVERED log [{}]", smsLog.getId());
             return ResponseEntity.ok().build();
         }
 

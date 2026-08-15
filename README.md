@@ -38,6 +38,8 @@ Create a `.env` file in the root directory or export the variables in your shell
 | `SPRING_DATA_REDIS_PORT` | ❌ | `6379` | Redis port |
 | `HIKARI_MAX_POOL` | ❌ | `10` | Max JDBC connection pool size |
 | `SMS_PRICE_PER_SEGMENT` | ❌ | `20.0` | Price per SMS segment (in TZS) |
+| `FLEXTUMA_SMS_BEEM_DELIVERY_POLL_INTERVAL_MS` | ❌ | `60000` | Beem delivery-report polling interval in milliseconds |
+| `FLEXTUMA_SMS_BEEM_DELIVERY_MINIMUM_DELAY_MINUTES` | ❌ | `5` | Minimum delay before the first Beem delivery lookup |
 
 ### 3. Build the application
 
@@ -329,11 +331,13 @@ POST /api/webhooks/{provider}
 Content-Type: application/json
 
 {
-  "messageId": "provider-message-id",
+  "request_id": "provider-request-id",
   "status": "DELIVERED|FAILED|PENDING",
   "timestamp": "2024-01-15T10:30:00Z"
 }
 ```
+
+For Beem, delivery reports are normally retrieved by the scheduled polling worker rather than a callback. The worker starts at least five minutes after submission, uses the Beem `request_id` stored as `providerMessageId`, and polls every 60 seconds by default. Configure the interval with `flextuma.sms.beem.delivery-poll-interval-ms`.
 
 **Supported Providers:**
 - `beem` - Beem SMS provider
@@ -717,7 +721,7 @@ Two concrete `SmsSender` implementations:
 
 | Provider | Class | Auth Method | Status |
 |---|---|---|---|
-| **Beem** | `BeemSender` | API key + secret (Basic Auth header) | ✅ Production ready |
+| **Beem** | `BeemSender` + `BeemDeliveryReportWorker` | API key + secret (HTTP Basic); delivery-report polling | ✅ Production ready |
 | **NextSMS** | `NextSmsSender` | API key + secret (Basic Auth header) | ✅ Production ready |
 
 Adding a new provider: implement `SmsSender`, annotate with `@Service`, and set the matching `provider` string on the `SmsConnector` record.
@@ -771,7 +775,7 @@ Request with memberId
 CSRF protection uses `CookieCsrfTokenRepository` (token sent as `XSRF-TOKEN` cookie, readable by SPA). Exemptions:
 
 - `/api/login` — no session exists yet at this point
-- `/api/webhooks/**` — reserved for PAT-authenticated provider callbacks
+- `POST /api/webhooks/{provider}` — public provider callback endpoint; no custom secret header is required
 
 ### Tenant-Aware Resource Filtering
 

@@ -65,9 +65,6 @@ public class BeemSender implements SmsSender {
     private HttpHeaders createHeaders(SmsConnector config) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("api_key", config.getKey());
-        headers.set("secret_key", config.getSecret());
-
         String auth = config.getKey() + ":" + config.getSecret();
         String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
         headers.set("Authorization", "Basic " + encodedAuth);
@@ -76,11 +73,12 @@ public class BeemSender implements SmsSender {
     }
 
     private BeemSmsRequest createRequestBody(SmsConnector config, String to, String message) {
+        BeemRequestSettings settings = getRequestSettings(config);
         BeemSmsRequest requestBody = new BeemSmsRequest();
         requestBody.setSourceAddr(config.getSenderId());
         requestBody.setMessage(message);
-        requestBody.setScheduleTime("");
-        requestBody.setEncoding("0");
+        requestBody.setScheduleTime(settings.scheduleTime());
+        requestBody.setEncoding(settings.encoding());
 
         Recipient recipient = new Recipient();
         recipient.setDestAddr(to);
@@ -90,22 +88,47 @@ public class BeemSender implements SmsSender {
         return requestBody;
     }
 
+    /**
+     * Beem's optional request settings can be supplied in a connector's
+     * {@code extraSettings}, for example {@code {"encoding":"0","schedule_time":"2026-08-15 10:30"}}.
+     */
+    private BeemRequestSettings getRequestSettings(SmsConnector config) {
+        if (config.getExtraSettings() == null || config.getExtraSettings().isBlank()) {
+            return new BeemRequestSettings("0", "");
+        }
+
+        try {
+            Map<String, Object> settings = objectMapper.readValue(config.getExtraSettings(),
+                    new TypeReference<Map<String, Object>>() {
+                    });
+            return new BeemRequestSettings(
+                    String.valueOf(settings.getOrDefault("encoding", "0")),
+                    String.valueOf(settings.getOrDefault("schedule_time", "")));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("BEEM extraSettings must be valid JSON", e);
+        }
+    }
+
     private SmsSendResult processResponse(ResponseEntity<BeemSmsResponse> response, String to) {
         BeemSmsResponse responseBody = response.getBody();
         Map<String, Object> responseMap = objectMapper.convertValue(responseBody,
                 new TypeReference<Map<String, Object>>() {
                 });
 
-        if (response.getStatusCode().is2xxSuccessful()) {
+        if (response.getStatusCode().is2xxSuccessful()
+                && (responseBody == null || !Boolean.FALSE.equals(responseBody.getSuccessful()))) {
             log.info("BEEM: SMS sent successfully to {}", to);
             return SmsSendResult.success(
-                    "SMS sent successfully",
-                    responseBody != null ? responseBody.getMessageId() : null,
+                    responseBody != null && responseBody.getMessage() != null ? responseBody.getMessage()
+                            : "SMS sent successfully",
+                    responseBody != null ? responseBody.getRequestId() : null,
                     responseMap);
         } else {
             return SmsSendResult.failure(
-                    "Beem API Error",
-                    String.valueOf(response.getStatusCode().value()),
+                    responseBody != null && responseBody.getMessage() != null ? responseBody.getMessage()
+                            : "Beem API Error",
+                    responseBody != null && responseBody.getCode() != null ? String.valueOf(responseBody.getCode())
+                            : String.valueOf(response.getStatusCode().value()),
                     responseMap);
         }
     }
@@ -175,17 +198,20 @@ public class BeemSender implements SmsSender {
     @NoArgsConstructor
     @AllArgsConstructor
     static class BeemSmsResponse {
-        private boolean valid;
+        private Boolean successful;
         private String message;
-        private int code;
+        private Integer code;
 
-        @JsonProperty("message_id")
-        private String messageId;
+        @JsonProperty("request_id")
+        private String requestId;
 
-        BeemSmsResponse(boolean valid, String message, int code) {
-            this.valid = valid;
+        BeemSmsResponse(boolean successful, String message, int code) {
+            this.successful = successful;
             this.message = message;
             this.code = code;
         }
+    }
+
+    private record BeemRequestSettings(String encoding, String scheduleTime) {
     }
 }
