@@ -22,7 +22,8 @@ Provide secrets through the platform secret manager, never in the image, reposit
 | --- | --- | --- |
 | `SPRING_DATASOURCE_URL` | Yes | PostgreSQL JDBC URL, with TLS when supported by the provider. |
 | `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` | Yes | Dedicated least-privilege database account. |
-| `SPRING_DATA_REDIS_HOST` / `SPRING_DATA_REDIS_PORT` | Yes | Shared Redis service; protect with network controls and authentication/TLS where available. |
+| `REDIS_URL` | Recommended for Dokploy | Full Redis URL, e.g. `redis://:password@redis:6379/0`; it overrides host, port, username, password, and database. Use `rediss://` when your provider requires TLS. |
+| `SPRING_DATA_REDIS_HOST` / `SPRING_DATA_REDIS_PORT` | Alternative | Use these when a full URL is unavailable; defaults are `redis` and `6379`. |
 | `SPRING_JPA_HIBERNATE_DDL_AUTO` | Yes | Set to `validate`; do not use the repository default `update` in production. |
 | `HIKARI_MAX_POOL`, `HIKARI_MIN_IDLE` | Recommended | Size across all replicas below PostgreSQL’s connection limit. |
 | `SESSION_TIMEOUT` | Recommended | Session lifetime, e.g. `30m`. |

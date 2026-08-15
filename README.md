@@ -34,8 +34,9 @@ Create a `.env` file in the root directory or export the variables in your shell
 | `SPRING_DATASOURCE_URL` | ✅ | — | JDBC URL, e.g. `jdbc:postgresql://host:5432/db` |
 | `SPRING_DATASOURCE_USERNAME` | ✅ | — | Database username |
 | `SPRING_DATASOURCE_PASSWORD` | ✅ | — | Database password |
-| `SPRING_DATA_REDIS_HOST` | ✅ | — | Redis hostname |
+| `SPRING_DATA_REDIS_HOST` | ❌ | `redis` | Redis hostname; used when `REDIS_URL` is not set |
 | `SPRING_DATA_REDIS_PORT` | ❌ | `6379` | Redis port |
+| `REDIS_URL` | ❌ | — | Full Redis URL (for example, `redis://:password@redis:6379/0`); overrides host and port |
 | `HIKARI_MAX_POOL` | ❌ | `10` | Max JDBC connection pool size |
 | `SMS_PRICE_PER_SEGMENT` | ❌ | `20.0` | Price per SMS segment (in TZS) |
 | `FLEXTUMA_SMS_BEEM_DELIVERY_POLL_INTERVAL_MS` | ❌ | `60000` | Beem delivery-report polling interval in milliseconds |
