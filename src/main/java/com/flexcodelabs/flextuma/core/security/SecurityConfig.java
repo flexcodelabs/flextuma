@@ -7,8 +7,6 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import org.springframework.session.data.redis.config.annotation.web.http.EnableRedisHttpSession;
@@ -39,11 +37,6 @@ public class SecurityConfig {
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
     public CookieSerializer cookieSerializer() {
         DefaultCookieSerializer serializer = new DefaultCookieSerializer();
         serializer.setUseHttpOnlyCookie(true);
@@ -59,7 +52,7 @@ public class SecurityConfig {
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers("/api/login").permitAll()
                             .requestMatchers("/api/register").permitAll()
-							.requestMatchers(org.springframework.http.HttpMethod.POST, "/api/webhooks/*").permitAll()
+                            .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/webhooks/*").permitAll()
                             .requestMatchers("/").permitAll()
                             .requestMatchers("/assets/**").permitAll()
                             .requestMatchers(new RegexRequestMatcher("^/(?!api(?:/|$)).*", null)).permitAll()
