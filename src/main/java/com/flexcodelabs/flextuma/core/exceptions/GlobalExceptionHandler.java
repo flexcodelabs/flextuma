@@ -168,7 +168,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Object> handleNotFound(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
         String method = request.getMethod();
-        if ("GET".equals(method) && !requestUri.startsWith("/api/")) {
+        String accept = request.getHeader("Accept");
+        boolean acceptsHtml = accept != null && accept.contains(MediaType.TEXT_HTML_VALUE);
+        if ("GET".equals(method) && acceptsHtml && !requestUri.startsWith("/api/")) {
             try {
                 Path filePath = Paths.get(frontendDirectory, "index.html");
                 Resource resource = new FileSystemResource(filePath.toString());

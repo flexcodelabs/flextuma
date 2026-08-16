@@ -4,6 +4,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.springframework.http.MediaType;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -33,24 +35,23 @@ class FrontendControllerTest {
     }
 
     @Test
-    void serveCatchAll_shouldReturnIndexForNonApiRoutes() throws Exception {
-        mockMvc.perform(get("/dashboard/overview"))
+    void serveCatchAll_shouldReturnIndexForBrowserNavigation() throws Exception {
+        mockMvc.perform(get("/dashboard/overview").header("Accept", MediaType.TEXT_HTML_VALUE))
                 .andExpect(status().isOk())
                 .andExpect(content().string("<html><body>app</body></html>"));
     }
 
     @Test
     void serveCatchAll_shouldReturnIndexForLoginRoute() throws Exception {
-        mockMvc.perform(get("/login"))
+        mockMvc.perform(get("/login").header("Accept", MediaType.TEXT_HTML_VALUE))
                 .andExpect(status().isOk())
                 .andExpect(content().string("<html><body>app</body></html>"));
     }
 
     @Test
-    void serveCatchAll_shouldReturnIndexForDottedNonApiRoutes() throws Exception {
-        mockMvc.perform(get("/foo.bar"))
-                .andExpect(status().isOk())
-                .andExpect(content().string("<html><body>app</body></html>"));
+    void serveCatchAll_shouldReturnNotFoundForNonBrowserRequests() throws Exception {
+        mockMvc.perform(get("/wp-login.php").header("Accept", "*/*"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
