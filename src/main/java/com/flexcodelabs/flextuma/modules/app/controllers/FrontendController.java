@@ -52,11 +52,19 @@ public class FrontendController {
             return serveStatic(path);
         }
 
-        if (path.startsWith(".well-known/")) {
+        if (path.startsWith(".well-known/") && acceptsHtml(request)) {
             return serveStatic(indexFile);
         }
 
-        return serveStatic(indexFile);
+        // Only browser document navigations should receive the SPA shell. Requests
+        // from vulnerability scanners (for example /wp-login.php) normally accept
+        // any content type and must remain a 404 instead of appearing to be routes.
+        return acceptsHtml(request) ? serveStatic(indexFile) : ResponseEntity.notFound().build();
+    }
+
+    private boolean acceptsHtml(HttpServletRequest request) {
+        String accept = request.getHeader("Accept");
+        return accept != null && accept.contains(MediaType.TEXT_HTML_VALUE);
     }
 
     private ResponseEntity<Resource> serveStatic(String path) {
@@ -64,7 +72,7 @@ public class FrontendController {
             Path filePath = Paths.get(frontendDirectory, path);
             Resource resource = new FileSystemResource(filePath.toString());
 
-            if (resource.exists() || resource.isReadable()) {
+            if (resource.exists() && resource.isReadable()) {
                 String contentType = getContentType(path);
 
                 return ResponseEntity.ok()
