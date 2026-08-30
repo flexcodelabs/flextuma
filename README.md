@@ -113,302 +113,147 @@ src/main/java/com/flexcodelabs/flextuma/
 
 ## API Reference
 
-### Authentication & Authorization
+Base URL: `http://localhost:8080`. All API routes return JSON unless noted. Substitute real UUIDs for `{id}`. Authentication is required for every API route except registration, login, and `POST /api/webhooks/{provider}`. Use the `SESSION` cookie returned by login, or send a personal access token as `X-API-KEY: <token>`.
 
-#### User Registration
-```http
-POST /api/register
-Content-Type: application/json
+### Common response and error formats
 
-{
-  "username": "string",
-  "email": "string", 
-  "phoneNumber": "string",
-  "password": "string",
-  "organisation": { "id": "uuid" }
-}
-```
-- **Rate Limited**: Prevents brute force registration attempts
-- **Verification**: Automatically sends verification codes to email and phone
-- **Bonus Credits**: Awards configurable SMS segments on successful registration
-
-#### User Login
-```http
-POST /api/login
-Content-Type: application/json
-
-{
-  "username": "string",
-  "password": "string"
-}
-```
-- **Rate Limited**: Blocks excessive login attempts
-- **Session Management**: Creates HttpOnly session cookie backed by Redis
-- **Security Logging**: Records all login attempts for audit
-
-#### User Logout
-```http
-POST /api/logout
-```
-- Clears session cookie and logs security event
-
-#### Current User Profile
-```http
-GET /api/me
-```
-- Returns authenticated user's profile information
-
-#### Email/Phone Verification
-```http
-POST /api/verify
-Content-Type: application/json
-
-{
-  "identifier": "email@domain.com",
-  "code": "123456"
-}
-```
-
-```http
-POST /api/resendVerification
-Content-Type: application/json
-
-{
-  "identifier": "email@domain.com"
-}
-```
-
-#### Password Change
-```http
-POST /api/changePassword
-Content-Type: application/json
-
-{
-  "currentPassword": "string",
-  "newPassword": "string", 
-  "confirmPassword": "string"
-}
-```
-
-#### Personal Access Tokens (PAT)
-```http
-# Standard CRUD operations
-GET|POST|PUT|DELETE /api/personalAccessTokens
-```
-- Enables API authentication without session cookies
-- Ideal for integrations and automated systems
-
----
-
-### SMS Campaigns (`/api/campaigns`)
-
-#### Campaign Management
-Full CRUD operations for SMS campaigns with scheduling capabilities:
+Successful entity responses include the entity's `id`, audit timestamps, and the fields shown in the request. A representative error response is:
 
 ```json
 {
-  "name": "Campaign Name",
-  "description": "Campaign description", 
-  "template": { "id": "template-uuid" },
-  "scheduledAt": "2024-01-15T10:30:00",
-  "status": "DRAFT|SCHEDULED|RUNNING|COMPLETED",
-  "recipients": "phone1,phone2,phone3",
-  "connector": { "id": "connector-uuid" }
+  "timestamp": "2026-08-16T12:00:00",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "Validation failed"
 }
 ```
 
-#### Campaign Status Flow
-1. **DRAFT** - Initial state, can be modified
-2. **SCHEDULED** - Set for future delivery
-3. **RUNNING** - Currently being processed
-4. **COMPLETED** - Finished processing
+### Authentication
 
----
+| Endpoint | Sample request | Sample response |
+|---|---|---|
+| `POST /api/register` | `{"name":"Jane Doe","username":"jane","password":"Secret123!","phoneNumber":"+255700000000","email":"jane@example.com"}` | `201` — `{"id":"…","username":"jane","email":"jane@example.com","verified":false}` |
+| `POST /api/login` | `{"username":"jane","password":"Secret123!"}` | `200` — `{"id":"…","username":"jane","email":"jane@example.com"}` and a `Set-Cookie: SESSION=…` header |
+| `POST /api/logout` | no body | `200` — `{"message":"Logged out successfully"}` |
+| `GET /api/me` | no body | `200` — `{"id":"…","username":"jane","email":"jane@example.com","roles":[]}` |
+| `POST /api/verify` | `{"identifier":"jane@example.com","code":"123456"}` | `200` — `{"success":true,"data":"Verification successful"}` |
+| `POST /api/resendVerification` | `{"identifier":"jane@example.com"}` | `200` — `{"success":true,"data":"Verification code sent"}` |
+| `POST /api/changePassword` | `{"currentPassword":"Secret123!","newPassword":"NewSecret123!","confirmPassword":"NewSecret123!"}` | `200` — `{"success":true,"data":{"id":"…","username":"jane"}}` |
 
-### Finance & Wallet Management (`/api/wallets`)
+Login and registration are rate limited. `POST /api/changePassword` and `GET /api/me` require authentication.
 
-#### Wallet Operations
+### Shared CRUD endpoints
+
+The following resource paths implement every operation in this table: `/api/users`, `/api/roles`, `/api/privileges`, `/api/organisations`, `/api/tokens`, `/api/connectorConfigs`, `/api/contacts`, `/api/tenantFeatures`, `/api/wallets`, `/api/lists`, `/api/tags`, `/api/personalNotifications`, `/api/campaigns`, `/api/connectors`, `/api/smsLogs`, and `/api/templates`.
+
+| Endpoint | Sample request | Sample response |
+|---|---|---|
+| `GET {resource}?page=0&size=20&sort=createdAt,desc` | no body | `200` — `{"page":1,"total":1,"pageSize":20,"contacts":[{"id":"…","firstName":"Jane"}]}` |
+| `GET {resource}/{id}` | no body | `200` — `{"id":"…","firstName":"Jane","phoneNumber":"+255700000000"}` |
+| `GET {resource}/fields` | no body | `200` — `[{"name":"firstName","type":"String","mandatory":false}]` |
+| `GET {resource}/aggregate?aggregate=count(id):total&groupBy=status` | no body | `200` — `[{"status":"ACTIVE","total":12}]` |
+| `POST {resource}` | JSON body from the resource examples below | `200` — the created entity, for example `{"id":"…","firstName":"Jane","phoneNumber":"+255700000000"}` |
+| `PUT {resource}/{id}` | JSON body from the resource examples below | `200` — the updated entity |
+| `DELETE {resource}/{id}` | no body | `200` — `{"message":"contacts deleted successfully"}` |
+| `DELETE {resource}/bulky?filter=status:eq:INACTIVE` | no body | `200` — `{"message":"3 contacts deleted successfully"}` |
+
+For list and aggregate operations, repeat `filter` to apply multiple filters, use `rootJoin=OR` to join filters with OR (the default is `AND`), and use `fields=field1,field2` to select fields. Aggregates use `function(column):alias`, such as `sum(balance):total`. The resource-specific array key in a list response is the resource name (for example `smsLogs`, `tenantFeatures`, or `connectorConfigs`).
+
+#### Resource request bodies
+
+These are `POST` and `PUT` request samples for each shared CRUD resource; the corresponding response is the saved object, with an `id` and audit fields added.
+
+| Resource | Sample request body |
+|---|---|
+| `/api/users` | `{"name":"Jane Doe","username":"jane","email":"jane@example.com","phoneNumber":"+255700000000","password":"Secret123!","roles":[{"id":"…"}],"organisation":{"id":"…"}}` |
+| `/api/roles` | `{"name":"OPERATOR","privileges":[{"id":"…"}]}` |
+| `/api/privileges` | `{"name":"View contacts","value":"CONTACT_READ","system":false}` |
+| `/api/organisations` | `{"name":"Acme Ltd","phoneNumber":"+255700000000","email":"ops@acme.example","address":"Dar es Salaam","website":"https://acme.example"}` |
+| `/api/tokens` | `{"name":"integration","user":{"id":"…"},"expiresAt":"2027-01-01T00:00:00"}` |
+| `/api/connectorConfigs` | `{"tenantId":"tenant-1","url":"https://erp.example","endpoint":"/customers","search":"status=ACTIVE","authType":"BEARER","token":"secret","mappings":[{"systemKey":"phoneNumber","jsonPath":"phone"}]}` |
+| `/api/contacts` | `{"firstName":"Jane","middleName":"A","surname":"Doe","email":"jane@example.com","phoneNumber":"+255700000000","status":"ACTIVE","lists":[{"id":"…"}],"tags":[{"id":"…"}]}` |
+| `/api/tenantFeatures` | `{"organisation":{"id":"…"},"featureKey":"SMS","enabled":true}` |
+| `/api/wallets` | `{"balance":1000.00,"smsCost":20.00,"currency":"TZS","type":"SMS"}` |
+| `/api/lists` | `{"name":"Customers","description":"Subscribed customers"}` |
+| `/api/tags` | `{"name":"VIP","description":"High-value contact"}` |
+| `/api/personalNotifications` | `{"title":"Low balance","message":"Top up your wallet","type":"WARNING","linkUrl":"/wallet","metadata":"{}"}` |
+| `/api/campaigns` | `{"name":"August promotion","description":"Monthly offer","template":{"id":"…"},"scheduledAt":"2026-08-20T10:30:00","status":"SCHEDULED","recipients":"+255700000000,+255700000001","connector":{"id":"…"}}` |
+| `/api/connectors` | `{"provider":"beem","url":"https://apisms.beem.africa","key":"api-key","secret":"api-secret","senderId":"FLEXTUMA","isDefault":true,"extraSettings":"{}"}` |
+| `/api/smsLogs` | `{"recipient":"+255700000000","content":"Hello Jane","status":"PENDING","connector":{"id":"…"},"scheduledAt":"2026-08-20T10:30:00"}` |
+| `/api/templates` | `{"code":"WELCOME","name":"Welcome","description":"New-user greeting","content":"Hello {{name}}","category":"PROMOTIONAL","system":false}` |
+
+`POST /api/tokens` returns the token entity; retain the returned `rawToken` securely because it is the value to pass in `X-API-KEY`. It must not be logged or committed.
+
+### SMS, notifications, and dashboard
+
+| Endpoint | Sample request | Sample response |
+|---|---|---|
+| `POST /api/templates/preview` | `{"template":"Hello {{name}}, your order {{orderId}} is ready!","variables":{"name":"Jane","orderId":"12345"}}` | `200` — `{"renderedContent":"Hello Jane, your order 12345 is ready!","segmentCount":1,"encoding":"GSM-7","charactersRemaining":121,"cost":20.00,"pricePerSegment":20.00}` |
+| `POST /api/smsLogs/{id}/retry` | no body | `200` — `{"id":"…","recipient":"+255700000000","status":"PENDING","retries":1}` |
+| `GET /api/notifications?page=1&pageSize=15` | no body | `200` — `{"page":1,"total":1,"pageSize":15,"data":[{"id":"…","phoneNumber":"+255700000000","message":"Hello Jane","status":"PENDING","provider":"beem"}]}` |
+| `POST /api/notifications` | `{"phoneNumber":"+255700000000","templateCode":"WELCOME","provider":"beem","name":"Jane"}` | `200` — `{"id":"…","recipient":"+255700000000","content":"Hello Jane","status":"PENDING"}` |
+| `POST /api/notifications/raw` | `{"phoneNumber":"+255700000000","message":"Direct message","provider":"beem"}` | `200` — `{"id":"…","recipient":"+255700000000","content":"Direct message","status":"PENDING"}` |
+| `GET /api/personalNotifications/summary?pageSize=5` | no body | `200` — `{"unreadCount":2,"notifications":[{"id":"…","title":"Low balance","readAt":null}]}` |
+| `POST /api/personalNotifications/{id}/read` | no body | `200` — `{"id":"…","title":"Low balance","readAt":"2026-08-16T12:00:00"}` |
+| `POST /api/personalNotifications/readAll` | no body | `200` — `{"updated":2}` |
+| `GET /api/dashboard/summary` | no body | `200` — `{"userId":"…","username":"jane","sent":12,"failed":1,"balanceAmount":980.00,"balance":"980.00","currency":"TZS","activeCampaigns":1,"today":3,"thisWeek":12,"thisMonth":13,"successRate":92.31,"statusBreakdown":{"sent":92.31,"failed":7.69,"pending":0.0,"other":0.0}}` |
+
+### Webhooks
+
+`POST /api/webhooks/{provider}` is unauthenticated; all other webhook routes require authentication.
+
+| Endpoint | Sample request | Sample response |
+|---|---|---|
+| `POST /api/webhooks/beem` | `{"request_id":"provider-message-id","status":"DELIVERED","timestamp":"2026-08-16T12:00:00Z"}` | `200` with an empty body |
+| `POST /api/webhooks/{connectorConfigId}/sms` | `{"provider":"beem","templateCode":"WELCOME","filterQuery":{"status":"ACTIVE"}}` | `200` — `{"message":"Successfully queued messages","queued":10,"totalFetched":10}` |
+| `POST /api/webhooks/{connectorConfigId}/sms` (raw) | `{"provider":"beem","content":"Custom message","filterQuery":{"status":"ACTIVE"}}` | `200` — `{"message":"Successfully queued messages","queued":10,"totalFetched":10}` |
+
+For Beem, delivery reports are normally obtained by the polling worker, which uses the submitted `request_id` saved as `providerMessageId`.
+
+### System administration
+
+These routes require `SUPER_ADMIN` or `ALL` authority.
+
+| Endpoint | Sample request | Sample response |
+|---|---|---|
+| `GET /api/systemLogs?page=0&size=20&level=ERROR&source=SMS&traceId=abc&from=2026-08-01T00:00:00&to=2026-08-16T23:59:59` | no body | `200` — `{"page":1,"total":1,"pageSize":20,"systemLog":[{"id":"…","level":"ERROR","source":"SMS","message":"Delivery failed"}]}` |
+| `GET /api/systemLogs/tail?level=ERROR` | Header: `Accept: text/event-stream` | `200`, SSE stream such as `data:{"level":"ERROR","message":"Delivery failed"}` |
+| `GET /api/systemLogs/health` | no body | `200` — `{"status":"ONLINE","uptime":"0d 1h 2m 3s","uptimeMs":3723000,"memory":{"totalMb":256,"freeMb":120,"usedMb":136,"maxMb":512},"activeThreads":24,"availableProcessors":8,"retentionDays":30}` |
+| `DELETE /api/systemLogs/purge?days=30` | no body | `200` — `{"message":"42 log entries purged","olderThanDays":30}` |
+
+### App upload
+
+`POST /api/apps` requires `SUPER_ADMIN` authority and accepts `multipart/form-data`.
+
+```bash
+curl -X POST http://localhost:8080/api/apps \
+  -H 'X-API-KEY: <token>' \
+  -F 'zipFile=@application.zip' \
+  -F 'appName=myapp' \
+  -F 'version=1.0.0' \
+  -F 'overwrite=true'
+```
+
+Example response (`200`):
+
 ```json
 {
-  "balance": 1000.0000,
-  "smsCost": 20.00,
-  "currency": "TZS",
-  "type": "SMS",
-  "value": 20000.00
+  "message": "Application uploaded and extracted successfully",
+  "appName": "myapp",
+  "version": "1.0.0",
+  "extractedPath": "/tmp/apps/myapp/1.0.0",
+  "fileSize": 2048,
+  "extractedFiles": 12
 }
 ```
 
-#### Features
-- **Multi-currency Support** - Configurable currency per wallet
-- **Real-time Balance** - Updated immediately after SMS sending
-- **Cost Tracking** - Per-segment cost calculation
-- **Transaction History** - Complete audit trail via WalletTransaction
+### Frontend/static routes
 
-#### Automatic Credit Allocation
-- Registration bonus credits configurable via environment
-- Pre-flight balance checks before SMS sending
-- Automatic deduction upon successful delivery
-
----
-
-### Advanced SMS Features
-
-#### Template Preview & Cost Calculation
-```http
-POST /api/smsTemplates/preview
-Content-Type: application/json
-
-{
-  "template": "Hello {{name}}, your order {{orderId}} is ready!",
-  "variables": {
-    "name": "John Doe",
-    "orderId": "12345"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "rendered": "Hello John Doe, your order 12345 is ready!",
-  "segments": 1,
-  "encoding": "GSM-7",
-  "charactersRemaining": 145,
-  "cost": 20.00,
-  "pricePerSegment": 20.00
-}
-```
-
-#### Failed Message Retry
-```http
-POST /api/smsLogs/{id}/retry
-```
-- Retries failed SMS messages with original parameters
-- Updates log status and provider response
-
----
-
-### System Administration (`/api/systemLogs`)
-
-#### Log Query & Filtering
-```http
-GET /api/systemLogs?level=ERROR&source=SMS&from=2024-01-01T00:00:00
-```
-
-**Parameters:**
-- `level` - Log level (ERROR, WARN, INFO, DEBUG)
-- `source` - Component source (SMS, AUTH, WEBHOOK, etc.)
-- `traceId` - Request trace identifier
-- `from/to` - Date range filtering
-
-#### Real-time Log Streaming
-```http
-GET /api/systemLogs/tail?level=ERROR
-Accept: text/event-stream
-```
-- Server-Sent Events (SSE) for live log monitoring
-- Filterable by log level
-
-#### System Health Monitoring
-```http
-GET /api/systemLogs/health
-```
-Returns system health metrics including database status, memory usage, and active connections.
-
-#### Log Maintenance
-```http
-DELETE /api/systemLogs/purge?days=30
-```
-- Purges log entries older than specified days
-- Returns count of deleted records
-
----
-
-### Webhooks & Integrations (`/api/webhooks`)
-
-#### Delivery Report (DLR) Receiver
-```http
-POST /api/webhooks/{provider}
-Content-Type: application/json
-
-{
-  "request_id": "provider-request-id",
-  "status": "DELIVERED|FAILED|PENDING",
-  "timestamp": "2024-01-15T10:30:00Z"
-}
-```
-
-For Beem, delivery reports are normally retrieved by the scheduled polling worker rather than a callback. The worker starts at least five minutes after submission, uses the Beem `request_id` stored as `providerMessageId`, and polls every 60 seconds by default. Configure the interval with `flextuma.sms.beem.delivery-poll-interval-ms`.
-
-**Supported Providers:**
-- `beem` - Beem SMS provider
-- `next` - NextSMS provider
-
-#### Recipient Resolver Trigger
-```http
-POST /api/webhooks/{connectorId}/sms
-Content-Type: application/json
-
-{
-  "provider": "beem",
-  "templateCode": "WELCOME_MSG",
-  "content": "Custom message content",
-  "filterQuery": "status=active"
-}
-```
-
-**Features:**
-- Fetches recipients from external ERP systems
-- Supports both template-based and raw content
-- Automatic queueing for async processing
-
----
-
-### Notification System (`/api/notifications`)
-
-#### Template-based SMS
-```http
-POST /api/notifications
-Content-Type: application/json
-
-{
-  "to": "+255123456789",
-  "templateCode": "WELCOME_MSG", 
-  "variables": {
-    "name": "John Doe",
-    "company": "ACME Corp"
-  }
-}
-```
-
-#### Raw SMS Sending
-```http
-POST /api/notifications/raw
-Content-Type: application/json
-
-{
-  "to": "+255123456789",
-  "content": "Direct message content",
-  "provider": "beem"
-}
-```
-
----
-
-### App Management (`/api/apps`)
-
-#### Application Upload
-```http
-POST /api/apps
-Content-Type: multipart/form-data
-
-appName: myapp
-version: 1.0.0
-file: [application.zip]
-```
-- **SUPER_ADMIN** only endpoint
-- Uploads and extracts application packages
-- Supports system extensions and plugins
+| Endpoint | Sample request | Sample response |
+|---|---|---|
+| `GET /` | Header: `Accept: text/html` | `200` — the frontend `index.html` document |
+| `GET /assets/{filename}` | `GET /assets/app.js` | `200` — the requested static asset, for example JavaScript with `Content-Type: application/javascript` |
+| `GET /**` | `GET /campaigns` with `Accept: text/html` | `200` — the frontend `index.html` SPA shell; non-HTML unknown paths return `404` |
 
 ---
 
@@ -568,9 +413,7 @@ Document every key here when you introduce it:
 
 ### CSRF Protection
 
-- **Token Method**: Cookie-based `XSRF-TOKEN` + header `X-CSRF-TOKEN`
-- **Exemptions**: `/api/login`, `/api/webhooks/**` (for provider callbacks)
-- **Browser Support**: Automatic for modern SPAs using `withCredentials: true`
+CSRF protection is disabled. Authenticate browser requests with the `SESSION` cookie and API requests with `X-API-KEY`.
 
 ### Session Management
 
@@ -616,7 +459,7 @@ All security events are automatically logged:
 
 ## Modules
 
-### Auth (`/api/users`, `/api/roles`, `/api/privileges`, `/api/organisations`, `/api/personalAccessTokens`)
+### Auth (`/api/users`, `/api/roles`, `/api/privileges`, `/api/organisations`, `/api/tokens`)
 
 Manages users, roles, privilege-based RBAC, organisation membership, and API tokens.
 
@@ -659,7 +502,7 @@ Comprehensive SMS management with campaigns, templates, and delivery tracking.
 - **`SmsSenderRegistry`** — selects the active `SmsConnector` from the DB, finds the matching `SmsSender` implementation by provider name, and dispatches the message.
 
 **Advanced Features:**
-- Template preview with cost calculation (`/api/smsTemplates/preview`)
+- Template preview with cost calculation (`/api/templates/preview`)
 - Failed message retry (`/api/smsLogs/{id}/retry`)
 - Character encoding detection (GSM-7 vs UCS-2)
 - Segment-based billing
@@ -769,14 +612,12 @@ Request with memberId
 |---|---|
 | Browser / SPA | Session-based: POST credentials to `/api/login` → receive HttpOnly `SESSION` cookie (backed by Redis) |
 | API/testing | HTTP Basic Auth (`Authorization: Basic base64(user:pass)`) — also accepted for session creation |
-| Webhooks / PAT | Personal Access Token (planned) |
+| API clients | Personal access token in the `X-API-KEY` header |
+| Webhooks | Unauthenticated provider callback (`POST /api/webhooks/{provider}`) |
 
 ### CSRF
 
-CSRF protection uses `CookieCsrfTokenRepository` (token sent as `XSRF-TOKEN` cookie, readable by SPA). Exemptions:
-
-- `/api/login` — no session exists yet at this point
-- `POST /api/webhooks/{provider}` — public provider callback endpoint; no custom secret header is required
+CSRF protection is disabled. Browser clients authenticate with the HttpOnly session cookie; API clients can use `X-API-KEY`.
 
 ### Tenant-Aware Resource Filtering
 
@@ -815,7 +656,7 @@ On startup, `DataInitializer` runs `DataSeederService.seedSystemData()`, which e
 
 ### API testing (`.http` files)
 
-HTTP request files are in the `/http` directory. Use IntelliJ's HTTP client or any compatible tool. The login endpoint does not require a CSRF token. All subsequent mutating requests (`POST`/`PUT`/`DELETE`) must include the `X-CSRF-TOKEN` header (value from the `XSRF-TOKEN` response cookie).
+HTTP request files are in the `/http` directory. Use IntelliJ's HTTP client or any compatible tool. CSRF is disabled, so no `X-CSRF-TOKEN` header is needed; authenticate subsequent requests with the session cookie or `X-API-KEY`.
 
 ```http
 ### Login
@@ -852,7 +693,7 @@ See [`ROADMAP/roadmap.md`](ROADMAP/roadmap.md) for the full development roadmap,
 - [x] Async SMS dispatch worker (`@Scheduled` + `SmsLog` status lifecycle)
 - [x] Rate Limiter (Bucket4j per-tenant quotas)
 - [x] Webhook DLR receiver & Recipient Resolver Trigger API (`/api/webhooks...`)
-- [x] Character Count & Preview API (`/api/smsTemplates/preview` returning segment counts and `charactersRemaining` budget)
+- [x] Character Count & Preview API (`/api/templates/preview` returning segment counts and `charactersRemaining` budget)
 - [x] Real HTTP implementation for `NextSmsSender` with provider response logging
 - [x] Standardized `SmsSendResult` service with type-safe response handling
 
