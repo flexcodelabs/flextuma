@@ -24,6 +24,7 @@ import com.flexcodelabs.flextuma.core.services.EntityAssociationReferenceResolve
 import com.flexcodelabs.flextuma.core.services.EntityResponseInitializer;
 import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
 import com.flexcodelabs.flextuma.core.services.RateLimiterService;
+import com.flexcodelabs.flextuma.core.security.ApiTokenContext;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -48,6 +49,9 @@ public class NotificationService {
         @Value("${flextuma.sms.price-per-segment:1.0}")
         private BigDecimal pricePerSegment;
 
+        @Value("${flextuma.system-connectors.daily-message-limit-per-user:1000}")
+        private long systemConnectorDailyMessageLimit;
+
         @Transactional
         public SmsLog queueTemplatedSms(Map<String, String> placeholders, String username) {
                 User currentUser = getUser(username);
@@ -61,7 +65,7 @@ public class NotificationService {
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "Template not found or you don't have access to it"));
 
-                SmsConnector connector = getConnector(currentUser, providerValue);
+                SmsConnector connector = getConnector(currentUser, providerValue, placeholders.get("connectorId"));
 
                 String finalMessage = TemplateUtils.fillTemplate(template.getContent(), placeholders);
 
@@ -82,7 +86,7 @@ public class NotificationService {
                                         "Message contains unreplaced template variables. Please ensure all variables like {{variable}} are properly replaced.");
                 }
 
-                SmsConnector connector = getConnector(currentUser, providerValue);
+                SmsConnector connector = getConnector(currentUser, providerValue, payload.get("connectorId"));
 
                 return processAndSaveSms(currentUser, connector, phoneNumber, content, null, payload);
         }
@@ -113,25 +117,54 @@ public class NotificationService {
                 return matcher.find();
         }
 
-        private SmsConnector getConnector(User user, String provider) {
+        private SmsConnector getConnector(User user, String provider, String connectorId) {
+                if (connectorId != null && !connectorId.isBlank()) {
+                        SmsConnector connector;
+                        try {
+                                connector = connectorRepository.findByIdAndActiveTrue(UUID.fromString(connectorId))
+                                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Active connector not found"));
+                        } catch (IllegalArgumentException e) {
+                                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "connectorId must be a UUID");
+                        }
+                        if (!provider.equalsIgnoreCase(connector.getProvider())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "connectorId does not match provider");
+                        if (!isSystemConnector(connector) && (connector.getCreatedBy() == null || !connector.getCreatedBy().getId().equals(user.getId()))) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this connector");
+                        enforceTokenConnectorGrant(connector);
+                        return connector;
+                }
                 Optional<SmsConnector> connector = connectorRepository.findByCreatedByAndProviderAndActiveTrue(user,
                                 provider);
                 if (connector.isPresent()) {
+                        enforceTokenConnectorGrant(connector.get());
                         return connector.get();
                 }
 
-                return connectorRepository.findByProviderAndCode(provider, provider + "_SYSTEM")
+                SmsConnector systemConnector = connectorRepository.findByProviderAndCode(provider, provider + "_SYSTEM")
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                                 "No active SMS connector found for provider [" + provider + "]"));
+                enforceTokenConnectorGrant(systemConnector);
+                return systemConnector;
+        }
+
+        private boolean isSystemConnector(SmsConnector connector) {
+                return connector.getCode() != null && (connector.getProvider() + "_SYSTEM").equalsIgnoreCase(connector.getCode());
+        }
+
+        private void enforceTokenConnectorGrant(SmsConnector connector) {
+                ApiTokenContext.TokenGrant grant = ApiTokenContext.get();
+                if (grant == null) return;
+                if (!grant.allows(ApiTokenContext.SEND_MESSAGES)) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "API token is not allowed to send messages");
+                if (isSystemConnector(connector)) {
+                        if (!grant.allowSystemConnectors()) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "API token is not allowed to use shared system connectors");
+                } else if (!grant.allowsConnector(connector.getId())) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "API token is not allowed to use this connector");
         }
 
         private SmsLog processAndSaveSms(User user, SmsConnector connector, String phoneNumber, String content,
                         SmsTemplate template, Map<String, String> metadata) {
                 SmsSegmentResult segmentResult = segmentCalculator.calculate(content);
-                if (connector.getCode() != null && connector.getCode().equals(connector.getProvider() + "_SYSTEM")) {
-                        BigDecimal cost = BigDecimal.valueOf(Math.ceil(BigDecimal.valueOf(segmentResult.segments())
-                                        .divide(pricePerSegment).doubleValue()));
-                        walletService.debit(user, cost, "SMS send to " + phoneNumber, null);
+                if (isSystemConnector(connector)) {
+                        enforceSystemConnectorDailyLimit(user, connector);
+                        BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
+                        walletService.debit(user, cost, "System connector " + connector.getProvider() + " send to " + phoneNumber, null);
                 }
 
                 SmsLog log = new SmsLog();
@@ -154,5 +187,15 @@ public class NotificationService {
                 SmsLog savedLog = logRepository.save(log);
                 entityResponseInitializer.initialize(savedLog);
                 return savedLog;
+        }
+
+        private void enforceSystemConnectorDailyLimit(User user, SmsConnector connector) {
+                if (systemConnectorDailyMessageLimit <= 0) return;
+                long sendsToday = logRepository.countByCreatedByAndConnectorAndCreatedGreaterThanEqual(user, connector,
+                                java.time.LocalDate.now().atStartOfDay());
+                if (sendsToday >= systemConnectorDailyMessageLimit) {
+                        throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                                        "Daily system connector message limit reached");
+                }
         }
 }

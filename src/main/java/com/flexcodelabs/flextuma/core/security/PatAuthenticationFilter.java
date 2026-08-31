@@ -58,13 +58,17 @@ public class PatAuthenticationFilter extends OncePerRequestFilter {
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authentication);
 
+                    if (pat.getScopes() != null) {
+                        ApiTokenContext.set(new ApiTokenContext.TokenGrant(pat.getScopes(), pat.getAllowedConnectorIds(), Boolean.TRUE.equals(pat.getAllowSystemConnectors())));
+                    }
+
                     pat.setLastUsedAt(LocalDateTime.now());
                     patRepository.save(pat);
                 }
             }
         }
 
-        filterChain.doFilter(request, response);
+        try { filterChain.doFilter(request, response); } finally { ApiTokenContext.clear(); }
     }
 
     private String hashToken(String token) {

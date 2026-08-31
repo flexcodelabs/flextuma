@@ -52,6 +52,9 @@ public class SecurityConfig {
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers("/api/login").permitAll()
                             .requestMatchers("/api/register").permitAll()
+                            .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/webhooks/whatsapp").permitAll()
+                            .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/webhooks/whatsapp/**").permitAll()
+                            .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/webhooks/whatsapp/**").permitAll()
                             .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/webhooks/*").permitAll()
                             .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/public/**").permitAll()
                             .requestMatchers("/").permitAll()

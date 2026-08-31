@@ -4,6 +4,7 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
+import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,9 +16,11 @@ import java.util.UUID;
 public class SmsLogService extends BaseService<SmsLog> {
 
     private final SmsLogRepository smsLogRepository;
+    private final CurrentUserResolver currentUserResolver;
 
-    public SmsLogService(SmsLogRepository repository) {
+    public SmsLogService(SmsLogRepository repository, CurrentUserResolver currentUserResolver) {
         this.smsLogRepository = repository;
+        this.currentUserResolver = currentUserResolver;
     }
 
     @Override
@@ -91,6 +94,9 @@ public class SmsLogService extends BaseService<SmsLog> {
 
         SmsLog log = smsLogRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "SMS log not found"));
+
+        boolean ownsLog = currentUserResolver.getCurrentUser().map(user -> log.getCreatedBy() != null && user.getId().equals(log.getCreatedBy().getId())).orElse(false);
+        if (!Boolean.TRUE.equals(isAdminPermission()) && !ownsLog) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not have access to this SMS log");
 
         if (log.getStatus() != SmsLogStatus.FAILED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only failed messages can be retried");

@@ -34,6 +34,7 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -82,6 +83,7 @@ class NotificationServiceTest {
         void setUp() {
                 testUser = new User();
                 testUser.setUsername("testuser");
+                testUser.setId(UUID.randomUUID());
 
                 validPlaceholders = new HashMap<>();
                 validPlaceholders.put("provider", "Twilio");
@@ -192,5 +194,45 @@ class NotificationServiceTest {
                 verify(entityAssociationReferenceResolver).resolve(capturedLog);
 
                 assertNotNull(result);
+        }
+
+        @Test
+        void queueRawSms_shouldDebitWalletAtPerSegmentPriceForSystemConnector() {
+                Map<String, String> payload = new HashMap<>();
+                payload.put("provider", "BEEM");
+                payload.put("phoneNumber", "+255700000000");
+                payload.put("message", "System connector message");
+                SmsConnector systemConnector = new SmsConnector();
+                systemConnector.setProvider("BEEM");
+                systemConnector.setCode("BEEM_SYSTEM");
+
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "BEEM")).thenReturn(Optional.empty());
+                when(connectorRepository.findByProviderAndCode("BEEM", "BEEM_SYSTEM")).thenReturn(Optional.of(systemConnector));
+                when(segmentCalculator.calculate(anyString())).thenReturn(new SmsSegmentResult(2, true, 0, 0, BigDecimal.ONE, BigDecimal.ONE));
+                when(logRepository.save(any(SmsLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                notificationService.queueRawSms(payload, "testuser");
+
+                verify(walletService).debit(eq(testUser), argThat(amount -> amount.compareTo(BigDecimal.valueOf(40)) == 0), contains("System connector BEEM"), isNull());
+        }
+
+        @Test
+        void queueRawSms_shouldRejectAnotherUsersConnectorId() {
+                Map<String, String> payload = new HashMap<>();
+                payload.put("provider", "BEEM");
+                payload.put("phoneNumber", "+255700000000");
+                payload.put("message", "Attempted misuse");
+                UUID connectorId = UUID.randomUUID();
+                payload.put("connectorId", connectorId.toString());
+                User otherUser = new User(); otherUser.setId(UUID.randomUUID());
+                SmsConnector connector = new SmsConnector(); connector.setProvider("BEEM"); connector.setCreatedBy(otherUser);
+
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(connectorRepository.findByIdAndActiveTrue(connectorId)).thenReturn(Optional.of(connector));
+
+                ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> notificationService.queueRawSms(payload, "testuser"));
+                assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+                verifyNoInteractions(walletService);
         }
 }
