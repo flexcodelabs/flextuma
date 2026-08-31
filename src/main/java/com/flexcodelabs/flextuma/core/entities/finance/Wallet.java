@@ -24,11 +24,10 @@ public class Wallet extends Owner {
     public static final String NAME_PLURAL = "Wallets";
     public static final String NAME_SINGULAR = "Wallet";
 
-    public static final String ALL = "ALL";
-    public static final String READ = ALL;
-    public static final String ADD = ALL;
-    public static final String DELETE = ALL;
-    public static final String UPDATE = ALL;
+    public static final String READ = "READ_WALLETS";
+    public static final String ADD = "ADD_WALLETS";
+    public static final String DELETE = "DELETE_WALLETS";
+    public static final String UPDATE = "UPDATE_WALLETS";
 
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal balance = BigDecimal.ZERO;

@@ -7,6 +7,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -46,6 +48,8 @@ public class DataSeederService {
                                         roleId, privId);
                         log.info("🔗 Role-Privilege linking result: {} rows affected", userPrivResult);
 
+                        seedReadPrivileges();
+
                         seedUser(roleId, "admin", "admin@flextuma.com", "Admin123", roleId);
 
                         seedUser(UUID.fromString("7269df24-68a0-4776-bd89-4015521bc19d"), "SYSTEM",
@@ -56,6 +60,24 @@ public class DataSeederService {
                         log.error("❌ System seeding failed: {}", e.getMessage(), e);
                         throw e;
                 }
+        }
+
+        private void seedReadPrivileges() {
+                List.of(
+                                "READ_SMS_CONNECTORS",
+                                "READ_CONNECTOR_CONFIGS",
+                                "READ_WALLETS",
+                                "READ_SMS_LOGS",
+                                "READ_WHATSAPP_WEBHOOK_CONFIGS",
+                                "READ_SYSTEM_LOGS")
+                                .forEach(value -> {
+                                        UUID id = UUID.nameUUIDFromBytes(value.getBytes(StandardCharsets.UTF_8));
+                                        jdbcTemplate.update(
+                                                        "INSERT INTO privilege (id, name, value, system, active, created, updated) " +
+                                                                        "VALUES (?, ?, ?, true, true, NOW(), NOW()) " +
+                                                                        "ON CONFLICT (value) DO NOTHING",
+                                                        id, value.replace('_', ' '), value);
+                                });
         }
 
         private void seedUser(UUID userId, String username, String email, String pass, UUID roleId) {

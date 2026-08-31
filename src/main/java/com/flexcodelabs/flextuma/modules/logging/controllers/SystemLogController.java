@@ -20,7 +20,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/systemLogs")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('SUPER_ADMIN', 'ALL')")
+@PreAuthorize("hasAnyAuthority('SUPER_ADMIN', 'READ_SYSTEM_LOGS')")
 public class SystemLogController {
 
     private final SystemLogService systemLogService;

@@ -22,11 +22,10 @@ public class SmsConnector extends Owner {
     public static final String NAME_PLURAL = "SMS Connectors";
     public static final String NAME_SINGULAR = "SMS Connector";
 
-    public static final String ALL = "ALL";
-    public static final String READ = ALL;
-    public static final String ADD = ALL;
-    public static final String DELETE = ALL;
-    public static final String UPDATE = ALL;
+    public static final String READ = "READ_SMS_CONNECTORS";
+    public static final String ADD = "ADD_SMS_CONNECTORS";
+    public static final String DELETE = "DELETE_SMS_CONNECTORS";
+    public static final String UPDATE = "UPDATE_SMS_CONNECTORS";
 
     @NotBlank(message = "Provider name is required")
     private String provider;

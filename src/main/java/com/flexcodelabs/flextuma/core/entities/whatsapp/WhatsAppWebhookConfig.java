@@ -22,8 +22,10 @@ public class WhatsAppWebhookConfig extends Owner {
     public static final String PLURAL = "whatsappWebhookConfigs";
     public static final String NAME_PLURAL = "WhatsApp Webhook Configurations";
     public static final String NAME_SINGULAR = "WhatsApp Webhook Configuration";
-    public static final String ALL = "ALL";
-    public static final String READ = ALL, ADD = ALL, DELETE = ALL, UPDATE = ALL;
+    public static final String READ = "READ_WHATSAPP_WEBHOOK_CONFIGS";
+    public static final String ADD = "ADD_WHATSAPP_WEBHOOK_CONFIGS";
+    public static final String DELETE = "DELETE_WHATSAPP_WEBHOOK_CONFIGS";
+    public static final String UPDATE = "UPDATE_WHATSAPP_WEBHOOK_CONFIGS";
 
     @NotBlank
     @Column(name = "phone_number_id", nullable = false)
