@@ -82,7 +82,8 @@ public class SmsConnectorService extends BaseService<SmsConnector> {
 
     private void validateProviderConfig(SmsConnector entity) {
         String provider = entity.getProvider();
-        if ("BEEM".equalsIgnoreCase(provider) || "NEXT".equalsIgnoreCase(provider)) {
+        if ("BEEM".equalsIgnoreCase(provider) || "NEXT".equalsIgnoreCase(provider)
+                || "WHATSAPP".equalsIgnoreCase(provider)) {
             if (entity.getUrl() == null || entity.getUrl().isBlank()) {
                 throw new IllegalArgumentException("URL is required for " + provider);
             }

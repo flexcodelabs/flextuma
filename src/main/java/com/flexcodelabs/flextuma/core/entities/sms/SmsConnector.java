@@ -3,6 +3,7 @@ package com.flexcodelabs.flextuma.core.entities.sms;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.flexcodelabs.flextuma.core.helpers.MaskingUtil;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
+import com.flexcodelabs.flextuma.core.security.EncryptedStringConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
@@ -30,10 +31,12 @@ public class SmsConnector extends Owner {
     @NotBlank(message = "Provider name is required")
     private String provider;
 
+    /** For WhatsApp use a Graph API base URL, e.g. https://graph.facebook.com/v21.0. */
     @NotBlank(message = "Url is required")
     private String url;
 
     @Column(nullable = true)
+    @Convert(converter = EncryptedStringConverter.class)
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String key;
 
@@ -41,6 +44,7 @@ public class SmsConnector extends Owner {
     private Boolean isDefault = true;
 
     @Column(nullable = true)
+    @Convert(converter = EncryptedStringConverter.class)
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String secret;
 

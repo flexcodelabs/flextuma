@@ -3,6 +3,8 @@ package com.flexcodelabs.flextuma.modules.sms.services;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
+import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
+import com.flexcodelabs.flextuma.core.entities.auth.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,11 +31,15 @@ class SmsLogServiceTest {
     @Mock
     private SmsLogRepository smsLogRepository;
 
+    @Mock
+    private CurrentUserResolver currentUserResolver;
+
     @InjectMocks
     private SmsLogService smsLogService;
 
     private UUID logId;
     private SmsLog smsLog;
+    private User currentUser;
 
     @BeforeEach
     void setUp() {
@@ -44,6 +50,10 @@ class SmsLogServiceTest {
         smsLog.setRetries(1);
         smsLog.setError("Network timeout");
         smsLog.setProviderResponse(Map.of("error", "HTTP 504", "status", "failed"));
+        currentUser = new User();
+        currentUser.setId(UUID.randomUUID());
+        smsLog.setCreatedBy(currentUser);
+        lenient().when(currentUserResolver.getCurrentUser()).thenReturn(Optional.of(currentUser));
     }
 
     @Test

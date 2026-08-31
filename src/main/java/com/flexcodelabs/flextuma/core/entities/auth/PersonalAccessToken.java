@@ -10,6 +10,10 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.Set;
+import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -41,6 +45,17 @@ public class PersonalAccessToken extends BaseEntity {
     private LocalDateTime lastUsedAt;
 
     private LocalDateTime expiresAt;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "scopes")
+    private Set<String> scopes;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "allowed_connector_ids")
+    private Set<UUID> allowedConnectorIds;
+
+    @Column(name = "allow_system_connectors")
+    private Boolean allowSystemConnectors;
 
     @Transient
     private String rawToken;

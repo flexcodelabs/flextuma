@@ -1,6 +1,6 @@
 # Flextuma
 
-Flextuma is a configurable, multi-tenant messaging gateway built on Spring Boot. It serves multiple organisations from a single deployment with full data isolation, and supports SMS delivery today with WhatsApp and Email on the roadmap.
+Flextuma is a configurable, multi-tenant messaging gateway built on Spring Boot. It serves multiple organisations from a single deployment with full data isolation, and supports SMS and WhatsApp Cloud API delivery today.
 
 ---
 
@@ -209,6 +209,63 @@ These are `POST` and `PUT` request samples for each shared CRUD resource; the co
 | `POST /api/webhooks/{connectorConfigId}/sms` (raw) | `{"provider":"beem","content":"Custom message","filterQuery":{"status":"ACTIVE"}}` | `200` — `{"message":"Successfully queued messages","queued":10,"totalFetched":10}` |
 
 For Beem, delivery reports are normally obtained by the polling worker, which uses the submitted `request_id` saved as `providerMessageId`.
+
+### WhatsApp Cloud API
+
+Create a normal `/api/connectors` record with `provider: "WHATSAPP"`, `key` set to the Meta access token, `senderId` set to the Meta phone-number ID, and `url` set to the Graph API base URL (for example `https://graph.facebook.com/v21.0`). The token is write-only/masked after creation. Send a text message with:
+
+```json
+POST /api/notifications/whatsapp
+{ "phoneNumber": "+255700000000", "message": "Hello from WhatsApp" }
+```
+
+The message is queued and tracked in `/api/smsLogs` alongside SMS; WhatsApp delivery IDs and delivered/read/failed events update that log.
+
+#### Shared system connectors and safe use
+
+When a customer does not have an active connector for the selected provider, Flextuma can intentionally fall back to a matching `{PROVIDER}_SYSTEM` connector. This is Flextuma's paid shared infrastructure, not access to another customer's credentials. The send is always attributed to the authenticated user and must debit that user's wallet before a message log is queued. The charge is the configured per-segment price multiplied by the actual segment count.
+
+Clients may optionally send `connectorId` with a notification request to select an active connector explicitly. Flextuma rejects a non-system connector unless it belongs to the authenticated user, and rejects it if its provider differs from the requested provider. Connector credentials (`key` and `secret`) and WhatsApp verification/app/signing secrets are AES-GCM encrypted in the database when `FLEXTUMA_CONNECTOR_ENCRYPTION_KEY` is configured; credentials remain write-only and masked in all API responses.
+
+Existing plaintext connector secrets remain readable during a controlled migration. Set the encryption key first, then re-save each connector (or run an approved one-time migration) to encrypt those rows. Do not rotate or remove an encryption key until every record using it has been re-encrypted with the replacement key.
+
+For API automation, create a scoped personal access token with `scopes: ["MESSAGES_SEND"]`. A scoped token must also list its customer-owned `allowedConnectorIds`, or set `allowSystemConnectors: true` to spend the caller's wallet on Flextuma shared connectors. Tokens created before connector grants were introduced remain legacy role-based tokens; rotate them to a scoped token before enforcing this policy globally.
+
+To deliver inbound WhatsApp messages and status events into a user's system, create `/api/whatsappWebhookConfigs`:
+
+```json
+{
+  "phoneNumberId": "META_PHONE_NUMBER_ID",
+  "callbackUrl": "https://customer.example.com/webhooks/whatsapp",
+  "appSecret": "Meta App Secret used to verify inbound signatures",
+  "signingSecret": "optional-customer-shared-secret"
+}
+```
+
+Set `FLEXTUMA_PUBLIC_BASE_URL` to Flextuma's public HTTPS origin before creating configurations. On creation, Flextuma generates and persists a random `verifyToken` and a unique `metaCallbackUrl`. Copy these two returned values directly into WhatsApp Cloud's callback URL and verify-token fields; users do not need to create or manage secrets for Meta verification. The generated URL binds Meta's request to that user's configuration, and Flextuma also checks the configured `phoneNumberId`. Flextuma validates Meta's `X-Hub-Signature-256` whenever `appSecret` is set, then forwards the original JSON to the owning user's `callbackUrl`. When `signingSecret` is supplied, the forwarded request includes `X-Flextuma-Signature-256: sha256=<HMAC-SHA256(raw-body)>` and `X-Flextuma-Event: whatsapp`. Callback URLs must be HTTPS. The callback endpoint must return quickly with a 2xx response; failed relays are logged and do not trigger a Meta retry, preventing duplicate downstream processing.
+
+### Planned: Flextuma-managed Meta Tech Provider onboarding
+
+The configuration above is the current **bring-your-own-Meta** integration: customers supply their Cloud API credentials and phone-number ID. The planned Tech Provider mode will offer a branded **Connect WhatsApp** flow through Meta Embedded Signup, so customers do not manually handle access tokens, app secrets, callback URLs, or verification tokens.
+
+| Area | Current bring-your-own-Meta mode | Planned Tech Provider mode |
+| --- | --- | --- |
+| Customer action | Create a connector and webhook configuration | Complete Meta Embedded Signup inside Flextuma |
+| Credentials | Customer enters and rotates them | Flextuma obtains and stores them server-side, encrypted at rest |
+| Callback setup | Flextuma generates callback URL/token; customer pastes them into Meta | Flextuma subscribes the WABA and phone number programmatically |
+| Webhook validation | Optional per-customer Meta app secret | Platform-owned Meta app secret validation, then signed relay to the customer |
+| Sender lifecycle | Customer configures the phone-number ID | Flextuma registers the phone number, maps WABA/number to the tenant, and manages disconnect/revocation |
+
+#### Required product and platform work
+
+1. Complete Meta Tech Provider onboarding, business verification, app review, and the required advanced permissions before making this flow generally available.
+2. Add an Embedded Signup page that exchanges the short-lived authorization result only on the server; no Meta credential may be exposed to the browser, logs, exports, or API responses.
+3. Add tenant-owned `WhatsAppConnection`, `WhatsAppBusinessAccount`, and `WhatsAppPhoneNumber` records. Store WABA ID, phone-number ID, encrypted access-token reference, lifecycle state, and consent/audit timestamps separately from customer webhook-forwarding settings.
+4. Register phone numbers and subscribe the connected WABA to Flextuma's platform webhook after signup. Use a single platform callback endpoint, verify every POST using `X-Hub-Signature-256`, and resolve the tenant from the Meta asset IDs rather than an untrusted callback parameter.
+5. Add lifecycle handling for token expiry/rotation, Meta permission revocation, number disconnection, quality/rate-limit events, subscription repair, and safe idempotent retries of provisioning calls.
+6. Add template synchronization/approval state, customer opt-in evidence, sender-quality visibility, usage/billing boundaries, support tooling, and a customer-controlled disconnect action that revokes access and disables message sends.
+
+The manually configured mode must remain available during rollout and for customers that use their own Meta application. Do not represent Tech Provider onboarding as implemented until Meta approval and live end-to-end onboarding evidence are available.
 
 ### System administration
 

@@ -49,4 +49,12 @@ public class NotificationController {
 
         return ResponseEntity.ok(log);
     }
+
+    /** Queues a WhatsApp Cloud API text message using the caller's WHATSAPP connector. */
+    @PostMapping("/whatsapp")
+    public ResponseEntity<SmsLog> sendWhatsApp(@RequestBody Map<String, String> payload,
+            java.security.Principal principal) {
+        payload.put("provider", "WHATSAPP");
+        return ResponseEntity.ok(notificationService.queueRawSms(payload, principal.getName()));
+    }
 }

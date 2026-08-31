@@ -98,6 +98,14 @@ The trigger endpoint is `POST /api/webhooks/{connector-config-uuid}/sms`; it fet
 
 ## Implementation gaps and recommendations
 
+### WhatsApp managed onboarding (planned)
+
+The current WhatsApp Cloud API implementation is a bring-your-own-Meta integration. It accepts a customer-owned connector and relays webhooks using a Flextuma-generated callback URL and verification token. It is not a Meta Tech Provider / Embedded Signup integration.
+
+To offer no-secret customer onboarding, Flextuma must first obtain the necessary Meta Tech Provider approvals and advanced permissions. The implementation must then add a server-side Embedded Signup exchange, encrypted tenant-scoped credential storage, WABA and phone-number registration, programmatic webhook subscription, Meta asset-to-tenant routing, token/revocation lifecycle handling, and a customer disconnect path. The browser must never receive persistent Meta credentials or the platform app secret.
+
+Until that work is complete, user-facing copy must state that the customer configures their own Meta app and must paste the generated Flextuma callback URL and verification token into WhatsApp Cloud.
+
 These are code-observed findings as of this repository revision, ordered by impact.
 
 | Priority | Finding | Impact and recommended action |

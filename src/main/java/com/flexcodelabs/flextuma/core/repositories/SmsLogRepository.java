@@ -14,6 +14,7 @@ import org.springframework.data.jpa.repository.Modifying;
 
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 
 @Repository
@@ -46,6 +47,8 @@ public interface SmsLogRepository extends BaseRepository<SmsLog, UUID>,
 
 	long countByCreatedByAndStatusInAndCreatedGreaterThanEqual(User user, Collection<SmsLogStatus> statuses,
 			LocalDateTime created);
+
+	long countByCreatedByAndConnectorAndCreatedGreaterThanEqual(User user, SmsConnector connector, LocalDateTime created);
 
 	long countByStatus(SmsLogStatus status);
 

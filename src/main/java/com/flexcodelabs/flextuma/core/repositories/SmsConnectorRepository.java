@@ -19,4 +19,6 @@ public interface SmsConnectorRepository extends BaseRepository<SmsConnector, UUI
 
 	Optional<SmsConnector> findByProviderAndCode(String provider, String code);
 
+	Optional<SmsConnector> findByIdAndActiveTrue(UUID id);
+
 }

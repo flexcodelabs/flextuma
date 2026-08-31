@@ -28,6 +28,8 @@ Provide secrets through the platform secret manager, never in the image, reposit
 | `HIKARI_MAX_POOL`, `HIKARI_MIN_IDLE` | Recommended | Size across all replicas below PostgreSQL’s connection limit. |
 | `SESSION_TIMEOUT` | Recommended | Session lifetime, e.g. `30m`. |
 | `SMS_PRICE_PER_SEGMENT` | Yes | Decimal cost used for wallet accounting; confirm the business unit and currency. |
+| `FLEXTUMA_CONNECTOR_ENCRYPTION_KEY` | Yes for connector writes | Base64-encoded 32-byte AES key used to encrypt provider keys, secrets, access tokens, and app secrets at rest. Store and rotate it through the deployment secret manager; it must never be committed. |
+| `FLEXTUMA_SYSTEM_CONNECTORS_DAILY_MESSAGE_LIMIT_PER_USER` | Optional | Maximum messages per user and shared system connector per UTC day; defaults to `1000`. Set `0` only for an intentionally unlimited plan. |
 | `FLEXTUMA_SMS_BEEM_DELIVERY_POLL_INTERVAL_MS` | Optional | Beem delivery-report polling interval in milliseconds; defaults to `60000`. Beem polling starts five minutes after send. |
 | `FLEXTUMA_SMS_BEEM_DELIVERY_MINIMUM_DELAY_MINUTES` | Optional | Minimum wait before the first Beem delivery lookup; defaults to `5`, as recommended by Beem. |
 | `APP_FRONTEND_DIRECTORY` | If serving UI | Read-only directory containing `index.html` and assets. |
