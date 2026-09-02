@@ -4,6 +4,7 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsCampaign;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
+import com.flexcodelabs.flextuma.core.enums.SmsTemplateStatus;
 import com.flexcodelabs.flextuma.core.repositories.SmsCampaignRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.helpers.SmsSegmentCalculator;
@@ -62,6 +63,14 @@ public class CampaignDispatchWorker {
             String recipientsStr = campaign.getRecipients();
             if (recipientsStr == null || recipientsStr.isBlank()) {
                 campaign.setStatus(SmsCampaignStatus.COMPLETED);
+                campaignRepository.save(campaign);
+                return;
+            }
+
+            if (campaign.getTemplate() == null || campaign.getTemplate().getStatus() != SmsTemplateStatus.ACTIVE) {
+                log.error("Campaign [{}] references a template that is no longer active; cancelling",
+                        campaign.getName());
+                campaign.setStatus(SmsCampaignStatus.CANCELLED);
                 campaignRepository.save(campaign);
                 return;
             }

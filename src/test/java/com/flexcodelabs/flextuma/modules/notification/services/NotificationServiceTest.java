@@ -5,6 +5,7 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
+import com.flexcodelabs.flextuma.core.enums.SmsTemplateStatus;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
@@ -144,9 +145,26 @@ class NotificationServiceTest {
         }
 
         @Test
+        void queueTemplatedSms_shouldThrowWhenTemplateIsInactive() {
+                SmsTemplate template = new SmsTemplate();
+                template.setContent("Hello {{name}}");
+                template.setStatus(SmsTemplateStatus.INACTIVE);
+
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(templateRepository.findByCreatedByAndCode(testUser, "WELCOME")).thenReturn(Optional.of(template));
+
+                ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                                () -> notificationService.queueTemplatedSms(validPlaceholders, "testuser"));
+
+                assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+                assertTrue(ex.getReason().contains("Template is not active"));
+        }
+
+        @Test
         void queueTemplatedSms_shouldThrowWhenConnectorNotFound() {
                 SmsTemplate template = new SmsTemplate();
                 template.setContent("Hello {{name}}");
+                template.setStatus(SmsTemplateStatus.ACTIVE);
 
                 when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
                 when(templateRepository.findByCreatedByAndCode(testUser, "WELCOME")).thenReturn(Optional.of(template));
@@ -164,6 +182,7 @@ class NotificationServiceTest {
         void queueTemplatedSms_shouldQueueSmsSuccessfully() {
                 SmsTemplate template = new SmsTemplate();
                 template.setContent("Hello {{name}}");
+                template.setStatus(SmsTemplateStatus.ACTIVE);
 
                 SmsConnector connector = new SmsConnector();
                 connector.setProvider("Twilio");

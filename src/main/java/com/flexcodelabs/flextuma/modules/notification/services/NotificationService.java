@@ -13,6 +13,7 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
+import com.flexcodelabs.flextuma.core.enums.SmsTemplateStatus;
 import com.flexcodelabs.flextuma.core.helpers.SmsSegmentResult;
 import com.flexcodelabs.flextuma.core.helpers.SmsSegmentCalculator;
 import com.flexcodelabs.flextuma.core.helpers.TemplateUtils;
@@ -64,6 +65,11 @@ public class NotificationService {
                 SmsTemplate template = templateRepository.findByCreatedByAndCode(currentUser, templateCode)
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "Template not found or you don't have access to it"));
+
+                if (template.getStatus() != SmsTemplateStatus.ACTIVE) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                        "Template is not active");
+                }
 
                 SmsConnector connector = getConnector(currentUser, providerValue, placeholders.get("connectorId"));
 

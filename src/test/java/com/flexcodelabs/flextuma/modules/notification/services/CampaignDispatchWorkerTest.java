@@ -31,6 +31,7 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
 import com.flexcodelabs.flextuma.core.enums.SmsCampaignStatus;
+import com.flexcodelabs.flextuma.core.enums.SmsTemplateStatus;
 import com.flexcodelabs.flextuma.core.helpers.SmsSegmentCalculator;
 import com.flexcodelabs.flextuma.core.helpers.SmsSegmentResult;
 import com.flexcodelabs.flextuma.core.repositories.SmsCampaignRepository;
@@ -83,6 +84,7 @@ class CampaignDispatchWorkerTest {
         campaign.setRecipients("255700112233, 255700445566");
         SmsTemplate template = new SmsTemplate();
         template.setContent("Hello world");
+        template.setStatus(SmsTemplateStatus.ACTIVE);
         campaign.setTemplate(template);
         SmsConnector connector = new SmsConnector();
         campaign.setConnector(connector);
@@ -107,6 +109,34 @@ class CampaignDispatchWorkerTest {
     }
 
     @Test
+    void processCampaigns_withInactiveTemplate_shouldCancelWithoutDispatching() {
+        SmsCampaign campaign = new SmsCampaign();
+        campaign.setName("Test Campaign");
+        campaign.setRecipients("255700112233, 255700445566");
+        SmsTemplate template = new SmsTemplate();
+        template.setContent("Hello world");
+        template.setStatus(SmsTemplateStatus.INACTIVE);
+        campaign.setTemplate(template);
+        SmsConnector connector = new SmsConnector();
+        campaign.setConnector(connector);
+        User adminUser = new User();
+        adminUser.setUsername("admin");
+        campaign.setCreatedBy(adminUser);
+
+        when(campaignRepository.findDueCampaigns(eq(SmsCampaignStatus.SCHEDULED), any(LocalDateTime.class),
+                any(Pageable.class)))
+                .thenReturn(List.of(campaign));
+
+        worker.processCampaigns();
+
+        verify(campaignRepository, atLeastOnce()).save(campaign);
+        verify(walletService, never()).debit(any(), any(BigDecimal.class), anyString(), any());
+        verify(logRepository, never()).save(any(SmsLog.class));
+        verify(personalNotificationService, never()).notifyCampaignCompleted(any(), anyString());
+        assert (campaign.getStatus() == SmsCampaignStatus.CANCELLED);
+    }
+
+    @Test
     void processCampaigns_withEmptyRecipients_shouldCompleteImmediately() {
         SmsCampaign campaign = new SmsCampaign();
         campaign.setRecipients("");
@@ -128,6 +158,7 @@ class CampaignDispatchWorkerTest {
         campaign.setRecipients("255700112233");
         SmsTemplate template = new SmsTemplate();
         template.setContent("Hello");
+        template.setStatus(SmsTemplateStatus.ACTIVE);
         campaign.setTemplate(template);
         SmsConnector connector = new SmsConnector();
         campaign.setConnector(connector);
