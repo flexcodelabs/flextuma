@@ -25,22 +25,22 @@ public class SmsConnectorService extends BaseService<SmsConnector> {
 
     @Override
     protected String getReadPermission() {
-        return SmsConnector.READ;
+        return "ALL";
     }
 
     @Override
     protected String getAddPermission() {
-        return SmsConnector.ADD;
+        return "ALL";
     }
 
     @Override
     protected String getUpdatePermission() {
-        return SmsConnector.UPDATE;
+        return "ALL";
     }
 
     @Override
     protected String getDeletePermission() {
-        return SmsConnector.DELETE;
+        return "ALL";
     }
 
     @Override
@@ -112,9 +112,7 @@ public class SmsConnectorService extends BaseService<SmsConnector> {
     @Override
     public SmsConnector update(UUID id, SmsConnector entity) {
         checkPermission(getUpdatePermission());
-        SmsConnector existing = getRepository().findById(id)
-                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
-                        org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
+        SmsConnector existing = findAccessibleById(id);
 
         if (!Boolean.TRUE.equals(isAdminPermission())
                 && (existing.getProvider() + "_SYSTEM").equalsIgnoreCase(existing.getProvider())) {

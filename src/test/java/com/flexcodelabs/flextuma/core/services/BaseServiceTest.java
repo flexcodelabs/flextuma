@@ -85,6 +85,8 @@ class BaseServiceTest {
     }
 
     class TestService extends BaseService<TestEntity> {
+        private String readPermission = "READ";
+
         @Override
         protected JpaRepository<TestEntity, UUID> getRepository() {
             return repository;
@@ -92,7 +94,7 @@ class BaseServiceTest {
 
         @Override
         protected String getReadPermission() {
-            return "READ";
+            return readPermission;
         }
 
         @Override
@@ -167,6 +169,16 @@ class BaseServiceTest {
     @Test
     void checkPermission_shouldAllowAllForNonAdminEntities() {
         mockPermissions(Set.of("ALL"));
+        when(currentUserResolver.getCurrentUser()).thenReturn(Optional.empty());
+        when(executor.findAll(any(Specification.class))).thenReturn(List.of());
+
+        assertDoesNotThrow(() -> service.findAll());
+    }
+
+    @Test
+    void checkPermission_shouldAllowTheAllPolicyForAuthenticatedNonAdminEntities() {
+        service.readPermission = "ALL";
+        mockPermissions(Set.of());
         when(currentUserResolver.getCurrentUser()).thenReturn(Optional.empty());
         when(executor.findAll(any(Specification.class))).thenReturn(List.of());
 

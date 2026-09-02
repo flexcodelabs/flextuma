@@ -98,7 +98,7 @@ public abstract class BaseService<T extends BaseEntity> {
 
 		boolean isAuthorized = authorities.contains("SUPER_ADMIN") ||
 				authorities.contains(requiredPermission) ||
-				(!isAdminEntity() && authorities.contains("ALL"));
+				(!isAdminEntity() && (authorities.contains("ALL") || requiredPermission.equals("ALL")));
 
 		if (!isAuthorized) {
 			throw new AccessDeniedException("You have no permission to access " + getEntityPlural());
@@ -469,7 +469,7 @@ public abstract class BaseService<T extends BaseEntity> {
 		}
 	}
 
-	private T findAccessibleById(UUID id) {
+	protected T findAccessibleById(UUID id) {
 		Specification<T> spec = buildTenantSpec()
 				.and((root, query, cb) -> cb.equal(root.get("id"), id));
 		return getRepositoryAsExecutor().findOne(spec)
