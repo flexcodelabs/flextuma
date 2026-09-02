@@ -18,10 +18,12 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
     @Value("${flextuma.public-base-url:}") private String publicBaseUrl;
     protected JpaRepository<WhatsAppWebhookConfig, UUID> getRepository() { return repository; }
     protected JpaSpecificationExecutor<WhatsAppWebhookConfig> getRepositoryAsExecutor() { return repository; }
-    protected String getReadPermission() { return WhatsAppWebhookConfig.READ; }
-    protected String getAddPermission() { return WhatsAppWebhookConfig.ADD; }
-    protected String getUpdatePermission() { return WhatsAppWebhookConfig.UPDATE; }
-    protected String getDeletePermission() { return WhatsAppWebhookConfig.DELETE; }
+    // Each configuration is tenant-scoped by BaseService, so every signed-in
+    // user can manage only their own WhatsApp webhook configurations.
+    protected String getReadPermission() { return "ALL"; }
+    protected String getAddPermission() { return "ALL"; }
+    protected String getUpdatePermission() { return "ALL"; }
+    protected String getDeletePermission() { return "ALL"; }
     public String getEntityPlural() { return WhatsAppWebhookConfig.NAME_PLURAL; }
     protected String getEntitySingular() { return WhatsAppWebhookConfig.NAME_SINGULAR; }
     public String getPropertyName() { return WhatsAppWebhookConfig.PLURAL; }
