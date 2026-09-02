@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
 import com.flexcodelabs.flextuma.core.enums.CategoryEnum;
+import com.flexcodelabs.flextuma.core.enums.SmsTemplateStatus;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -42,6 +43,10 @@ public class SmsTemplate extends Owner {
 
 	@Column(columnDefinition = "TEXT", nullable = false)
 	private String content;
+
+	@Column(nullable = false, updatable = true)
+	@Enumerated(EnumType.STRING)
+	private SmsTemplateStatus status = SmsTemplateStatus.DRAFT;
 
 	@Column(nullable = true, updatable = true)
 	@Enumerated(EnumType.STRING)
