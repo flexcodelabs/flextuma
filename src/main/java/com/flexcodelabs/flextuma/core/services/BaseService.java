@@ -98,7 +98,7 @@ public abstract class BaseService<T extends BaseEntity> {
 
 		boolean isAuthorized = authorities.contains("SUPER_ADMIN") ||
 				authorities.contains(requiredPermission) ||
-				requiredPermission.equals("ALL");
+				(!isAdminEntity() && authorities.contains("ALL"));
 
 		if (!isAuthorized) {
 			throw new AccessDeniedException("You have no permission to access " + getEntityPlural());
