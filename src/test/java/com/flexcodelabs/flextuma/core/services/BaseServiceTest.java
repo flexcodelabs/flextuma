@@ -165,6 +165,15 @@ class BaseServiceTest {
     }
 
     @Test
+    void checkPermission_shouldAllowAllForNonAdminEntities() {
+        mockPermissions(Set.of("ALL"));
+        when(currentUserResolver.getCurrentUser()).thenReturn(Optional.empty());
+        when(executor.findAll(any(Specification.class))).thenReturn(List.of());
+
+        assertDoesNotThrow(() -> service.findAll());
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void getEntityFields_shouldReturnFieldDTOs() {
         when(entityManager.getMetamodel()).thenReturn(metamodel);
