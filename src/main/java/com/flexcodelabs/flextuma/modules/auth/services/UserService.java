@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.dtos.RegisterDto;
+import com.flexcodelabs.flextuma.core.dtos.ProfileUpdateDto;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 
@@ -148,6 +149,25 @@ public class UserService extends BaseService<User> {
         user.setPhoneNumber(request.getPhoneNumber());
         user.setEmail(request.getEmail());
 
+        return repository.save(user);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public User updateProfile(String currentUsername, ProfileUpdateDto request) {
+        User user = findByUsername(currentUsername);
+        repository.findByUsername(request.username())
+                .filter(existing -> !existing.getId().equals(user.getId()))
+                .ifPresent(existing -> { throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists"); });
+        repository.findByEmail(request.email())
+                .filter(existing -> !existing.getId().equals(user.getId()))
+                .ifPresent(existing -> { throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists"); });
+        repository.findByPhoneNumber(request.phoneNumber())
+                .filter(existing -> !existing.getId().equals(user.getId()))
+                .ifPresent(existing -> { throw new ResponseStatusException(HttpStatus.CONFLICT, "Phone number already exists"); });
+        user.setName(request.name());
+        user.setUsername(request.username());
+        user.setEmail(request.email());
+        user.setPhoneNumber(request.phoneNumber());
         return repository.save(user);
     }
 

@@ -84,9 +84,7 @@ public class ContactService extends BaseService<Contact> {
     public java.util.Map<String, String> delete(UUID id) {
         checkPermission(getDeletePermission());
 
-        Contact entity = getRepository().findById(id)
-                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
-                        org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
+        Contact entity = findAccessibleById(id);
 
         validateDelete(entity);
 

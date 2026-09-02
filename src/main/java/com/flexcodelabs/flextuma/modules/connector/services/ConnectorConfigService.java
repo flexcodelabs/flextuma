@@ -78,9 +78,7 @@ public class ConnectorConfigService extends BaseService<ConnectorConfig> {
     @Override
     public ConnectorConfig update(UUID id, ConnectorConfig entity) {
         checkPermission(getUpdatePermission());
-        ConnectorConfig existing = getRepository().findById(id)
-                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
-                        org.springframework.http.HttpStatus.NOT_FOUND, getEntitySingular() + " not found"));
+        ConnectorConfig existing = findAccessibleById(id);
 
         if (entity.getTenantId() != null && entity.getTenantId().contains("****")) {
             entity.setTenantId(existing.getTenantId());

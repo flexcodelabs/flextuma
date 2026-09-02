@@ -11,12 +11,14 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.flexcodelabs.flextuma.core.dtos.LoginDto;
 import com.flexcodelabs.flextuma.core.dtos.RegisterDto;
+import com.flexcodelabs.flextuma.core.dtos.ProfileUpdateDto;
 import com.flexcodelabs.flextuma.core.dtos.PasswordChangeDto;
 import com.flexcodelabs.flextuma.core.dto.ApiResponse;
 import com.flexcodelabs.flextuma.core.dtos.UserResponseDto;
@@ -134,6 +136,15 @@ public class AuthController {
                 User user = userService.findByUsername(auth.getName());
                 return ResponseEntity.ok()
                                 .body(user);
+        }
+
+        @PatchMapping("/me")
+        public ResponseEntity<Object> updateProfile(@Valid @RequestBody ProfileUpdateDto request) {
+                Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+                        return ResponseEntity.status(401).body(ErrorResponse.unauthorized("Unauthorized"));
+                }
+                return ResponseEntity.ok(userService.updateProfile(auth.getName(), request));
         }
 
         @PostMapping("/verify")

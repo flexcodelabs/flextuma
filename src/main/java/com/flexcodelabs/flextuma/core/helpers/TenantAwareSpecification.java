@@ -54,7 +54,6 @@ public class TenantAwareSpecification<T extends BaseEntity> implements Specifica
         }
 
         List<Predicate> predicates = new ArrayList<>();
-
         predicates.add(cb.equal(root.get(CREATED_BY), currentUser));
 
         Organisation organisation = currentUser.getOrganisation();
