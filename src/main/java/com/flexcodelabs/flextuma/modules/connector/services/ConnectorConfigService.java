@@ -98,6 +98,9 @@ public class ConnectorConfigService extends BaseService<ConnectorConfig> {
         if (entity.getUrl() != null && entity.getUrl().contains("****")) {
             entity.setUrl(existing.getUrl());
         }
+        if (entity.getMappings() == null || entity.getMappings().isEmpty()) {
+            entity.setMappings(existing.getMappings());
+        }
 
         return super.update(id, entity);
     }
