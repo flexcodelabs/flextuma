@@ -1,12 +1,17 @@
 package com.flexcodelabs.flextuma.modules.whatsapp.services;
 
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
+import com.flexcodelabs.flextuma.core.entities.auth.User;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppRelayDelivery;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.enums.WhatsAppRelayStatus;
+import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
+import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppWebhookOverviewDTO;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -15,13 +20,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -37,8 +47,19 @@ class WhatsAppWebhookConfigServiceTest {
     @Mock
     private WhatsAppRelayDeliveryService relayDeliveryService;
 
+    @Mock
+    private SmsConnectorRepository smsConnectorRepository;
+
+    @Mock
+    private CurrentUserResolver currentUserResolver;
+
     @InjectMocks
     private WhatsAppWebhookConfigService service;
+
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(service, "publicBaseUrl", "https://example.com");
+    }
 
     private void stubConfigs(List<WhatsAppWebhookConfig> configs) {
         when(repository.findAll(any(Specification.class), any(Pageable.class)))
@@ -144,5 +165,80 @@ class WhatsAppWebhookConfigServiceTest {
         assertEquals("LIVE", overview.configHealth().get(live.getId()));
         assertEquals("RETRYING", overview.configHealth().get(retrying.getId()));
         assertEquals("PAUSED", overview.configHealth().get(paused.getId()));
+    }
+
+    @Test
+    void onPreSave_shouldAcceptLinkedConnector_whenOwnedByCurrentUserAndIsWhatsApp() {
+        User currentUser = new User();
+        currentUser.setId(UUID.randomUUID());
+
+        UUID connectorId = UUID.randomUUID();
+        SmsConnector realConnector = new SmsConnector();
+        realConnector.setId(connectorId);
+        realConnector.setProvider("WHATSAPP");
+        realConnector.setCreatedBy(currentUser);
+
+        WhatsAppWebhookConfig entity = new WhatsAppWebhookConfig();
+        entity.setPhoneNumberId("104725069208652");
+        SmsConnector reference = new SmsConnector();
+        reference.setId(connectorId);
+        entity.setConnector(reference);
+
+        when(smsConnectorRepository.findByIdAndActiveTrue(connectorId)).thenReturn(Optional.of(realConnector));
+        when(currentUserResolver.getCurrentUser()).thenReturn(Optional.of(currentUser));
+
+        assertDoesNotThrow(() -> service.onPreSave(entity));
+        assertEquals(realConnector, entity.getConnector());
+    }
+
+    @Test
+    void onPreSave_shouldReject_whenConnectorIsNotWhatsAppProvider() {
+        UUID connectorId = UUID.randomUUID();
+        SmsConnector beemConnector = new SmsConnector();
+        beemConnector.setId(connectorId);
+        beemConnector.setProvider("BEEM");
+
+        WhatsAppWebhookConfig entity = new WhatsAppWebhookConfig();
+        entity.setPhoneNumberId("104725069208652");
+        SmsConnector reference = new SmsConnector();
+        reference.setId(connectorId);
+        entity.setConnector(reference);
+
+        when(smsConnectorRepository.findByIdAndActiveTrue(connectorId)).thenReturn(Optional.of(beemConnector));
+
+        assertThrows(ResponseStatusException.class, () -> service.onPreSave(entity));
+    }
+
+    @Test
+    void onPreSave_shouldReject_whenConnectorBelongsToAnotherUser() {
+        User owner = new User();
+        owner.setId(UUID.randomUUID());
+        User someoneElse = new User();
+        someoneElse.setId(UUID.randomUUID());
+
+        UUID connectorId = UUID.randomUUID();
+        SmsConnector realConnector = new SmsConnector();
+        realConnector.setId(connectorId);
+        realConnector.setProvider("WHATSAPP");
+        realConnector.setCreatedBy(owner);
+
+        WhatsAppWebhookConfig entity = new WhatsAppWebhookConfig();
+        entity.setPhoneNumberId("104725069208652");
+        SmsConnector reference = new SmsConnector();
+        reference.setId(connectorId);
+        entity.setConnector(reference);
+
+        when(smsConnectorRepository.findByIdAndActiveTrue(connectorId)).thenReturn(Optional.of(realConnector));
+        when(currentUserResolver.getCurrentUser()).thenReturn(Optional.of(someoneElse));
+
+        assertThrows(ResponseStatusException.class, () -> service.onPreSave(entity));
+    }
+
+    @Test
+    void onPreSave_shouldAllowNoConnector() {
+        WhatsAppWebhookConfig entity = new WhatsAppWebhookConfig();
+        entity.setPhoneNumberId("104725069208652");
+
+        assertDoesNotThrow(() -> service.onPreSave(entity));
     }
 }

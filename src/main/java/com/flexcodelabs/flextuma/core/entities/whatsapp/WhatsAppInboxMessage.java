@@ -46,6 +46,21 @@ public class WhatsAppInboxMessage extends Owner {
     @Column(columnDefinition = "TEXT")
     private String content;
 
+    /** Meta's media id for image/document/audio/video/sticker messages. Null for text. */
+    @Column(name = "media_id")
+    private String mediaId;
+
+    @Column(name = "mime_type")
+    private String mimeType;
+
+    /** Caption text attached to an image/video/document message, if any. */
+    @Column(columnDefinition = "TEXT")
+    private String caption;
+
+    /** Filename under the configured media directory once the bytes are downloaded from Meta. Null if never downloaded or the download failed. */
+    @Column(name = "media_path")
+    private String mediaPath;
+
     @Column(name = "received_at", nullable = false)
     private LocalDateTime receivedAt;
 

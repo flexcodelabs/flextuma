@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +30,15 @@ public class WhatsAppInboxMessageController extends BaseController<WhatsAppInbox
     @PostMapping("/{id}/read")
     public ResponseEntity<WhatsAppInboxMessage> markAsRead(@PathVariable UUID id) {
         return ResponseEntity.ok(service.markAsRead(id));
+    }
+
+    @GetMapping("/{id}/media")
+    public ResponseEntity<byte[]> media(@PathVariable UUID id) {
+        WhatsAppInboxMessageService.MediaContent media = service.getMedia(id);
+        MediaType contentType = media.mimeType() != null
+                ? MediaType.parseMediaType(media.mimeType())
+                : MediaType.APPLICATION_OCTET_STREAM;
+        return ResponseEntity.ok().contentType(contentType).body(media.bytes());
     }
 
     @GetMapping("/conversations")

@@ -10,6 +10,8 @@ import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppRelayDeliveryRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.WhatsAppMediaService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,10 +47,20 @@ class WhatsAppWebhookControllerTest {
     @Mock
     private WhatsAppRelayDeliveryRepository relayDeliveryRepository;
 
+    @Mock
+    private WhatsAppMediaService mediaService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @BeforeEach
+    void setUpDefaults() {
+        // Registered before any per-test stubbing, so a test that stubs a specific
+        // mediaId/owner combination still wins over this catch-all default.
+        lenient().when(mediaService.download(any(), any())).thenReturn(Optional.empty());
+    }
+
     private WhatsAppWebhookController controller() {
-        return new WhatsAppWebhookController(configRepository, smsLogRepository, inboxMessageRepository, relayDeliveryRepository, objectMapper);
+        return new WhatsAppWebhookController(configRepository, smsLogRepository, inboxMessageRepository, relayDeliveryRepository, mediaService, objectMapper);
     }
 
     private WhatsAppWebhookConfig activeConfig() {
@@ -180,6 +193,50 @@ class WhatsAppWebhookControllerTest {
         assertEquals("text", saved.getMessageType());
         assertEquals("Hello", saved.getContent());
         assertEquals(config.getCreatedBy(), saved.getCreatedBy());
+    }
+
+    @Test
+    void receive_shouldCaptureMediaMetadataAndDownload_whenMessageIsImage() {
+        WhatsAppWebhookConfig config = activeConfig();
+        when(configRepository.findByPhoneNumberIdAndActiveTrue("104725069208652")).thenReturn(Optional.of(config));
+        when(mediaService.download(config, "media-123")).thenReturn(Optional.of("stored-media-123"));
+
+        String payload = "{\"entry\":[{\"changes\":[{\"value\":{"
+                + "\"metadata\":{\"phone_number_id\":\"104725069208652\"},"
+                + "\"messages\":[{\"from\":\"255700000000\",\"id\":\"wamid.IMG\",\"timestamp\":\"1700000000\",\"type\":\"image\","
+                + "\"image\":{\"id\":\"media-123\",\"mime_type\":\"image/jpeg\",\"caption\":\"Check this out\"}}]"
+                + "}}]}]}";
+
+        controller().receive(payload, null);
+
+        ArgumentCaptor<WhatsAppInboxMessage> captor = ArgumentCaptor.forClass(WhatsAppInboxMessage.class);
+        verify(inboxMessageRepository).save(captor.capture());
+        WhatsAppInboxMessage saved = captor.getValue();
+        assertEquals("image", saved.getMessageType());
+        assertEquals("media-123", saved.getMediaId());
+        assertEquals("image/jpeg", saved.getMimeType());
+        assertEquals("Check this out", saved.getCaption());
+        assertEquals("Check this out", saved.getContent());
+        assertEquals("stored-media-123", saved.getMediaPath());
+    }
+
+    @Test
+    void receive_shouldLeaveContentNull_whenImageHasNoCaption() {
+        WhatsAppWebhookConfig config = activeConfig();
+        when(configRepository.findByPhoneNumberIdAndActiveTrue("104725069208652")).thenReturn(Optional.of(config));
+
+        String payload = "{\"entry\":[{\"changes\":[{\"value\":{"
+                + "\"metadata\":{\"phone_number_id\":\"104725069208652\"},"
+                + "\"messages\":[{\"from\":\"255700000000\",\"id\":\"wamid.IMG2\",\"timestamp\":\"1700000000\",\"type\":\"image\","
+                + "\"image\":{\"id\":\"media-456\",\"mime_type\":\"image/png\"}}]"
+                + "}}]}]}";
+
+        controller().receive(payload, null);
+
+        ArgumentCaptor<WhatsAppInboxMessage> captor = ArgumentCaptor.forClass(WhatsAppInboxMessage.class);
+        verify(inboxMessageRepository).save(captor.capture());
+        assertNull(captor.getValue().getContent());
+        assertEquals("media-456", captor.getValue().getMediaId());
     }
 
     @Test

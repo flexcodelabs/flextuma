@@ -1,9 +1,13 @@
 package com.flexcodelabs.flextuma.modules.whatsapp.services;
 
+import com.flexcodelabs.flextuma.core.entities.auth.User;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppRelayDelivery;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.enums.WhatsAppRelayStatus;
+import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
+import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppActivityItemDTO;
@@ -13,7 +17,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.time.LocalDateTime;
@@ -30,9 +36,13 @@ import com.flexcodelabs.flextuma.core.helpers.TokenGenerator;
 
 @Service @RequiredArgsConstructor
 public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookConfig> {
+    private static final String WHATSAPP_PROVIDER = "WHATSAPP";
+
     private final WhatsAppWebhookConfigRepository repository;
     private final WhatsAppInboxMessageService inboxMessageService;
     private final WhatsAppRelayDeliveryService relayDeliveryService;
+    private final SmsConnectorRepository smsConnectorRepository;
+    private final CurrentUserResolver currentUserResolver;
     @Value("${flextuma.public-base-url:}") private String publicBaseUrl;
     protected JpaRepository<WhatsAppWebhookConfig, UUID> getRepository() { return repository; }
     protected JpaSpecificationExecutor<WhatsAppWebhookConfig> getRepositoryAsExecutor() { return repository; }
@@ -66,12 +76,37 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
         entity.setMetaCallbackUrl(publicBaseUrl.replaceAll("/+$", "") + "/api/webhooks/whatsapp/" + entity.getCallbackToken());
     }
     private void validate(WhatsAppWebhookConfig entity) {
+        validateCallbackUrl(entity);
+        validateConnector(entity);
+    }
+
+    private void validateCallbackUrl(WhatsAppWebhookConfig entity) {
         String callbackUrl = entity.getCallbackUrl();
         if (callbackUrl == null || callbackUrl.isBlank()) return;
         try {
             URI uri = URI.create(callbackUrl);
             if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) throw new IllegalArgumentException();
         } catch (Exception e) { throw new IllegalArgumentException("callbackUrl must be an absolute HTTPS URL"); }
+    }
+
+    // The linked connector supplies the Meta access token WhatsAppMediaService uses to download
+    // inbound media, so it must actually be a WhatsApp connector owned by the current user --
+    // EntityAssociationReferenceResolver only resolves the id to a proxy, it never checks either.
+    private void validateConnector(WhatsAppWebhookConfig entity) {
+        if (entity.getConnector() == null || entity.getConnector().getId() == null) {
+            return;
+        }
+        SmsConnector connector = smsConnectorRepository.findByIdAndActiveTrue(entity.getConnector().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Connector not found or inactive"));
+        if (!WHATSAPP_PROVIDER.equals(connector.getProvider())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Connector must be a WhatsApp connector");
+        }
+        User currentUser = currentUserResolver.getCurrentUser()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated"));
+        if (connector.getCreatedBy() == null || !connector.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only link your own WhatsApp connector");
+        }
+        entity.setConnector(connector);
     }
 
     private static final int OVERVIEW_SCAN_LIMIT = 5000;

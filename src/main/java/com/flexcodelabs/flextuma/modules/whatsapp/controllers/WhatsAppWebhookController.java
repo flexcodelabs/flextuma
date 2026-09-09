@@ -11,6 +11,7 @@ import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppRelayDeliveryRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.WhatsAppMediaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -25,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /** Meta Cloud API webhook endpoint. Events are queued for relay to the owning user's callback URL. */
 @Slf4j
@@ -32,10 +34,13 @@ import java.util.Optional;
 @RequestMapping("/api/webhooks/whatsapp")
 @RequiredArgsConstructor
 public class WhatsAppWebhookController {
+    private static final Set<String> MEDIA_MESSAGE_TYPES = Set.of("image", "document", "audio", "video", "sticker");
+
     private final WhatsAppWebhookConfigRepository configRepository;
     private final SmsLogRepository smsLogRepository;
     private final WhatsAppInboxMessageRepository inboxMessageRepository;
     private final WhatsAppRelayDeliveryRepository relayDeliveryRepository;
+    private final WhatsAppMediaService mediaService;
     private final ObjectMapper objectMapper;
 
     @GetMapping
@@ -187,13 +192,31 @@ public class WhatsAppWebhookController {
         message.setContactName(contactNames.get(fromObj.toString()));
         message.setProviderMessageId(providerMessageId);
         message.setMessageType(type);
-        message.setContent(extractInboundContent(raw, type));
         message.setReceivedAt(parseTimestamp(raw.get("timestamp")));
+
+        if (MEDIA_MESSAGE_TYPES.contains(type)) {
+            attachMedia(message, config, nestedMap(raw, type));
+        } else {
+            message.setContent(extractInboundContent(raw, type));
+        }
+
         try {
             inboxMessageRepository.save(message);
         } catch (DataIntegrityViolationException e) {
             log.debug("Duplicate WhatsApp inbound message [{}] ignored", providerMessageId);
         }
+    }
+
+    private void attachMedia(WhatsAppInboxMessage message, WhatsAppWebhookConfig config, Map<String, Object> media) {
+        Object mediaId = media.get("id"), mimeType = media.get("mime_type"), caption = media.get("caption");
+        message.setContent(caption != null ? caption.toString() : null);
+        if (mediaId == null) {
+            return;
+        }
+        message.setMediaId(mediaId.toString());
+        message.setMimeType(mimeType != null ? mimeType.toString() : null);
+        message.setCaption(caption != null ? caption.toString() : null);
+        mediaService.download(config, mediaId.toString()).ifPresent(message::setMediaPath);
     }
 
     private String extractInboundContent(Map<String, Object> raw, String type) {

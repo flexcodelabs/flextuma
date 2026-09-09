@@ -13,12 +13,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -27,6 +31,9 @@ class WhatsAppInboxMessageServiceTest {
 
     @Mock
     private WhatsAppInboxMessageRepository repository;
+
+    @Mock
+    private WhatsAppMediaService mediaService;
 
     @InjectMocks
     private WhatsAppInboxMessageService service;
@@ -74,6 +81,22 @@ class WhatsAppInboxMessageServiceTest {
     }
 
     @Test
+    void listConversations_shouldFallBackToTypeLabel_whenMediaMessageHasNoCaption() {
+        WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
+        config.setId(UUID.randomUUID());
+
+        WhatsAppInboxMessage imageMessage = message(config, "255700000001", null, LocalDateTime.now(), false);
+        imageMessage.setMessageType("image");
+
+        when(repository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(imageMessage)));
+
+        Pagination<WhatsAppConversationDTO> result = service.listConversations(0, 25);
+
+        assertEquals("[image]", result.getData().get(0).lastMessageContent());
+    }
+
+    @Test
     void listConversations_shouldPaginate() {
         WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
         config.setId(UUID.randomUUID());
@@ -93,6 +116,38 @@ class WhatsAppInboxMessageServiceTest {
 
         Pagination<WhatsAppConversationDTO> secondPage = service.listConversations(1, 2);
         assertEquals(1, secondPage.getData().size());
+    }
+
+    @Test
+    void getMedia_shouldReturnBytesAndMimeType_whenMediaStored() {
+        WhatsAppInboxMessage message = message(new WhatsAppWebhookConfig(), "255700000001", null, LocalDateTime.now(), false);
+        message.setMediaPath("stored-filename");
+        message.setMimeType("image/jpeg");
+        when(repository.findOne(any(Specification.class))).thenReturn(Optional.of(message));
+        when(mediaService.read("stored-filename")).thenReturn(Optional.of(new byte[] { 1, 2, 3 }));
+
+        WhatsAppInboxMessageService.MediaContent media = service.getMedia(message.getId());
+
+        assertArrayEquals(new byte[] { 1, 2, 3 }, media.bytes());
+        assertEquals("image/jpeg", media.mimeType());
+    }
+
+    @Test
+    void getMedia_shouldThrowNotFound_whenMessageHasNoMedia() {
+        WhatsAppInboxMessage message = message(new WhatsAppWebhookConfig(), "255700000001", "Hello", LocalDateTime.now(), false);
+        when(repository.findOne(any(Specification.class))).thenReturn(Optional.of(message));
+
+        assertThrows(ResponseStatusException.class, () -> service.getMedia(message.getId()));
+    }
+
+    @Test
+    void getMedia_shouldThrowNotFound_whenStoredFileIsMissing() {
+        WhatsAppInboxMessage message = message(new WhatsAppWebhookConfig(), "255700000001", null, LocalDateTime.now(), false);
+        message.setMediaPath("stored-filename");
+        when(repository.findOne(any(Specification.class))).thenReturn(Optional.of(message));
+        when(mediaService.read("stored-filename")).thenReturn(Optional.empty());
+
+        assertThrows(ResponseStatusException.class, () -> service.getMedia(message.getId()));
     }
 
     @Test
