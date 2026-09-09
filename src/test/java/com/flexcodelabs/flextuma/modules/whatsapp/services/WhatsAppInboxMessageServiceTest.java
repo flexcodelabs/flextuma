@@ -1,0 +1,108 @@
+package com.flexcodelabs.flextuma.modules.whatsapp.services;
+
+import com.flexcodelabs.flextuma.core.dtos.Pagination;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
+import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppConversationDTO;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class WhatsAppInboxMessageServiceTest {
+
+    @Mock
+    private WhatsAppInboxMessageRepository repository;
+
+    @InjectMocks
+    private WhatsAppInboxMessageService service;
+
+    private WhatsAppInboxMessage message(WhatsAppWebhookConfig config, String from, String content, LocalDateTime receivedAt, boolean read) {
+        WhatsAppInboxMessage message = new WhatsAppInboxMessage();
+        message.setId(UUID.randomUUID());
+        message.setConfig(config);
+        message.setFromNumber(from);
+        message.setContent(content);
+        message.setReceivedAt(receivedAt);
+        message.setMessageType("text");
+        message.setProviderMessageId(UUID.randomUUID().toString());
+        if (read) message.setReadAt(LocalDateTime.now());
+        return message;
+    }
+
+    @Test
+    void listConversations_shouldGroupByConfigAndFromNumber_andCountUnread() {
+        WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
+        config.setId(UUID.randomUUID());
+        config.setPhoneNumberId("104725069208652");
+
+        LocalDateTime now = LocalDateTime.now();
+        List<WhatsAppInboxMessage> messages = List.of(
+                message(config, "255700000001", "Latest from Ada", now, false),
+                message(config, "255700000001", "Older from Ada", now.minusMinutes(5), false),
+                message(config, "255700000002", "Hi from Ben", now.minusMinutes(1), true));
+
+        when(repository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(messages));
+
+        Pagination<WhatsAppConversationDTO> result = service.listConversations(0, 25);
+
+        assertEquals(2, result.getTotal());
+        WhatsAppConversationDTO adaConversation = result.getData().stream()
+                .filter(c -> c.fromNumber().equals("255700000001")).findFirst().orElseThrow();
+        assertEquals("Latest from Ada", adaConversation.lastMessageContent());
+        assertEquals(2, adaConversation.unreadCount());
+        assertEquals("104725069208652", adaConversation.phoneNumberId());
+
+        WhatsAppConversationDTO benConversation = result.getData().stream()
+                .filter(c -> c.fromNumber().equals("255700000002")).findFirst().orElseThrow();
+        assertEquals(0, benConversation.unreadCount());
+    }
+
+    @Test
+    void listConversations_shouldPaginate() {
+        WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
+        config.setId(UUID.randomUUID());
+
+        LocalDateTime now = LocalDateTime.now();
+        List<WhatsAppInboxMessage> messages = List.of(
+                message(config, "255700000001", "A", now, true),
+                message(config, "255700000002", "B", now.minusMinutes(1), true),
+                message(config, "255700000003", "C", now.minusMinutes(2), true));
+
+        when(repository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(messages));
+
+        Pagination<WhatsAppConversationDTO> firstPage = service.listConversations(0, 2);
+        assertEquals(3, firstPage.getTotal());
+        assertEquals(2, firstPage.getData().size());
+
+        Pagination<WhatsAppConversationDTO> secondPage = service.listConversations(1, 2);
+        assertEquals(1, secondPage.getData().size());
+    }
+
+    @Test
+    void listConversations_shouldReturnEmptyPage_whenNoMessages() {
+        when(repository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        Pagination<WhatsAppConversationDTO> result = service.listConversations(0, 25);
+
+        assertEquals(0, result.getTotal());
+        assertEquals(0, result.getData().size());
+    }
+}

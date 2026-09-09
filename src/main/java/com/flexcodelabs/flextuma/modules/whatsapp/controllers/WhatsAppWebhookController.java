@@ -2,26 +2,31 @@ package com.flexcodelabs.flextuma.modules.whatsapp.controllers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppRelayDelivery;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
+import com.flexcodelabs.flextuma.core.helpers.HmacUtil;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppRelayDeliveryRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** Meta Cloud API webhook endpoint. Events are relayed unchanged to the owning user's callback URL. */
+/** Meta Cloud API webhook endpoint. Events are queued for relay to the owning user's callback URL. */
 @Slf4j
 @RestController
 @RequestMapping("/api/webhooks/whatsapp")
@@ -29,7 +34,8 @@ import java.util.Optional;
 public class WhatsAppWebhookController {
     private final WhatsAppWebhookConfigRepository configRepository;
     private final SmsLogRepository smsLogRepository;
-    private final RestTemplate restTemplate;
+    private final WhatsAppInboxMessageRepository inboxMessageRepository;
+    private final WhatsAppRelayDeliveryRepository relayDeliveryRepository;
     private final ObjectMapper objectMapper;
 
     @GetMapping
@@ -91,7 +97,7 @@ public class WhatsAppWebhookController {
         if (config.isEmpty()) { log.warn("Ignoring WhatsApp webhook with no active configuration"); return ResponseEntity.ok().build(); }
         if (!validMetaSignature(config.get(), rawPayload, signature)) { log.warn("Rejecting WhatsApp webhook with an invalid Meta signature for config [{}]", config.get().getId()); return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build(); }
         markEventReceived(config.get());
-        updateDeliveryStatus(payload); relay(config.get(), payload); return ResponseEntity.ok().build();
+        updateDeliveryStatus(payload); ingestInboundMessages(config.get(), payload); relay(config.get(), payload); return ResponseEntity.ok().build();
     }
 
     private Optional<String> phoneNumberId(Map<String, Object> payload) {
@@ -107,38 +113,110 @@ public class WhatsAppWebhookController {
             for (Object status : list) {
                 if (!(status instanceof Map<?, ?> raw)) continue;
                 Object id = raw.get("id"), value = raw.get("status");
-                if (id != null && value != null) smsLogRepository.findByProviderMessageId(id.toString()).ifPresent(log -> applyStatus(log, value.toString()));
+                if (id != null && value != null) smsLogRepository.findByProviderMessageId(id.toString()).ifPresent(log -> applyStatus(log, value.toString(), (Map<String, Object>) raw));
             }
         }
     }
 
-    private void applyStatus(SmsLog logEntry, String status) {
+    @SuppressWarnings("unchecked")
+    private void applyStatus(SmsLog logEntry, String status, Map<String, Object> raw) {
         if ("delivered".equalsIgnoreCase(status) || "read".equalsIgnoreCase(status)) logEntry.setStatus(SmsLogStatus.DELIVERED);
-        else if ("failed".equalsIgnoreCase(status)) logEntry.setStatus(SmsLogStatus.FAILED);
+        else if ("failed".equalsIgnoreCase(status)) { logEntry.setStatus(SmsLogStatus.FAILED); logEntry.setError(extractErrorMessage(raw)); }
         else if ("sent".equalsIgnoreCase(status)) logEntry.setStatus(SmsLogStatus.SENT);
         else return;
         smsLogRepository.save(logEntry);
     }
 
-    private void relay(WhatsAppWebhookConfig config, Map<String, Object> payload) {
-        try {
-            String json = objectMapper.writeValueAsString(payload);
-            HttpHeaders headers = new HttpHeaders(); headers.setContentType(MediaType.APPLICATION_JSON); headers.set("X-Flextuma-Event", "whatsapp");
-            if (config.getSigningSecret() != null && !config.getSigningSecret().isBlank()) headers.set("X-Flextuma-Signature-256", "sha256=" + hmac(json, config.getSigningSecret()));
-            restTemplate.postForEntity(config.getCallbackUrl(), new HttpEntity<>(json, headers), Void.class);
-        } catch (Exception e) { log.warn("Unable to relay WhatsApp webhook for config [{}]: {}", config.getId(), e.getMessage()); }
+    private String extractErrorMessage(Map<String, Object> raw) {
+        Object errors = raw.get("errors");
+        if (!(errors instanceof List<?> list) || list.isEmpty() || !(list.get(0) instanceof Map<?, ?> first)) return null;
+        Object message = first.get("message"), title = first.get("title"), code = first.get("code");
+        String text = message != null ? message.toString() : title != null ? title.toString() : "WhatsApp delivery failed";
+        return code != null ? "[" + code + "] " + text : text;
     }
 
-    private String hmac(String payload, String secret) throws Exception {
-        Mac mac = Mac.getInstance("HmacSHA256"); mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        StringBuilder result = new StringBuilder(); for (byte b : mac.doFinal(payload.getBytes(StandardCharsets.UTF_8))) result.append(String.format("%02x", b)); return result.toString();
+    @SuppressWarnings("unchecked")
+    private void ingestInboundMessages(WhatsAppWebhookConfig config, Map<String, Object> payload) {
+        for (Map<String, Object> change : changes(payload)) {
+            Map<String, Object> value = nestedMap(change, "value");
+            Object messages = value.get("messages");
+            if (!(messages instanceof List<?> list)) continue;
+            Map<String, String> contactNames = contactNamesByWaId(value);
+            for (Object item : list) {
+                if (!(item instanceof Map<?, ?> raw)) continue;
+                saveInboundMessage(config, (Map<String, Object>) raw, contactNames);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> contactNamesByWaId(Map<String, Object> value) {
+        Object contacts = value.get("contacts");
+        if (!(contacts instanceof List<?> list)) return Map.of();
+        Map<String, String> names = new HashMap<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> raw)) continue;
+            Object waId = raw.get("wa_id");
+            Object name = nestedMap((Map<String, Object>) raw, "profile").get("name");
+            if (waId != null && name != null) names.put(waId.toString(), name.toString());
+        }
+        return names;
+    }
+
+    private void saveInboundMessage(WhatsAppWebhookConfig config, Map<String, Object> raw, Map<String, String> contactNames) {
+        Object idObj = raw.get("id"), fromObj = raw.get("from"), typeObj = raw.get("type");
+        if (idObj == null || fromObj == null) return;
+        String providerMessageId = idObj.toString();
+        if (inboxMessageRepository.existsByProviderMessageId(providerMessageId)) return;
+        String type = typeObj != null ? typeObj.toString() : "unknown";
+        WhatsAppInboxMessage message = new WhatsAppInboxMessage();
+        message.setConfig(config);
+        message.setCreatedBy(config.getCreatedBy());
+        message.setFromNumber(fromObj.toString());
+        message.setContactName(contactNames.get(fromObj.toString()));
+        message.setProviderMessageId(providerMessageId);
+        message.setMessageType(type);
+        message.setContent(extractInboundContent(raw, type));
+        message.setReceivedAt(parseTimestamp(raw.get("timestamp")));
+        try {
+            inboxMessageRepository.save(message);
+        } catch (DataIntegrityViolationException e) {
+            log.debug("Duplicate WhatsApp inbound message [{}] ignored", providerMessageId);
+        }
+    }
+
+    private String extractInboundContent(Map<String, Object> raw, String type) {
+        if ("text".equals(type)) {
+            Object body = nestedMap(raw, "text").get("body");
+            if (body != null) return body.toString();
+        }
+        return "[" + type + "]";
+    }
+
+    private LocalDateTime parseTimestamp(Object timestamp) {
+        try {
+            return LocalDateTime.ofEpochSecond(Long.parseLong(timestamp.toString()), 0, ZoneOffset.UTC);
+        } catch (Exception e) {
+            return LocalDateTime.now();
+        }
+    }
+
+    private void relay(WhatsAppWebhookConfig config, Map<String, Object> payload) {
+        if (config.getCallbackUrl() == null || config.getCallbackUrl().isBlank()) return;
+        try {
+            WhatsAppRelayDelivery delivery = new WhatsAppRelayDelivery();
+            delivery.setConfig(config);
+            delivery.setCreatedBy(config.getCreatedBy());
+            delivery.setPayload(objectMapper.writeValueAsString(payload));
+            relayDeliveryRepository.save(delivery);
+        } catch (Exception e) { log.warn("Unable to queue WhatsApp relay for config [{}]: {}", config.getId(), e.getMessage()); }
     }
 
     private boolean validMetaSignature(WhatsAppWebhookConfig config, String rawPayload, String signature) {
         if (config.getAppSecret() == null || config.getAppSecret().isBlank()) return true;
         if (signature == null || !signature.startsWith("sha256=")) return false;
         try {
-            String expected = "sha256=" + hmac(rawPayload, config.getAppSecret());
+            String expected = "sha256=" + HmacUtil.sha256Hex(rawPayload, config.getAppSecret());
             return MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII), signature.getBytes(StandardCharsets.US_ASCII));
         } catch (Exception e) { return false; }
     }
