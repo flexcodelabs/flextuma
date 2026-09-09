@@ -16,6 +16,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,7 +36,8 @@ public class WhatsAppWebhookController {
     public ResponseEntity<String> verify(@RequestParam("hub.mode") String mode,
             @RequestParam("hub.verify_token") String verifyToken,
             @RequestParam("hub.challenge") String challenge) {
-        if ("subscribe".equals(mode) && configRepository.findByVerifyTokenAndActiveTrue(verifyToken).isPresent()) return ResponseEntity.ok(challenge);
+        Optional<WhatsAppWebhookConfig> config = configRepository.findByVerifyTokenAndActiveTrue(verifyToken);
+        if ("subscribe".equals(mode) && config.isPresent()) { markVerified(config.get()); return ResponseEntity.ok(challenge); }
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
@@ -45,8 +47,18 @@ public class WhatsAppWebhookController {
             @RequestParam("hub.challenge") String challenge) {
         Optional<WhatsAppWebhookConfig> config = configRepository.findByCallbackTokenAndActiveTrue(callbackToken);
         if (config.isPresent() && "subscribe".equals(mode) && MessageDigest.isEqual(
-                config.get().getVerifyToken().getBytes(StandardCharsets.UTF_8), verifyToken.getBytes(StandardCharsets.UTF_8))) return ResponseEntity.ok(challenge);
+                config.get().getVerifyToken().getBytes(StandardCharsets.UTF_8), verifyToken.getBytes(StandardCharsets.UTF_8))) { markVerified(config.get()); return ResponseEntity.ok(challenge); }
         return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
+
+    private void markVerified(WhatsAppWebhookConfig config) {
+        config.setLastVerifiedAt(LocalDateTime.now());
+        configRepository.save(config);
+    }
+
+    private void markEventReceived(WhatsAppWebhookConfig config) {
+        config.setLastEventAt(LocalDateTime.now());
+        configRepository.save(config);
     }
 
     @PostMapping
@@ -66,8 +78,11 @@ public class WhatsAppWebhookController {
             @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature) {
         try {
             Map<String, Object> payload = objectMapper.readValue(rawPayload, Map.class);
+            // The callback token itself already scopes this request to exactly one config (it's
+            // unique and unguessable), and validMetaSignature() is the real authenticity check.
+            // Meta delivers many event types (template status, account alerts, etc.) that carry no
+            // metadata.phone_number_id at all, so requiring one here rejected legitimate events.
             Optional<WhatsAppWebhookConfig> config = configRepository.findByCallbackTokenAndActiveTrue(callbackToken);
-            if (config.isPresent() && !config.get().getPhoneNumberId().equals(phoneNumberId(payload).orElse(null))) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             return handle(payload, rawPayload, signature, config);
         } catch (Exception e) { return ResponseEntity.badRequest().build(); }
     }
@@ -75,6 +90,7 @@ public class WhatsAppWebhookController {
     private ResponseEntity<Void> handle(Map<String, Object> payload, String rawPayload, String signature, Optional<WhatsAppWebhookConfig> config) {
         if (config.isEmpty()) { log.warn("Ignoring WhatsApp webhook with no active configuration"); return ResponseEntity.ok().build(); }
         if (!validMetaSignature(config.get(), rawPayload, signature)) { log.warn("Rejecting WhatsApp webhook with an invalid Meta signature for config [{}]", config.get().getId()); return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build(); }
+        markEventReceived(config.get());
         updateDeliveryStatus(payload); relay(config.get(), payload); return ResponseEntity.ok().build();
     }
 

@@ -35,6 +35,8 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
         entity.setVerifyToken(old.getVerifyToken());
         entity.setCallbackToken(old.getCallbackToken());
         entity.setMetaCallbackUrl(old.getMetaCallbackUrl());
+        entity.setLastVerifiedAt(old.getLastVerifiedAt());
+        entity.setLastEventAt(old.getLastEventAt());
         if (entity.getSigningSecret() != null && entity.getSigningSecret().contains("****")) entity.setSigningSecret(old.getSigningSecret());
         if (entity.getAppSecret() != null && entity.getAppSecret().contains("****")) entity.setAppSecret(old.getAppSecret());
         WhatsAppWebhookConfig merged = super.onPreUpdate(entity, old); validate(merged); return merged;
