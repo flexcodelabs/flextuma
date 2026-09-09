@@ -74,9 +74,15 @@ public class WhatsAppWebhookController {
         try {
             payload = objectMapper.readValue(rawPayload, Map.class);
         } catch (Exception e) {
+            log.warn("Rejecting WhatsApp webhook with unparsable JSON: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
         }
-        return handle(payload, rawPayload, signature, phoneNumberId(payload).flatMap(configRepository::findByPhoneNumberIdAndActiveTrue));
+        try {
+            return handle(payload, rawPayload, signature, phoneNumberId(payload).flatMap(configRepository::findByPhoneNumberIdAndActiveTrue));
+        } catch (RuntimeException e) {
+            log.error("WhatsApp webhook processing failed", e);
+            throw e;
+        }
     }
 
     @PostMapping("/{callbackToken}")
@@ -90,14 +96,19 @@ public class WhatsAppWebhookController {
             // metadata.phone_number_id at all, so requiring one here rejected legitimate events.
             Optional<WhatsAppWebhookConfig> config = configRepository.findByCallbackTokenAndActiveTrue(callbackToken);
             return handle(payload, rawPayload, signature, config);
-        } catch (Exception e) { return ResponseEntity.badRequest().build(); }
+        } catch (Exception e) {
+            log.error("WhatsApp webhook processing failed for callback token [{}]", callbackToken, e);
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     private ResponseEntity<Void> handle(Map<String, Object> payload, String rawPayload, String signature, Optional<WhatsAppWebhookConfig> config) {
         if (config.isEmpty()) { log.warn("Ignoring WhatsApp webhook with no active configuration"); return ResponseEntity.ok().build(); }
         if (!validMetaSignature(config.get(), rawPayload, signature)) { log.warn("Rejecting WhatsApp webhook with an invalid Meta signature for config [{}]", config.get().getId()); return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build(); }
         markEventReceived(config.get());
-        updateDeliveryStatus(payload); ingestInboundMessages(config.get(), payload); relay(config.get(), payload); return ResponseEntity.ok().build();
+        updateDeliveryStatus(payload); ingestInboundMessages(config.get(), payload); relay(config.get(), payload);
+        log.info("Processed WhatsApp webhook for config [{}]: {} change(s)", config.get().getId(), changes(payload).size());
+        return ResponseEntity.ok().build();
     }
 
     private Optional<String> phoneNumberId(Map<String, Object> payload) {
