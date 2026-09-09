@@ -3,10 +3,14 @@ package com.flexcodelabs.flextuma.core.entities.whatsapp;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.helpers.MaskingUtil;
 import com.flexcodelabs.flextuma.core.security.EncryptedStringConverter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotBlank;
@@ -32,6 +36,15 @@ public class WhatsAppWebhookConfig extends Owner {
     @NotBlank
     @Column(name = "phone_number_id", nullable = false)
     private String phoneNumberId;
+
+    /**
+     * The WHATSAPP-provider SmsConnector whose Meta access token is used to download inbound
+     * media for this webhook. Optional: when unset, WhatsAppMediaService falls back to the
+     * owner's first active WhatsApp connector, which is ambiguous if they have more than one.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "connector")
+    private SmsConnector connector;
 
     @Column(name = "callback_url", columnDefinition = "TEXT")
     private String callbackUrl;

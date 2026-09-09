@@ -24,6 +24,9 @@ import java.util.UUID;
 @Service @RequiredArgsConstructor
 public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessage> {
     private final WhatsAppInboxMessageRepository repository;
+    private final WhatsAppMediaService mediaService;
+
+    public record MediaContent(byte[] bytes, String mimeType) {}
 
     protected JpaRepository<WhatsAppInboxMessage, UUID> getRepository() { return repository; }
     protected JpaSpecificationExecutor<WhatsAppInboxMessage> getRepositoryAsExecutor() { return repository; }
@@ -45,6 +48,16 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
         throw new ResponseStatusException(HttpStatus.METHOD_NOT_ALLOWED, "Inbox messages cannot be updated manually");
     }
 
+    public MediaContent getMedia(UUID id) {
+        WhatsAppInboxMessage message = findAccessibleById(id);
+        if (message.getMediaPath() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "This message has no stored media");
+        }
+        byte[] bytes = mediaService.read(message.getMediaPath())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Media file is no longer available"));
+        return new MediaContent(bytes, message.getMimeType());
+    }
+
     @Transactional
     public WhatsAppInboxMessage markAsRead(UUID id) {
         WhatsAppInboxMessage message = findAccessibleById(id);
@@ -57,6 +70,12 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
     }
 
     private static final int CONVERSATION_SCAN_LIMIT = 2000;
+
+    /** A media message with no caption has null content; fall back to a type label for the preview. */
+    private String displayContent(WhatsAppInboxMessage message) {
+        String content = message.getContent();
+        return content != null && !content.isBlank() ? content : "[" + message.getMessageType() + "]";
+    }
 
     public Pagination<WhatsAppConversationDTO> listConversations(int page, int pageSize) {
         List<WhatsAppInboxMessage> recent = findAllPaginated(
@@ -73,7 +92,7 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
                     .phoneNumberId(message.getConfig().getPhoneNumberId())
                     .fromNumber(message.getFromNumber())
                     .contactName(message.getContactName())
-                    .lastMessageContent(message.getContent())
+                    .lastMessageContent(displayContent(message))
                     .lastMessageAt(message.getReceivedAt())
                     .build());
         }
