@@ -25,6 +25,11 @@
         <appender-ref ref="FLEXTUMA_CONSOLE" />
     </logger>
 
+    <!-- WhatsApp webhook processing: overrides the blanket "com" OFF below so its
+         log.info/warn/error calls reach Technical Logs (system_log) via the root DB
+         appender, for diagnosing inbound-event handling. -->
+    <logger name="com.flexcodelabs.flextuma.modules.whatsapp" level="INFO"/>
+
     <!-- Turn off ALL verbose loggers except SQL for debugging -->
     <logger name="o" level="OFF"/>
     <logger name="org" level="OFF"/>
