@@ -15,6 +15,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "whatsapp_webhook_config", uniqueConstraints = @UniqueConstraint(name = "uk_whatsapp_phone_number_id", columnNames = "phone_number_id"))
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
@@ -58,6 +60,14 @@ public class WhatsAppWebhookConfig extends Owner {
     @Column(name = "app_secret")
     @jakarta.persistence.Convert(converter = EncryptedStringConverter.class)
     private String appSecret;
+
+    /** Set when Meta last completed the GET verification handshake for this webhook. */
+    @Column(name = "last_verified_at")
+    private LocalDateTime lastVerifiedAt;
+
+    /** Set when Meta last delivered a signature-valid event to this webhook. */
+    @Column(name = "last_event_at")
+    private LocalDateTime lastEventAt;
 
     @JsonProperty("signingSecret") public String getMaskedSigningSecret() { return MaskingUtil.mask(signingSecret); }
     @JsonProperty("appSecret") public String getMaskedAppSecret() { return MaskingUtil.mask(appSecret); }
