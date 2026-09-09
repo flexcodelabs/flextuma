@@ -33,8 +33,7 @@ public class WhatsAppWebhookConfig extends Owner {
     @Column(name = "phone_number_id", nullable = false)
     private String phoneNumberId;
 
-    @NotBlank
-    @Column(name = "callback_url", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "callback_url", columnDefinition = "TEXT")
     private String callbackUrl;
 
     @NotBlank

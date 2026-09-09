@@ -69,6 +69,7 @@ public class DataSeederService {
                                 "READ_WALLETS",
                                 "READ_SMS_LOGS",
                                 "READ_WHATSAPP_WEBHOOK_CONFIGS",
+                                "READ_WHATSAPP_INBOX_MESSAGES",
                                 "READ_SYSTEM_LOGS")
                                 .forEach(value -> {
                                         UUID id = UUID.nameUUIDFromBytes(value.getBytes(StandardCharsets.UTF_8));
