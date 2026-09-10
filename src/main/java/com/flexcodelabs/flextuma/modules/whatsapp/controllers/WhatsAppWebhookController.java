@@ -235,7 +235,10 @@ public class WhatsAppWebhookController {
         message.setMediaId(mediaId.toString());
         message.setMimeType(mimeType != null ? mimeType.toString() : null);
         message.setCaption(caption != null ? caption.toString() : null);
-        mediaService.download(config, mediaId.toString()).ifPresent(message::setMediaPath);
+        mediaService.download(config, mediaId.toString()).ifPresent(downloaded -> {
+            message.setMediaPath(downloaded.path());
+            message.setMediaSize(downloaded.size());
+        });
     }
 
     private String extractInboundContent(Map<String, Object> raw, String type) {

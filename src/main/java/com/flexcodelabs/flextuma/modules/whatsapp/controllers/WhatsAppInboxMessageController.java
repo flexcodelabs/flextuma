@@ -4,9 +4,11 @@ import com.flexcodelabs.flextuma.core.controllers.BaseController;
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppConversationDTO;
+import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppTenantStorageUsageDTO;
 import com.flexcodelabs.flextuma.modules.whatsapp.services.WhatsAppInboxMessageService;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -39,6 +41,11 @@ public class WhatsAppInboxMessageController extends BaseController<WhatsAppInbox
                 ? MediaType.parseMediaType(media.mimeType())
                 : MediaType.APPLICATION_OCTET_STREAM;
         return ResponseEntity.ok().contentType(contentType).body(media.bytes());
+    }
+
+    @GetMapping("/storage-usage")
+    public List<WhatsAppTenantStorageUsageDTO> storageUsage() {
+        return service.storageUsage();
     }
 
     @GetMapping("/conversations")

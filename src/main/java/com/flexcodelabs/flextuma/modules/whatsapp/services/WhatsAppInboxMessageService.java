@@ -1,10 +1,15 @@
 package com.flexcodelabs.flextuma.modules.whatsapp.services;
 
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
+import com.flexcodelabs.flextuma.core.entities.auth.Organisation;
+import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
+import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
+import com.flexcodelabs.flextuma.core.security.SecurityUtils;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppConversationDTO;
+import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppTenantStorageUsageDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -23,8 +28,11 @@ import java.util.UUID;
 
 @Service @RequiredArgsConstructor
 public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessage> {
+    private static final String SUPER_ADMIN = "SUPER_ADMIN";
+
     private final WhatsAppInboxMessageRepository repository;
     private final WhatsAppMediaService mediaService;
+    private final CurrentUserResolver currentUserResolver;
 
     public record MediaContent(byte[] bytes, String mimeType) {}
 
@@ -56,6 +64,25 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
         byte[] bytes = mediaService.read(message.getMediaPath())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Media file is no longer available"));
         return new MediaContent(bytes, message.getMimeType());
+    }
+
+    /** WhatsApp media storage usage. SUPER_ADMIN sees the breakdown across every tenant
+     * (organisation, or org-less user); everyone else sees only their own tenant's usage. */
+    public List<WhatsAppTenantStorageUsageDTO> storageUsage() {
+        if (SecurityUtils.getCurrentUserAuthorities().contains(SUPER_ADMIN)) {
+            return repository.findStorageUsageByTenant();
+        }
+
+        User currentUser = currentUserResolver.getCurrentUser()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No authenticated user"));
+        Organisation organisation = currentUser.getOrganisation();
+
+        return List.of(WhatsAppTenantStorageUsageDTO.builder()
+                .tenantId(organisation != null ? organisation.getId() : currentUser.getId())
+                .tenantLabel(organisation != null ? organisation.getName() : currentUser.getUsername())
+                .totalBytes(repository.sumMediaStorageBytes(organisation, currentUser))
+                .mediaCount(repository.countMediaForTenant(organisation, currentUser))
+                .build());
     }
 
     @Transactional

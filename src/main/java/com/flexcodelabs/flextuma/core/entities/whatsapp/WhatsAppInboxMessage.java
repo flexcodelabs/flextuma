@@ -57,9 +57,15 @@ public class WhatsAppInboxMessage extends Owner {
     @Column(columnDefinition = "TEXT")
     private String caption;
 
-    /** Filename under the configured media directory once the bytes are downloaded from Meta. Null if never downloaded or the download failed. */
+    /** Tenant-scoped path ("tenantFolder/filename") under the configured media directory once
+     * the bytes are downloaded from Meta. Null if never downloaded or the download failed. */
     @Column(name = "media_path")
     private String mediaPath;
+
+    /** Size in bytes of the downloaded media file. Null if never downloaded. Used to compute
+     * per-tenant WhatsApp media storage usage. */
+    @Column(name = "media_size")
+    private Long mediaSize;
 
     @Column(name = "received_at", nullable = false)
     private LocalDateTime receivedAt;

@@ -199,7 +199,8 @@ class WhatsAppWebhookControllerTest {
     void receive_shouldCaptureMediaMetadataAndDownload_whenMessageIsImage() {
         WhatsAppWebhookConfig config = activeConfig();
         when(configRepository.findByPhoneNumberIdAndActiveTrue("104725069208652")).thenReturn(Optional.of(config));
-        when(mediaService.download(config, "media-123")).thenReturn(Optional.of("stored-media-123"));
+        when(mediaService.download(config, "media-123"))
+                .thenReturn(Optional.of(new WhatsAppMediaService.DownloadedMedia("stored-media-123", 4L)));
 
         String payload = "{\"entry\":[{\"changes\":[{\"value\":{"
                 + "\"metadata\":{\"phone_number_id\":\"104725069208652\"},"
@@ -218,6 +219,7 @@ class WhatsAppWebhookControllerTest {
         assertEquals("Check this out", saved.getCaption());
         assertEquals("Check this out", saved.getContent());
         assertEquals("stored-media-123", saved.getMediaPath());
+        assertEquals(4L, saved.getMediaSize());
     }
 
     @Test

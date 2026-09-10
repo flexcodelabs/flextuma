@@ -1,10 +1,15 @@
 package com.flexcodelabs.flextuma.modules.whatsapp.services;
 
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
+import com.flexcodelabs.flextuma.core.entities.auth.Organisation;
+import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
+import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppConversationDTO;
+import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppTenantStorageUsageDTO;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -13,6 +18,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -24,6 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,8 +47,29 @@ class WhatsAppInboxMessageServiceTest {
     @Mock
     private WhatsAppMediaService mediaService;
 
+    @Mock
+    private CurrentUserResolver currentUserResolver;
+
     @InjectMocks
     private WhatsAppInboxMessageService service;
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void authenticateAs(String... authorities) {
+        SecurityContext securityContext = mock(SecurityContext.class);
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        List<GrantedAuthority> granted = List.of(authorities).stream()
+                .map(SimpleGrantedAuthority::new)
+                .map(GrantedAuthority.class::cast)
+                .toList();
+        doReturn(granted).when(auth).getAuthorities();
+        when(securityContext.getAuthentication()).thenReturn(auth);
+        SecurityContextHolder.setContext(securityContext);
+    }
 
     private WhatsAppInboxMessage message(WhatsAppWebhookConfig config, String from, String content, LocalDateTime receivedAt, boolean read) {
         WhatsAppInboxMessage message = new WhatsAppInboxMessage();
@@ -159,5 +192,66 @@ class WhatsAppInboxMessageServiceTest {
 
         assertEquals(0, result.getTotal());
         assertEquals(0, result.getData().size());
+    }
+
+    @Test
+    void storageUsage_shouldReturnFullTenantBreakdown_forSuperAdmin() {
+        authenticateAs("SUPER_ADMIN");
+        List<WhatsAppTenantStorageUsageDTO> breakdown = List.of(
+                WhatsAppTenantStorageUsageDTO.builder().tenantId(UUID.randomUUID()).tenantLabel("Acme")
+                        .totalBytes(2048L).mediaCount(3L).build());
+        when(repository.findStorageUsageByTenant()).thenReturn(breakdown);
+
+        List<WhatsAppTenantStorageUsageDTO> result = service.storageUsage();
+
+        assertEquals(breakdown, result);
+    }
+
+    @Test
+    void storageUsage_shouldScopeByOrganisation_forNonAdminOrgMember() {
+        authenticateAs("USER");
+        Organisation organisation = new Organisation();
+        organisation.setId(UUID.randomUUID());
+        organisation.setName("Acme");
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setOrganisation(organisation);
+        when(currentUserResolver.getCurrentUser()).thenReturn(Optional.of(user));
+        when(repository.sumMediaStorageBytes(organisation, user)).thenReturn(4096L);
+        when(repository.countMediaForTenant(organisation, user)).thenReturn(5L);
+
+        List<WhatsAppTenantStorageUsageDTO> result = service.storageUsage();
+
+        assertEquals(1, result.size());
+        assertEquals(organisation.getId(), result.get(0).tenantId());
+        assertEquals("Acme", result.get(0).tenantLabel());
+        assertEquals(4096L, result.get(0).totalBytes());
+        assertEquals(5L, result.get(0).mediaCount());
+    }
+
+    @Test
+    void storageUsage_shouldFallBackToUser_forNonAdminWithoutOrganisation() {
+        authenticateAs("USER");
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setUsername("solo");
+        when(currentUserResolver.getCurrentUser()).thenReturn(Optional.of(user));
+        when(repository.sumMediaStorageBytes(null, user)).thenReturn(512L);
+        when(repository.countMediaForTenant(null, user)).thenReturn(1L);
+
+        List<WhatsAppTenantStorageUsageDTO> result = service.storageUsage();
+
+        assertEquals(1, result.size());
+        assertEquals(user.getId(), result.get(0).tenantId());
+        assertEquals("solo", result.get(0).tenantLabel());
+        assertEquals(512L, result.get(0).totalBytes());
+    }
+
+    @Test
+    void storageUsage_shouldThrowUnauthorized_whenNoCurrentUser() {
+        authenticateAs("USER");
+        when(currentUserResolver.getCurrentUser()).thenReturn(Optional.empty());
+
+        assertThrows(ResponseStatusException.class, () -> service.storageUsage());
     }
 }
