@@ -98,10 +98,11 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
 
     private static final int CONVERSATION_SCAN_LIMIT = 2000;
 
-    /** A media message with no caption has null content; fall back to a type label for the preview. */
-    private String displayContent(WhatsAppInboxMessage message) {
+    /** Null when a media message has no caption; the frontend then renders a type icon + label
+     * from {@code lastMessageType} instead of this text. */
+    private String previewContent(WhatsAppInboxMessage message) {
         String content = message.getContent();
-        return content != null && !content.isBlank() ? content : "[" + message.getMessageType() + "]";
+        return content != null && !content.isBlank() ? content : null;
     }
 
     // findAllPaginated below is called on `this`, which bypasses the Spring proxy that backs
@@ -123,7 +124,8 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
                     .phoneNumberId(message.getConfig().getPhoneNumberId())
                     .fromNumber(message.getFromNumber())
                     .contactName(message.getContactName())
-                    .lastMessageContent(displayContent(message))
+                    .lastMessageContent(previewContent(message))
+                    .lastMessageType(message.getMessageType())
                     .lastMessageAt(message.getReceivedAt())
                     .build());
         }
@@ -137,6 +139,7 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
                             .fromNumber(summary.fromNumber())
                             .contactName(summary.contactName())
                             .lastMessageContent(summary.lastMessageContent())
+                            .lastMessageType(summary.lastMessageType())
                             .lastMessageAt(summary.lastMessageAt())
                             .unreadCount(unreadCounts.getOrDefault(entry.getKey(), 0L))
                             .build();
