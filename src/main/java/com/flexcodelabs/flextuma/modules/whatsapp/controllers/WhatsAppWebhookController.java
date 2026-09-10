@@ -134,13 +134,32 @@ public class WhatsAppWebhookController {
         }
     }
 
+    // sent < delivered < read: Meta's status callbacks can arrive out of order (or duplicated),
+    // and without this a late "delivered" retry could visibly regress an already-READ message's
+    // blue ticks back to gray. FAILED isn't in this progression -- it's a terminal outcome, not
+    // a step past it.
+    private static final List<SmsLogStatus> DELIVERY_PROGRESSION = List.of(SmsLogStatus.SENT, SmsLogStatus.DELIVERED, SmsLogStatus.READ);
+
     @SuppressWarnings("unchecked")
     private void applyStatus(SmsLog logEntry, String status, Map<String, Object> raw) {
-        if ("delivered".equalsIgnoreCase(status) || "read".equalsIgnoreCase(status)) logEntry.setStatus(SmsLogStatus.DELIVERED);
-        else if ("failed".equalsIgnoreCase(status)) { logEntry.setStatus(SmsLogStatus.FAILED); logEntry.setError(extractErrorMessage(raw)); }
-        else if ("sent".equalsIgnoreCase(status)) logEntry.setStatus(SmsLogStatus.SENT);
+        SmsLogStatus next;
+        if ("read".equalsIgnoreCase(status)) next = SmsLogStatus.READ;
+        else if ("delivered".equalsIgnoreCase(status)) next = SmsLogStatus.DELIVERED;
+        else if ("failed".equalsIgnoreCase(status)) next = SmsLogStatus.FAILED;
+        else if ("sent".equalsIgnoreCase(status)) next = SmsLogStatus.SENT;
         else return;
+
+        if (next != SmsLogStatus.FAILED && isDeliveryRegression(logEntry.getStatus(), next)) return;
+
+        logEntry.setStatus(next);
+        if (next == SmsLogStatus.FAILED) logEntry.setError(extractErrorMessage(raw));
         smsLogRepository.save(logEntry);
+    }
+
+    private boolean isDeliveryRegression(SmsLogStatus current, SmsLogStatus next) {
+        int currentIndex = DELIVERY_PROGRESSION.indexOf(current);
+        int nextIndex = DELIVERY_PROGRESSION.indexOf(next);
+        return currentIndex >= 0 && nextIndex >= 0 && nextIndex < currentIndex;
     }
 
     private String extractErrorMessage(Map<String, Object> raw) {

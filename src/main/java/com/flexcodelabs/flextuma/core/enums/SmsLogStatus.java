@@ -5,5 +5,6 @@ public enum SmsLogStatus {
     PROCESSING,
     SENT,
     FAILED,
-    DELIVERED
+    DELIVERED,
+    READ
 }
