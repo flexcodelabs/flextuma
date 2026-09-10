@@ -1,9 +1,11 @@
 package com.flexcodelabs.flextuma.modules.whatsapp.services;
 
+import com.flexcodelabs.flextuma.core.entities.auth.Organisation;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.WhatsAppMediaService.DownloadedMedia;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -79,12 +81,35 @@ class WhatsAppMediaServiceTest {
                 any(HttpEntity.class), eq(byte[].class)))
                 .thenReturn(ResponseEntity.ok(fileBytes));
 
-        Optional<String> stored = service.download(config, "media-123");
+        Optional<DownloadedMedia> stored = service.download(config, "media-123");
 
         assertTrue(stored.isPresent());
-        Path storedFile = tempDir.resolve(stored.get());
+        assertEquals("user-" + owner.getId(), stored.get().path().split("/")[0]);
+        assertEquals(fileBytes.length, stored.get().size());
+        Path storedFile = tempDir.resolve(stored.get().path());
         assertTrue(Files.exists(storedFile));
         assertArrayEquals(fileBytes, readAllBytes(storedFile));
+    }
+
+    @Test
+    void download_shouldScopeByOrganisation_whenOwnerBelongsToOne() {
+        Organisation organisation = new Organisation();
+        organisation.setId(UUID.randomUUID());
+        owner.setOrganisation(organisation);
+        when(smsConnectorRepository.findByCreatedByAndProviderAndActiveTrue(owner, "WHATSAPP"))
+                .thenReturn(Optional.of(connector));
+        when(restTemplate.exchange(eq("https://graph.facebook.com/v21.0/media-123"), eq(HttpMethod.GET),
+                any(HttpEntity.class), eq(Map.class)))
+                .thenReturn(ResponseEntity.ok(Map.of("url", "https://cdn.example.com/blob")));
+        byte[] fileBytes = { 1, 2, 3 };
+        when(restTemplate.exchange(eq("https://cdn.example.com/blob"), eq(HttpMethod.GET),
+                any(HttpEntity.class), eq(byte[].class)))
+                .thenReturn(ResponseEntity.ok(fileBytes));
+
+        Optional<DownloadedMedia> stored = service.download(config, "media-123");
+
+        assertTrue(stored.isPresent());
+        assertEquals("org-" + organisation.getId(), stored.get().path().split("/")[0]);
     }
 
     @Test
@@ -98,7 +123,7 @@ class WhatsAppMediaServiceTest {
                 any(HttpEntity.class), eq(byte[].class)))
                 .thenReturn(ResponseEntity.ok(fileBytes));
 
-        Optional<String> stored = service.download(config, "media-123");
+        Optional<DownloadedMedia> stored = service.download(config, "media-123");
 
         assertTrue(stored.isPresent());
         verify(smsConnectorRepository, never()).findByCreatedByAndProviderAndActiveTrue(any(), any());
@@ -109,7 +134,7 @@ class WhatsAppMediaServiceTest {
         when(smsConnectorRepository.findByCreatedByAndProviderAndActiveTrue(owner, "WHATSAPP"))
                 .thenReturn(Optional.empty());
 
-        Optional<String> stored = service.download(config, "media-123");
+        Optional<DownloadedMedia> stored = service.download(config, "media-123");
 
         assertEquals(Optional.empty(), stored);
     }
@@ -122,7 +147,7 @@ class WhatsAppMediaServiceTest {
                 any(HttpEntity.class), eq(Map.class)))
                 .thenReturn(ResponseEntity.ok(Map.of()));
 
-        Optional<String> stored = service.download(config, "media-123");
+        Optional<DownloadedMedia> stored = service.download(config, "media-123");
 
         assertEquals(Optional.empty(), stored);
     }
@@ -134,13 +159,24 @@ class WhatsAppMediaServiceTest {
         when(restTemplate.exchange(any(String.class), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
                 .thenThrow(new RuntimeException("network error"));
 
-        Optional<String> stored = service.download(config, "media-123");
+        Optional<DownloadedMedia> stored = service.download(config, "media-123");
 
         assertEquals(Optional.empty(), stored);
     }
 
     @Test
-    void read_shouldReturnStoredBytes() {
+    void read_shouldReturnStoredBytes_forTenantScopedPath() {
+        ReflectionTestUtils.setField(service, "mediaDirectory", tempDir.toString());
+        writeFile(tempDir.resolve("user-abc").resolve("some-file"), new byte[] { 9, 8, 7 });
+
+        Optional<byte[]> bytes = service.read("user-abc/some-file");
+
+        assertTrue(bytes.isPresent());
+        assertArrayEquals(new byte[] { 9, 8, 7 }, bytes.get());
+    }
+
+    @Test
+    void read_shouldReturnStoredBytes_forLegacyBareFilename() {
         ReflectionTestUtils.setField(service, "mediaDirectory", tempDir.toString());
         writeFile(tempDir.resolve("some-file"), new byte[] { 9, 8, 7 });
 
@@ -167,6 +203,7 @@ class WhatsAppMediaServiceTest {
 
     private void writeFile(Path path, byte[] content) {
         try {
+            Files.createDirectories(path.getParent());
             Files.write(path, content);
         } catch (Exception e) {
             throw new RuntimeException(e);
