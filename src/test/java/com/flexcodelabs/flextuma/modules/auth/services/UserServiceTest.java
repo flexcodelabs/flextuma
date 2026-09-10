@@ -105,6 +105,64 @@ class UserServiceTest {
     }
 
     @Test
+    void login_shouldLookUpByEmail_whenIdentifierLooksLikeEmail() {
+        String email = "jane@example.com";
+        String password = "password";
+        String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+
+        User user = new User();
+        user.setUsername("jane");
+        user.setEmail(email);
+        user.setPassword(hashedPassword);
+
+        when(repository.findByEmailWithRoles(email)).thenReturn(Optional.of(user));
+
+        User result = service.login(email, password);
+
+        assertNotNull(result);
+        assertEquals(email, result.getEmail());
+        verify(repository, never()).findByUsername(any());
+    }
+
+    @Test
+    void login_shouldNotLookUpByUsername_whenIdentifierLooksLikeEmailButUnknown() {
+        String email = "unknown@example.com";
+        when(repository.findByEmailWithRoles(email)).thenReturn(Optional.empty());
+
+        assertThrows(ResponseStatusException.class, () -> service.login(email, "password"));
+        verify(repository, never()).findByUsername(any());
+    }
+
+    @Test
+    void checkUsernameAvailability_shouldReportAvailable_withNoSuggestions_whenUsernameIsFree() {
+        when(repository.existsByUsername("newname")).thenReturn(false);
+
+        var result = service.checkUsernameAvailability("newname");
+
+        assertTrue(result.available());
+        assertEquals(List.of(), result.suggestions());
+    }
+
+    @Test
+    void checkUsernameAvailability_shouldSuggestAlternatives_whenUsernameIsTaken() {
+        when(repository.existsByUsername("jane")).thenReturn(true);
+        when(repository.existsByUsername(argThat(candidate -> candidate.startsWith("jane") && !candidate.equals("jane"))))
+                .thenReturn(false);
+
+        var result = service.checkUsernameAvailability("jane");
+
+        assertFalse(result.available());
+        assertEquals(5, result.suggestions().size());
+        assertTrue(result.suggestions().stream().allMatch(s -> s.startsWith("jane") && !s.equals("jane")));
+        assertEquals(result.suggestions().size(), Set.copyOf(result.suggestions()).size());
+    }
+
+    @Test
+    void checkUsernameAvailability_shouldThrow_whenUsernameBlank() {
+        assertThrows(ResponseStatusException.class, () -> service.checkUsernameAvailability("   "));
+    }
+
+    @Test
     void delete_shouldThrowException_whenUserIsSystem() {
         mockPermissions(Set.of(User.DELETE));
         UUID id = UUID.randomUUID();

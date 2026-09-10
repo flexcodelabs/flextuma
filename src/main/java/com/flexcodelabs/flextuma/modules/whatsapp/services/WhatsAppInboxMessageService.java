@@ -10,11 +10,13 @@ import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
+import com.flexcodelabs.flextuma.core.senders.WhatsAppSender;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 import com.flexcodelabs.flextuma.modules.sms.services.SmsLogService;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppConversationDTO;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppTenantStorageUsageDTO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service @RequiredArgsConstructor
 public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessage> {
     private static final String SUPER_ADMIN = "SUPER_ADMIN";
@@ -40,6 +43,7 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
     private final WhatsAppMediaService mediaService;
     private final CurrentUserResolver currentUserResolver;
     private final SmsLogService smsLogService;
+    private final WhatsAppSender whatsAppSender;
 
     public record MediaContent(byte[] bytes, String mimeType) {}
 
@@ -113,9 +117,23 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
         if (message.getReadAt() == null) {
             message.setReadAt(LocalDateTime.now());
             message = repository.save(message);
+            sendReadReceiptToMeta(message);
         }
         initializeAssociationsForResponse(message);
         return message;
+    }
+
+    /** Tells Meta the message was read, so the sender sees blue double-ticks -- previously
+     * markAsRead only updated our own readAt, never Meta, so ticks stayed gray forever.
+     * Best-effort: a failure here must not undo or fail the local read state set above. */
+    private void sendReadReceiptToMeta(WhatsAppInboxMessage message) {
+        SmsConnector connector = mediaService.resolveConnector(message.getConfig());
+        if (connector == null || connector.getKey() == null || connector.getUrl() == null) {
+            log.warn("No usable WhatsApp connector with a token found for config [{}]; skipping read receipt for message [{}]",
+                    message.getConfig().getId(), message.getId());
+            return;
+        }
+        whatsAppSender.markAsRead(connector, message.getProviderMessageId());
     }
 
     private static final int CONVERSATION_SCAN_LIMIT = 2000;
