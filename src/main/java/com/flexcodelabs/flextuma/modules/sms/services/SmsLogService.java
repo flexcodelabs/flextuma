@@ -30,7 +30,10 @@ public class SmsLogService extends BaseService<SmsLog> {
 
     @Override
     protected String getReadPermission() {
-        return SmsLog.READ;
+        // Each log is tenant-scoped by BaseService (TenantAwareSpecification), so every
+        // signed-in user reads only their own org's logs -- no separate READ_SMS_LOGS
+        // privilege is needed, matching WhatsAppInboxMessageService's read access.
+        return "ALL";
     }
 
     @Override
