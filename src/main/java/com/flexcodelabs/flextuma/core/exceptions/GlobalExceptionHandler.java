@@ -142,7 +142,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Object> handleDatabaseError(DataIntegrityViolationException ex) {
         Throwable rootCause = ex.getRootCause();
         String detail = (rootCause != null) ? rootCause.getMessage() : ex.getMessage();
-        return buildResponse(sanitizeDatabaseError(detail), getResponseStatus(detail, HttpStatus.BAD_REQUEST), ex);
+        // Classify off the sanitized message, not the raw one: engine-specific wording (e.g. MySQL's
+        // "Duplicate entry ... for key ..." vs Postgres's "... already exists") only reliably normalizes
+        // to a wording getResponseStatus() recognizes ("X already exists") after sanitizeDatabaseError.
+        String sanitized = sanitizeDatabaseError(detail);
+        return buildResponse(sanitized, getResponseStatus(sanitized, HttpStatus.BAD_REQUEST), ex);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -307,23 +311,28 @@ public class GlobalExceptionHandler {
         return buildResponse(message, status, null);
     }
 
+    // Callers pass the status the exception actually carries (or, for DataIntegrityViolationException's
+    // raw DB error text, one already inferred via getResponseStatus() before calling in) -- it must be
+    // used as-is here. Re-inferring from the message text on top of that (as this used to do) meant any
+    // explicit status whose message happened to contain a word like "invalid" or "missing" -- e.g. the
+    // 401/403 "Invalid username or password" from a failed login -- got silently downgraded to 400, which
+    // also defeated UNLOGGED_STATUSES below (401/403 are meant to be routine and not error-logged, but
+    // arriving here already remapped to 400 they'd get logged anyway).
     private ResponseEntity<Object> buildResponse(String message, HttpStatus status, Throwable ex) {
-        HttpStatus finalStatus = getResponseStatus(message, status);
-
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now());
-        body.put("error", finalStatus.getReasonPhrase());
+        body.put("error", status.getReasonPhrase());
         body.put("message", message != null ? capitalize(message) : "No message available");
 
-        if (!UNLOGGED_STATUSES.contains(finalStatus)) {
+        if (!UNLOGGED_STATUSES.contains(status)) {
             if (ex != null) {
-                log.error("Request failed with {}: {}", finalStatus, message, ex);
+                log.error("Request failed with {}: {}", status, message, ex);
             } else {
-                log.error("Request failed with {}: {}", finalStatus, message);
+                log.error("Request failed with {}: {}", status, message);
             }
         }
 
-        return new ResponseEntity<>(body, finalStatus);
+        return new ResponseEntity<>(body, status);
     }
 
     private String capitalize(String str) {
