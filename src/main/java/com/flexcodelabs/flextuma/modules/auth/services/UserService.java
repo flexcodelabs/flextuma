@@ -148,8 +148,10 @@ public class UserService extends BaseService<User> {
     }
 
     /** Public, unauthenticated username-availability check backing the signup form's live
-     * validation. When taken, suggests alternatives so the caller isn't left to guess one. */
-    public UsernameAvailabilityDto checkUsernameAvailability(String rawUsername) {
+     * validation. When taken, suggests alternatives so the caller isn't left to guess one --
+     * built from the email's local part (before '@') when an email was passed and it's still
+     * free, since that's more likely to read as "theirs" than a random suffix. */
+    public UsernameAvailabilityDto checkUsernameAvailability(String rawUsername, String rawEmail) {
         String username = rawUsername == null ? "" : rawUsername.trim();
         if (username.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username is required");
@@ -158,9 +160,28 @@ public class UserService extends BaseService<User> {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username is too long");
         }
 
+        String email = rawEmail == null ? "" : rawEmail.trim().toLowerCase();
+        Boolean emailAvailable = null;
+        String emailLocalPart = null;
+        if (!email.isBlank()) {
+            emailAvailable = !repository.existsByEmail(email);
+            int at = email.indexOf('@');
+            if (at > 0) {
+                emailLocalPart = email.substring(0, at);
+            }
+        }
+
         boolean available = !repository.existsByUsername(username);
-        List<String> suggestions = available ? List.of() : generateAvailableUsernames(username);
-        return new UsernameAvailabilityDto(username, available, suggestions);
+        List<String> suggestions;
+        if (available) {
+            suggestions = List.of();
+        } else {
+            String suggestionBase = Boolean.TRUE.equals(emailAvailable) && emailLocalPart != null
+                    ? emailLocalPart
+                    : username;
+            suggestions = generateAvailableUsernames(suggestionBase);
+        }
+        return new UsernameAvailabilityDto(username, available, suggestions, emailAvailable);
     }
 
     private List<String> generateAvailableUsernames(String requested) {
@@ -187,6 +208,12 @@ public class UserService extends BaseService<User> {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "User with username " + request.getUsername() + " already exists");
         });
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            repository.findByEmail(request.getEmail()).ifPresent(u -> {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "User with email " + request.getEmail() + " already exists");
+            });
+        }
 
         User user = new User();
         user.setName(request.getName());

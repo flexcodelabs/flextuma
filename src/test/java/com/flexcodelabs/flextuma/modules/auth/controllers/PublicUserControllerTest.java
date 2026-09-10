@@ -6,11 +6,13 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+
+import org.springframework.http.MediaType;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,10 +49,12 @@ class PublicUserControllerTest {
 
     @Test
     void checkUsernameAvailability_shouldRecordAgainstRateLimiter_beforeReturningResult() throws Exception {
-        when(userService.checkUsernameAvailability("jane"))
-                .thenReturn(new UsernameAvailabilityDto("jane", true, List.of()));
+        when(userService.checkUsernameAvailability("jane", null))
+                .thenReturn(new UsernameAvailabilityDto("jane", true, List.of(), null));
 
-        mockMvc.perform(get("/api/public/users/username-availability").param("username", "jane"))
+        mockMvc.perform(post("/api/public/users/username-availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"jane\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.available").value(true));
 
@@ -62,9 +66,11 @@ class PublicUserControllerTest {
         doThrow(new RateLimitExceededException("Too many requests.", 30))
                 .when(rateLimitService).checkAndRecord(eq("username-availability"), any(), eq(20), eq(60));
 
-        mockMvc.perform(get("/api/public/users/username-availability").param("username", "jane"))
+        mockMvc.perform(post("/api/public/users/username-availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"jane\"}"))
                 .andExpect(status().isTooManyRequests());
 
-        verify(userService, never()).checkUsernameAvailability(any());
+        verify(userService, never()).checkUsernameAvailability(any(), any());
     }
 }
