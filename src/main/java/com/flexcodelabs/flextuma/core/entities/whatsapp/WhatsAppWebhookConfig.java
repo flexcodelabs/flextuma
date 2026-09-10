@@ -50,6 +50,7 @@ public class WhatsAppWebhookConfig extends Owner {
     private String callbackUrl;
 
     @NotBlank
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(name = "verify_token", nullable = false)
     @jakarta.persistence.Convert(converter = EncryptedStringConverter.class)
     private String verifyToken;
@@ -81,6 +82,7 @@ public class WhatsAppWebhookConfig extends Owner {
     @Column(name = "last_event_at")
     private LocalDateTime lastEventAt;
 
+    @JsonProperty("verifyToken") public String getMaskedVerifyToken() { return MaskingUtil.mask(verifyToken); }
     @JsonProperty("signingSecret") public String getMaskedSigningSecret() { return MaskingUtil.mask(signingSecret); }
     @JsonProperty("appSecret") public String getMaskedAppSecret() { return MaskingUtil.mask(appSecret); }
 }

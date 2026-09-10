@@ -60,19 +60,26 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
 
     @Override protected void onPreSave(WhatsAppWebhookConfig entity) { provisionMetaCallback(entity); validate(entity); }
     @Override protected WhatsAppWebhookConfig onPreUpdate(WhatsAppWebhookConfig entity, WhatsAppWebhookConfig old) {
-        // Meta-facing values are owned by Flextuma, rather than being supplied or overwritten by a client update.
-        entity.setVerifyToken(old.getVerifyToken());
+        // Meta-facing values other than verifyToken are owned by Flextuma, rather than being
+        // supplied or overwritten by a client update. verifyToken is a shared secret the caller
+        // also configures on Meta's side, so -- like appSecret/signingSecret -- it can be rotated
+        // by submitting a new value; submitting back the masked "****" placeholder is a no-op.
         entity.setCallbackToken(old.getCallbackToken());
         entity.setMetaCallbackUrl(old.getMetaCallbackUrl());
         entity.setLastVerifiedAt(old.getLastVerifiedAt());
         entity.setLastEventAt(old.getLastEventAt());
+        if (entity.getVerifyToken() != null && entity.getVerifyToken().contains("****")) entity.setVerifyToken(old.getVerifyToken());
         if (entity.getSigningSecret() != null && entity.getSigningSecret().contains("****")) entity.setSigningSecret(old.getSigningSecret());
         if (entity.getAppSecret() != null && entity.getAppSecret().contains("****")) entity.setAppSecret(old.getAppSecret());
         WhatsAppWebhookConfig merged = super.onPreUpdate(entity, old); validate(merged); return merged;
     }
     private void provisionMetaCallback(WhatsAppWebhookConfig entity) {
         if (publicBaseUrl == null || publicBaseUrl.isBlank()) throw new IllegalStateException("FLEXTUMA_PUBLIC_BASE_URL must be configured before WhatsApp webhooks can be created");
-        entity.setVerifyToken(TokenGenerator.generateSecureToken(32));
+        // A caller may supply their own verifyToken (so they know the value to paste into Meta);
+        // otherwise Flextuma generates one, which is only ever readable in full via a future rotation.
+        if (entity.getVerifyToken() == null || entity.getVerifyToken().isBlank()) {
+            entity.setVerifyToken(TokenGenerator.generateSecureToken(32));
+        }
         entity.setCallbackToken(UUID.randomUUID().toString().replace("-", ""));
         entity.setMetaCallbackUrl(publicBaseUrl.replaceAll("/+$", "") + "/api/webhooks/whatsapp/" + entity.getCallbackToken());
     }
