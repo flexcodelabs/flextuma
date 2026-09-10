@@ -157,20 +157,28 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
         Map<String, WhatsAppConversationDTO> conversations = new LinkedHashMap<>();
         Map<String, Long> unreadCounts = new LinkedHashMap<>();
         Map<UUID, WhatsAppWebhookConfig> configsByConnectorId = new LinkedHashMap<>();
+        // Resolved once per unique config (not per message) via the same fallback
+        // resolveConnector() already uses for media downloads and read receipts -- a config
+        // with no connector explicitly linked still needs an outbound match, or its contacts'
+        // replies never update the list (the bug this whole map exists to fix).
+        Map<UUID, SmsConnector> resolvedConnectorsByConfigId = new LinkedHashMap<>();
         for (WhatsAppInboxMessage message : recent) {
-            String key = message.getConfig().getId() + ":" + message.getFromNumber();
+            WhatsAppWebhookConfig config = message.getConfig();
+            String key = config.getId() + ":" + message.getFromNumber();
             unreadCounts.merge(key, message.getReadAt() == null ? 1L : 0L, Long::sum);
             conversations.putIfAbsent(key, WhatsAppConversationDTO.builder()
-                    .configId(message.getConfig().getId())
-                    .phoneNumberId(message.getConfig().getPhoneNumberId())
+                    .configId(config.getId())
+                    .phoneNumberId(config.getPhoneNumberId())
                     .fromNumber(message.getFromNumber())
                     .contactName(message.getContactName())
                     .lastMessageContent(previewContent(message))
                     .lastMessageType(message.getMessageType())
                     .lastMessageAt(message.getReceivedAt())
                     .build());
-            if (message.getConfig().getConnector() != null) {
-                configsByConnectorId.putIfAbsent(message.getConfig().getConnector().getId(), message.getConfig());
+            SmsConnector connector = resolvedConnectorsByConfigId.computeIfAbsent(config.getId(),
+                    id -> mediaService.resolveConnector(config));
+            if (connector != null) {
+                configsByConnectorId.putIfAbsent(connector.getId(), config);
             }
         }
 
