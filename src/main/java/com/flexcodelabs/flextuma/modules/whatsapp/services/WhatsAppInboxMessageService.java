@@ -3,11 +3,15 @@ package com.flexcodelabs.flextuma.modules.whatsapp.services;
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
 import com.flexcodelabs.flextuma.core.entities.auth.Organisation;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
 import com.flexcodelabs.flextuma.core.security.SecurityUtils;
 import com.flexcodelabs.flextuma.core.services.BaseService;
+import com.flexcodelabs.flextuma.modules.sms.services.SmsLogService;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppConversationDTO;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppTenantStorageUsageDTO;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +39,7 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
     private final WhatsAppInboxMessageRepository repository;
     private final WhatsAppMediaService mediaService;
     private final CurrentUserResolver currentUserResolver;
+    private final SmsLogService smsLogService;
 
     public record MediaContent(byte[] bytes, String mimeType) {}
 
@@ -132,6 +138,7 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
 
         Map<String, WhatsAppConversationDTO> conversations = new LinkedHashMap<>();
         Map<String, Long> unreadCounts = new LinkedHashMap<>();
+        Map<UUID, WhatsAppWebhookConfig> configsByConnectorId = new LinkedHashMap<>();
         for (WhatsAppInboxMessage message : recent) {
             String key = message.getConfig().getId() + ":" + message.getFromNumber();
             unreadCounts.merge(key, message.getReadAt() == null ? 1L : 0L, Long::sum);
@@ -144,9 +151,19 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
                     .lastMessageType(message.getMessageType())
                     .lastMessageAt(message.getReceivedAt())
                     .build());
+            if (message.getConfig().getConnector() != null) {
+                configsByConnectorId.putIfAbsent(message.getConfig().getConnector().getId(), message.getConfig());
+            }
         }
 
+        applyOutboundActivity(conversations, configsByConnectorId);
+
+        // Folding outbound activity in above can both reorder an existing conversation (a reply
+        // makes it more recent than one that hasn't been touched since) and append brand new
+        // ones (outbound-only, no inbound message yet) at the end of insertion order -- so the
+        // map's iteration order no longer reflects recency and must be re-sorted explicitly.
         List<WhatsAppConversationDTO> all = conversations.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue(Comparator.comparing(WhatsAppConversationDTO::lastMessageAt).reversed()))
                 .map(entry -> {
                     WhatsAppConversationDTO summary = entry.getValue();
                     return WhatsAppConversationDTO.builder()
@@ -173,5 +190,46 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
                 .pageSize(pageSize)
                 .data(pageData)
                 .build();
+    }
+
+    /** Folds recent outbound WhatsApp sends into the conversation summaries built from inbound
+     * messages above. Outbound sends are logged as {@code SmsLog} rows (there's no outbound
+     * counterpart to {@code WhatsAppInboxMessage}), so without this a reply sent after the
+     * contact's last inbound message never updates the list's preview text or ordering. An
+     * outbound row is matched to a conversation via the WhatsApp connector shared by
+     * {@code SmsLog.connector} and {@code WhatsAppWebhookConfig.connector}; a config with no
+     * connector explicitly linked can't be attributed this way and is skipped (same fallback
+     * gap {@code WhatsAppMediaService.resolveConnector} already accepts). */
+    private void applyOutboundActivity(Map<String, WhatsAppConversationDTO> conversations,
+            Map<UUID, WhatsAppWebhookConfig> configsByConnectorId) {
+        if (configsByConnectorId.isEmpty()) {
+            return;
+        }
+
+        List<SmsLog> recentOutbound = smsLogService.findAllPaginated(
+                PageRequest.of(0, CONVERSATION_SCAN_LIMIT, Sort.by(Sort.Direction.DESC, "created")),
+                List.of("connector.provider:eq:WHATSAPP"), null, "AND").getData();
+
+        for (SmsLog log : recentOutbound) {
+            SmsConnector connector = log.getConnector();
+            WhatsAppWebhookConfig config = connector != null ? configsByConnectorId.get(connector.getId()) : null;
+            if (config == null) {
+                continue;
+            }
+            String key = config.getId() + ":" + log.getRecipient();
+            WhatsAppConversationDTO existing = conversations.get(key);
+            if (existing != null && !log.getCreated().isAfter(existing.lastMessageAt())) {
+                continue;
+            }
+            conversations.put(key, WhatsAppConversationDTO.builder()
+                    .configId(config.getId())
+                    .phoneNumberId(config.getPhoneNumberId())
+                    .fromNumber(log.getRecipient())
+                    .contactName(existing != null ? existing.contactName() : null)
+                    .lastMessageContent(log.getContent())
+                    .lastMessageType("text")
+                    .lastMessageAt(log.getCreated())
+                    .build());
+        }
     }
 }
