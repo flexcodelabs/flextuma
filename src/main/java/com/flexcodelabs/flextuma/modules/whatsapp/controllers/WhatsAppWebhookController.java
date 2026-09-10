@@ -157,6 +157,12 @@ public class WhatsAppWebhookController {
     }
 
     private boolean isDeliveryRegression(SmsLogStatus current, SmsLogStatus next) {
+        // List.of(...)'s indexOf() throws NPE on a null argument (unlike ArrayList's, which just
+        // returns -1) -- and current is null for a log whose status hasn't been set yet, so this
+        // must short-circuit before reaching DELIVERY_PROGRESSION.indexOf(current) below.
+        if (current == null) {
+            return false;
+        }
         int currentIndex = DELIVERY_PROGRESSION.indexOf(current);
         int nextIndex = DELIVERY_PROGRESSION.indexOf(next);
         return currentIndex >= 0 && nextIndex >= 0 && nextIndex < currentIndex;

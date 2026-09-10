@@ -3,10 +3,13 @@ package com.flexcodelabs.flextuma.modules.whatsapp.services;
 import com.flexcodelabs.flextuma.core.dtos.Pagination;
 import com.flexcodelabs.flextuma.core.entities.auth.Organisation;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
+import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
+import com.flexcodelabs.flextuma.modules.sms.services.SmsLogService;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppConversationDTO;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppTenantStorageUsageDTO;
 import org.junit.jupiter.api.AfterEach;
@@ -49,6 +52,9 @@ class WhatsAppInboxMessageServiceTest {
 
     @Mock
     private CurrentUserResolver currentUserResolver;
+
+    @Mock
+    private SmsLogService smsLogService;
 
     @InjectMocks
     private WhatsAppInboxMessageService service;
@@ -114,6 +120,41 @@ class WhatsAppInboxMessageServiceTest {
     }
 
     @Test
+    void listConversations_shouldReflectOutboundReply_sentAfterLastInboundMessage() {
+        SmsConnector connector = new SmsConnector();
+        connector.setId(UUID.randomUUID());
+
+        WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
+        config.setId(UUID.randomUUID());
+        config.setPhoneNumberId("104725069208652");
+        config.setConnector(connector);
+
+        LocalDateTime inboundAt = LocalDateTime.now().minusHours(2);
+        WhatsAppInboxMessage inbound = message(config, "255655392445", "whatup", inboundAt, false);
+
+        when(repository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(inbound)));
+
+        SmsLog outboundReply = new SmsLog();
+        outboundReply.setRecipient("255655392445");
+        outboundReply.setContent("Testing.....");
+        outboundReply.setConnector(connector);
+        outboundReply.setCreated(inboundAt.plusHours(2));
+
+        when(smsLogService.findAllPaginated(any(Pageable.class), any(), any(), any()))
+                .thenReturn(Pagination.<SmsLog>builder().data(List.of(outboundReply)).build());
+
+        Pagination<WhatsAppConversationDTO> result = service.listConversations(0, 25);
+
+        WhatsAppConversationDTO conversation = result.getData().get(0);
+        assertEquals("Testing.....", conversation.lastMessageContent());
+        assertEquals(inboundAt.plusHours(2), conversation.lastMessageAt());
+        // The unread count still reflects the unread inbound message; the outbound reply itself
+        // isn't something the agent can leave "unread".
+        assertEquals(1, conversation.unreadCount());
+    }
+
+    @Test
     void listConversations_shouldExposeTypeAndNullContent_whenMediaMessageHasNoCaption() {
         WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
         config.setId(UUID.randomUUID());
@@ -155,6 +196,7 @@ class WhatsAppInboxMessageServiceTest {
     @Test
     void getMedia_shouldReturnBytesAndMimeType_whenMediaStored() {
         WhatsAppInboxMessage message = message(new WhatsAppWebhookConfig(), "255700000001", null, LocalDateTime.now(), false);
+        message.setMediaId("wamid.stored");
         message.setMediaPath("stored-filename");
         message.setMimeType("image/jpeg");
         when(repository.findOne(any(Specification.class))).thenReturn(Optional.of(message));
@@ -177,9 +219,13 @@ class WhatsAppInboxMessageServiceTest {
     @Test
     void getMedia_shouldThrowNotFound_whenStoredFileIsMissing() {
         WhatsAppInboxMessage message = message(new WhatsAppWebhookConfig(), "255700000001", null, LocalDateTime.now(), false);
+        message.setMediaId("wamid.stored");
         message.setMediaPath("stored-filename");
         when(repository.findOne(any(Specification.class))).thenReturn(Optional.of(message));
         when(mediaService.read("stored-filename")).thenReturn(Optional.empty());
+        // getMedia() retries the download when the cached file is missing; stub it to also fail
+        // so this stays a true "media unavailable" case rather than exercising the retry's happy path.
+        when(mediaService.download(message.getConfig(), "wamid.stored")).thenReturn(Optional.empty());
 
         assertThrows(ResponseStatusException.class, () -> service.getMedia(message.getId()));
     }
