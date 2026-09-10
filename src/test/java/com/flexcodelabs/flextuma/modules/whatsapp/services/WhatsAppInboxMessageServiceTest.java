@@ -141,6 +141,7 @@ class WhatsAppInboxMessageServiceTest {
 
         when(repository.findAll(any(Specification.class), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(inbound)));
+        when(mediaService.resolveConnector(config)).thenReturn(connector);
 
         SmsLog outboundReply = new SmsLog();
         outboundReply.setRecipient("255655392445");
@@ -159,6 +160,43 @@ class WhatsAppInboxMessageServiceTest {
         // The unread count still reflects the unread inbound message; the outbound reply itself
         // isn't something the agent can leave "unread".
         assertEquals(1, conversation.unreadCount());
+    }
+
+    @Test
+    void listConversations_shouldReflectOutboundReply_whenConfigHasNoConnectorLinkedDirectly() {
+        // WhatsAppWebhookConfig.connector is optional; resolveConnector() falls back to the
+        // owner's first active WhatsApp connector. Outbound-activity matching must go through
+        // that same fallback, not require an explicit link, or replies from tenants who never
+        // set it never update the list.
+        SmsConnector connector = new SmsConnector();
+        connector.setId(UUID.randomUUID());
+
+        WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
+        config.setId(UUID.randomUUID());
+        config.setPhoneNumberId("104725069208652");
+        // Deliberately left null: config.setConnector(...) is not called.
+
+        LocalDateTime inboundAt = LocalDateTime.now().minusHours(2);
+        WhatsAppInboxMessage inbound = message(config, "255655392445", "whatup", inboundAt, false);
+
+        when(repository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(inbound)));
+        when(mediaService.resolveConnector(config)).thenReturn(connector);
+
+        SmsLog outboundReply = new SmsLog();
+        outboundReply.setRecipient("255655392445");
+        outboundReply.setContent("I see");
+        outboundReply.setConnector(connector);
+        outboundReply.setCreated(inboundAt.plusHours(2));
+
+        when(smsLogService.findAllPaginated(any(Pageable.class), any(), any(), any()))
+                .thenReturn(Pagination.<SmsLog>builder().data(List.of(outboundReply)).build());
+
+        Pagination<WhatsAppConversationDTO> result = service.listConversations(0, 25);
+
+        WhatsAppConversationDTO conversation = result.getData().get(0);
+        assertEquals("I see", conversation.lastMessageContent());
+        assertEquals(inboundAt.plusHours(2), conversation.lastMessageAt());
     }
 
     @Test
