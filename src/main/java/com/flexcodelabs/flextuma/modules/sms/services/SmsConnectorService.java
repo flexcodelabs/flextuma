@@ -90,7 +90,11 @@ public class SmsConnectorService extends BaseService<SmsConnector> {
             if (entity.getKey() == null || entity.getKey().isBlank()) {
                 throw new IllegalArgumentException("API Key is required for " + provider);
             }
-            if (entity.getSecret() == null || entity.getSecret().isBlank()) {
+            // WhatsAppSender only sends `key` as a Bearer token; `secret` is only read by
+            // BeemSender/NextSmsSender's basic-auth pair, so it's not required (and the
+            // frontend hides the field) for WHATSAPP.
+            if (!"WHATSAPP".equalsIgnoreCase(provider)
+                    && (entity.getSecret() == null || entity.getSecret().isBlank())) {
                 throw new IllegalArgumentException("Secret Key is required for " + provider);
             }
             if (entity.getSenderId() == null || entity.getSenderId().isBlank()) {
