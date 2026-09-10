@@ -2,12 +2,13 @@ package com.flexcodelabs.flextuma.modules.auth.controllers;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.flexcodelabs.flextuma.core.dtos.UsernameAvailabilityDto;
+import com.flexcodelabs.flextuma.core.dtos.UsernameAvailabilityRequestDto;
 import com.flexcodelabs.flextuma.core.services.PublicEndpointRateLimitService;
 import com.flexcodelabs.flextuma.modules.auth.services.UserService;
 
@@ -33,10 +34,10 @@ public class PublicUserController {
     @Value("${flextuma.rate-limit.username-availability.window-seconds:60}")
     private int windowSeconds;
 
-    @GetMapping("/username-availability")
+    @PostMapping("/username-availability")
     public ResponseEntity<UsernameAvailabilityDto> checkUsernameAvailability(
-            @RequestParam("username") String username, HttpServletRequest httpRequest) {
+            @RequestBody UsernameAvailabilityRequestDto request, HttpServletRequest httpRequest) {
         rateLimitService.checkAndRecord(USERNAME_AVAILABILITY_BUCKET, httpRequest, maxRequestsPerWindow, windowSeconds);
-        return ResponseEntity.ok(userService.checkUsernameAvailability(username));
+        return ResponseEntity.ok(userService.checkUsernameAvailability(request.username(), request.email()));
     }
 }

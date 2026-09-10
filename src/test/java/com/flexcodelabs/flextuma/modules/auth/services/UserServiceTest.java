@@ -137,10 +137,11 @@ class UserServiceTest {
     void checkUsernameAvailability_shouldReportAvailable_withNoSuggestions_whenUsernameIsFree() {
         when(repository.existsByUsername("newname")).thenReturn(false);
 
-        var result = service.checkUsernameAvailability("newname");
+        var result = service.checkUsernameAvailability("newname", null);
 
         assertTrue(result.available());
         assertEquals(List.of(), result.suggestions());
+        assertNull(result.emailAvailable());
     }
 
     @Test
@@ -149,7 +150,7 @@ class UserServiceTest {
         when(repository.existsByUsername(argThat(candidate -> candidate.startsWith("jane") && !candidate.equals("jane"))))
                 .thenReturn(false);
 
-        var result = service.checkUsernameAvailability("jane");
+        var result = service.checkUsernameAvailability("jane", null);
 
         assertFalse(result.available());
         assertEquals(5, result.suggestions().size());
@@ -158,8 +159,37 @@ class UserServiceTest {
     }
 
     @Test
+    void checkUsernameAvailability_shouldSuggestFromEmailLocalPart_whenUsernameTakenAndEmailFree() {
+        when(repository.existsByUsername("jane")).thenReturn(true);
+        when(repository.existsByEmail("jane.doe@example.com")).thenReturn(false);
+        when(repository.existsByUsername(argThat(candidate -> candidate.startsWith("janedoe") && !candidate.equals("janedoe"))))
+                .thenReturn(false);
+
+        var result = service.checkUsernameAvailability("jane", "jane.doe@example.com");
+
+        assertFalse(result.available());
+        assertTrue(result.emailAvailable());
+        assertEquals(5, result.suggestions().size());
+        assertTrue(result.suggestions().stream().allMatch(s -> s.startsWith("janedoe")));
+    }
+
+    @Test
+    void checkUsernameAvailability_shouldSuggestFromUsername_whenUsernameAndEmailBothTaken() {
+        when(repository.existsByUsername("jane")).thenReturn(true);
+        when(repository.existsByEmail("jane@example.com")).thenReturn(true);
+        when(repository.existsByUsername(argThat(candidate -> candidate.startsWith("jane") && !candidate.equals("jane"))))
+                .thenReturn(false);
+
+        var result = service.checkUsernameAvailability("jane", "jane@example.com");
+
+        assertFalse(result.available());
+        assertFalse(result.emailAvailable());
+        assertTrue(result.suggestions().stream().allMatch(s -> s.startsWith("jane")));
+    }
+
+    @Test
     void checkUsernameAvailability_shouldThrow_whenUsernameBlank() {
-        assertThrows(ResponseStatusException.class, () -> service.checkUsernameAvailability("   "));
+        assertThrows(ResponseStatusException.class, () -> service.checkUsernameAvailability("   ", null));
     }
 
     @Test
