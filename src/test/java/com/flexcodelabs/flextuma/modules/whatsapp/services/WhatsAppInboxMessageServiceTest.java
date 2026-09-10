@@ -114,7 +114,7 @@ class WhatsAppInboxMessageServiceTest {
     }
 
     @Test
-    void listConversations_shouldFallBackToTypeLabel_whenMediaMessageHasNoCaption() {
+    void listConversations_shouldExposeTypeAndNullContent_whenMediaMessageHasNoCaption() {
         WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
         config.setId(UUID.randomUUID());
 
@@ -126,7 +126,8 @@ class WhatsAppInboxMessageServiceTest {
 
         Pagination<WhatsAppConversationDTO> result = service.listConversations(0, 25);
 
-        assertEquals("[image]", result.getData().get(0).lastMessageContent());
+        assertEquals(null, result.getData().get(0).lastMessageContent());
+        assertEquals("image", result.getData().get(0).lastMessageType());
     }
 
     @Test

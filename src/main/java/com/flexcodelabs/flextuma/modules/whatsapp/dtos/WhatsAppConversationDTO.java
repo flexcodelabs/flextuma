@@ -12,6 +12,10 @@ public record WhatsAppConversationDTO(
         String fromNumber,
         String contactName,
         String lastMessageContent,
+        /** WhatsApp message type ("text", "image", "sticker", ...) of the last message. The
+         * frontend uses this to render a type icon + label when {@code lastMessageContent} is
+         * null (a media message with no caption). */
+        String lastMessageType,
         LocalDateTime lastMessageAt,
         long unreadCount) {
 }
