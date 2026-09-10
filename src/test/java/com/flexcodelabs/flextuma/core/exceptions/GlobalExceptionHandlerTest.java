@@ -40,6 +40,11 @@ class GlobalExceptionHandlerTest {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bad request error");
         }
 
+        @GetMapping("/test/response-status-forbidden-with-sniffable-message")
+        public void throwResponseStatusForbiddenWithSniffableMessage() {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid username or password");
+        }
+
         @GetMapping("/test/general")
         public void throwGeneral() throws Exception {
             throw new Exception("General error");
@@ -130,6 +135,16 @@ class GlobalExceptionHandlerTest {
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Bad request error"));
+    }
+
+    @Test
+    void handleResponseStatusException_shouldNotDowngradeStatusBasedOnMessageWording() throws Exception {
+        // Regression test: the exception's own status (here FORBIDDEN) must win even though the
+        // message contains "invalid", which getResponseStatus() would otherwise read as BAD_REQUEST.
+        mockMvc.perform(get("/test/response-status-forbidden-with-sniffable-message")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Invalid username or password"));
     }
 
     @Test
