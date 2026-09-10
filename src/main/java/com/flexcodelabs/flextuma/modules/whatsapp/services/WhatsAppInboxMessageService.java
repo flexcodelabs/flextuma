@@ -77,6 +77,10 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
         return content != null && !content.isBlank() ? content : "[" + message.getMessageType() + "]";
     }
 
+    // findAllPaginated below is called on `this`, which bypasses the Spring proxy that backs
+    // BaseService's own @Transactional -- without a transaction open here, EntityResponseInitializer
+    // hits a LazyInitializationException initializing WhatsAppInboxMessage.config.
+    @Transactional(readOnly = true)
     public Pagination<WhatsAppConversationDTO> listConversations(int page, int pageSize) {
         List<WhatsAppInboxMessage> recent = findAllPaginated(
                 PageRequest.of(0, CONVERSATION_SCAN_LIMIT, Sort.by(Sort.Direction.DESC, "receivedAt")),
