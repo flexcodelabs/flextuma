@@ -37,7 +37,7 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public class DashboardService {
 
-    private static final EnumSet<SmsLogStatus> SUCCESS_STATUSES = EnumSet.of(SmsLogStatus.SENT, SmsLogStatus.DELIVERED);
+    private static final EnumSet<SmsLogStatus> SUCCESS_STATUSES = EnumSet.of(SmsLogStatus.SENT, SmsLogStatus.DELIVERED, SmsLogStatus.READ);
     private static final EnumSet<SmsCampaignStatus> ACTIVE_CAMPAIGN_STATUSES = EnumSet.of(
             SmsCampaignStatus.SCHEDULED,
             SmsCampaignStatus.PROCESSING);
