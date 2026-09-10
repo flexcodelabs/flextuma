@@ -19,6 +19,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
@@ -111,6 +112,10 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
 
     private static final int OVERVIEW_SCAN_LIMIT = 5000;
 
+    // findAllPaginated below is called on `this`, which bypasses the Spring proxy that backs
+    // BaseService's own @Transactional -- without a transaction open here, EntityResponseInitializer
+    // hits a LazyInitializationException initializing WhatsAppWebhookConfig.createdBy.
+    @Transactional(readOnly = true)
     public WhatsAppWebhookOverviewDTO getOverview() {
         LocalDateTime now = LocalDateTime.now();
 
