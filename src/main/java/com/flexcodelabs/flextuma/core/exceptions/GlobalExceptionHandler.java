@@ -46,6 +46,8 @@ public class GlobalExceptionHandler {
 
     private static final Pattern MISSING_TABLE_ENTRY_PATTERN = Pattern.compile("is not present in table \"([^\"]+)\"");
 
+    private static final Pattern VALUE_TOO_LONG_PATTERN = Pattern.compile("value too long for type (?:character varying|varchar)\\((\\d+)\\)");
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
         String defaultMessage = "The request body is missing or the JSON format is invalid.";
@@ -66,7 +68,7 @@ public class GlobalExceptionHandler {
             }
         }
 
-        return buildResponse(message, HttpStatus.BAD_REQUEST);
+        return buildResponse(message, HttpStatus.BAD_REQUEST, ex);
     }
 
     private String tryBuildEnumErrorMessage(String detailedMessage) {
@@ -125,7 +127,7 @@ public class GlobalExceptionHandler {
         HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
         if (status == null)
             status = HttpStatus.INTERNAL_SERVER_ERROR;
-        return buildResponse(ex.getReason(), status);
+        return buildResponse(ex.getReason(), status, ex);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -133,14 +135,14 @@ public class GlobalExceptionHandler {
         String message = ex.getConstraintViolations().stream()
                 .map(violation -> violation.getMessage() != null ? violation.getMessage() : "Invalid constraint")
                 .collect(Collectors.joining(", "));
-        return buildResponse(message, HttpStatus.BAD_REQUEST);
+        return buildResponse(message, HttpStatus.BAD_REQUEST, ex);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Object> handleDatabaseError(DataIntegrityViolationException ex) {
         Throwable rootCause = ex.getRootCause();
         String detail = (rootCause != null) ? rootCause.getMessage() : ex.getMessage();
-        return buildResponse(sanitizeDatabaseError(detail), getResponseStatus(detail, HttpStatus.BAD_REQUEST));
+        return buildResponse(sanitizeDatabaseError(detail), getResponseStatus(detail, HttpStatus.BAD_REQUEST), ex);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -152,7 +154,17 @@ public class GlobalExceptionHandler {
                     return (field != null ? field : "Field") + " " + (defaultMsg != null ? defaultMsg : "is invalid");
                 })
                 .collect(Collectors.joining(", "));
-        return buildResponse(message, HttpStatus.BAD_REQUEST);
+        return buildResponse(message, HttpStatus.BAD_REQUEST, ex);
+    }
+
+    // Service-layer validation throughout the app signals with these two (e.g. "Secret Key is
+    // required for whatsapp", "You cannot delete an active connector") and expects the message
+    // shown as-is. Without this handler they fall into handleGeneral() as a 500, and the
+    // frontend's Axios interceptor discards any >=500 message and shows "Something went wrong"
+    // instead -- so a perfectly good, specific message never reaches the user.
+    @ExceptionHandler({ IllegalArgumentException.class, IllegalStateException.class })
+    public ResponseEntity<Object> handleIllegalArgument(RuntimeException ex) {
+        return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST, ex);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -161,7 +173,7 @@ public class GlobalExceptionHandler {
         if (message == null || message.equalsIgnoreCase("Access is denied")) {
             message = "You do not have permission to perform this action";
         }
-        return buildResponse(message, HttpStatus.FORBIDDEN);
+        return buildResponse(message, HttpStatus.FORBIDDEN, ex);
     }
 
     @ExceptionHandler({ NoResourceFoundException.class, HttpRequestMethodNotSupportedException.class })
@@ -190,14 +202,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<Object> handleRateLimitExceeded(RateLimitExceededException ex) {
-        return buildResponse(ex.getMessage(), HttpStatus.TOO_MANY_REQUESTS);
+        return buildResponse(ex.getMessage(), HttpStatus.TOO_MANY_REQUESTS, ex);
     }
 
     @ExceptionHandler(InvalidEnumValueException.class)
     public ResponseEntity<Object> handleEnumDeserializationError(InvalidEnumValueException ex) {
         String message = String.format("Invalid value provided for '%s'. Allowed values are: %s.",
                 ex.getFieldName(), String.join(", ", ex.getEnumValues()));
-        return buildResponse(message, HttpStatus.BAD_REQUEST);
+        return buildResponse(message, HttpStatus.BAD_REQUEST, ex);
     }
 
     @ExceptionHandler(JsonMappingException.class)
@@ -205,7 +217,7 @@ public class GlobalExceptionHandler {
         if (ex.getCause() instanceof InvalidEnumValueException cause) {
             return handleEnumDeserializationError(cause);
         }
-        return buildResponse("Invalid request format", HttpStatus.BAD_REQUEST);
+        return buildResponse("Invalid request format", HttpStatus.BAD_REQUEST, ex);
     }
 
     @ExceptionHandler(TransactionSystemException.class)
@@ -218,9 +230,9 @@ public class GlobalExceptionHandler {
             return handleDatabaseError(dataEx);
         }
         if (cause != null) {
-            return buildResponse(sanitizeGeneralMessage(cause.getMessage()), HttpStatus.BAD_REQUEST);
+            return buildResponse(sanitizeGeneralMessage(cause.getMessage()), HttpStatus.BAD_REQUEST, cause);
         }
-        return buildResponse("Could not commit database transaction", HttpStatus.INTERNAL_SERVER_ERROR);
+        return buildResponse("Could not commit database transaction", HttpStatus.INTERNAL_SERVER_ERROR, ex);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -230,13 +242,12 @@ public class GlobalExceptionHandler {
         String type = (requiredType != null) ? requiredType.getSimpleName() : "unknown";
         Object value = ex.getValue();
         String message = String.format("Parameter '%s' must be a valid %s. Received: '%s'", name, type, value);
-        return buildResponse(message, HttpStatus.BAD_REQUEST);
+        return buildResponse(message, HttpStatus.BAD_REQUEST, ex);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleGeneral(Exception ex) {
-        log.error("Unhandled exception", ex);
-        return buildResponse(sanitizeGeneralMessage(ex.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR);
+        return buildResponse(sanitizeGeneralMessage(ex.getMessage()), HttpStatus.INTERNAL_SERVER_ERROR, ex);
     }
 
     private String sanitizeDatabaseError(String message) {
@@ -266,6 +277,13 @@ public class GlobalExceptionHandler {
                 return matcher.group(1).replace("_", " ") + " could not be found";
         }
 
+        if (message.contains("value too long")) {
+            Matcher matcher = VALUE_TOO_LONG_PATTERN.matcher(message);
+            if (matcher.find())
+                return "Value exceeds the maximum length of " + matcher.group(1) + " characters";
+            return "Value is too long";
+        }
+
         return "Database integrity violation";
     }
 
@@ -279,13 +297,33 @@ public class GlobalExceptionHandler {
         return message;
     }
 
+    // 401/403/406 are routine, high-volume, and expected (unauthenticated requests, permission
+    // checks, content-negotiation misses) -- logging them as errors would just be noise that
+    // buries the failures worth investigating.
+    private static final java.util.Set<HttpStatus> UNLOGGED_STATUSES = java.util.Set.of(
+            HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.NOT_ACCEPTABLE);
+
     private ResponseEntity<Object> buildResponse(String message, HttpStatus status) {
+        return buildResponse(message, status, null);
+    }
+
+    private ResponseEntity<Object> buildResponse(String message, HttpStatus status, Throwable ex) {
+        HttpStatus finalStatus = getResponseStatus(message, status);
+
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now());
-        body.put("error", status.getReasonPhrase());
+        body.put("error", finalStatus.getReasonPhrase());
         body.put("message", message != null ? capitalize(message) : "No message available");
 
-        return new ResponseEntity<>(body, getResponseStatus(message, status));
+        if (!UNLOGGED_STATUSES.contains(finalStatus)) {
+            if (ex != null) {
+                log.error("Request failed with {}: {}", finalStatus, message, ex);
+            } else {
+                log.error("Request failed with {}: {}", finalStatus, message);
+            }
+        }
+
+        return new ResponseEntity<>(body, finalStatus);
     }
 
     private String capitalize(String str) {

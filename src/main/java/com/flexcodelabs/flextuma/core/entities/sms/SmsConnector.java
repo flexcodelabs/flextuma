@@ -34,7 +34,10 @@ public class SmsConnector extends Owner {
     @NotBlank(message = "Url is required")
     private String url;
 
-    @Column(nullable = true)
+    // TEXT, not varchar(255): the stored value is AES-GCM ciphertext (IV + tag) base64-encoded
+    // with an "enc:v1:" prefix, which comfortably exceeds 255 chars for long tokens such as
+    // Meta's permanent/system-user WhatsApp access tokens.
+    @Column(nullable = true, columnDefinition = "TEXT")
     @Convert(converter = EncryptedStringConverter.class)
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String key;
@@ -42,7 +45,7 @@ public class SmsConnector extends Owner {
     @Column(name = "isdefault")
     private Boolean isDefault = true;
 
-    @Column(nullable = true)
+    @Column(nullable = true, columnDefinition = "TEXT")
     @Convert(converter = EncryptedStringConverter.class)
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String secret;
