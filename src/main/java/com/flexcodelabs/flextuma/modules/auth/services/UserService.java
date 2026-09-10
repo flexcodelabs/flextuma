@@ -1,5 +1,9 @@
 package com.flexcodelabs.flextuma.modules.auth.services;
 
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.dtos.RegisterDto;
 import com.flexcodelabs.flextuma.core.dtos.ProfileUpdateDto;
+import com.flexcodelabs.flextuma.core.dtos.UsernameAvailabilityDto;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 
@@ -30,6 +35,9 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class UserService extends BaseService<User> {
+    private static final int MAX_USERNAME_SUGGESTIONS = 5;
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     private final UserRepository repository;
     private final PasswordEncoder passwordEncoder;
 
@@ -95,10 +103,13 @@ public class UserService extends BaseService<User> {
         }
     }
 
-    public User login(String username, String password) {
-        User user = repository.findByUsername(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        "Invalid username or password"));
+    public User login(String identifier, String password) {
+        boolean looksLikeEmail = identifier != null && identifier.contains("@");
+        Optional<User> found = looksLikeEmail
+                ? repository.findByEmailWithRoles(identifier)
+                : repository.findByUsername(identifier);
+        User user = found.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "Invalid username or password"));
         if (!user.validatePassword(password)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
         }
@@ -134,6 +145,41 @@ public class UserService extends BaseService<User> {
         return repository.findByUsername(username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "User with username " + username + " not found"));
+    }
+
+    /** Public, unauthenticated username-availability check backing the signup form's live
+     * validation. When taken, suggests alternatives so the caller isn't left to guess one. */
+    public UsernameAvailabilityDto checkUsernameAvailability(String rawUsername) {
+        String username = rawUsername == null ? "" : rawUsername.trim();
+        if (username.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username is required");
+        }
+        if (username.length() > 50) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username is too long");
+        }
+
+        boolean available = !repository.existsByUsername(username);
+        List<String> suggestions = available ? List.of() : generateAvailableUsernames(username);
+        return new UsernameAvailabilityDto(username, available, suggestions);
+    }
+
+    private List<String> generateAvailableUsernames(String requested) {
+        String base = requested.toLowerCase().replaceAll("[^a-z0-9_]", "");
+        if (base.isBlank()) {
+            base = "user";
+        }
+
+        List<String> suggestions = new ArrayList<>();
+        // Bounded so a base that happens to collide with every random suffix (astronomically
+        // unlikely, but not impossible) can't spin this into an unbounded loop.
+        int maxAttempts = MAX_USERNAME_SUGGESTIONS * 20;
+        for (int attempt = 0; suggestions.size() < MAX_USERNAME_SUGGESTIONS && attempt < maxAttempts; attempt++) {
+            String candidate = base + (1000 + RANDOM.nextInt(9000));
+            if (!suggestions.contains(candidate) && !repository.existsByUsername(candidate)) {
+                suggestions.add(candidate);
+            }
+        }
+        return suggestions;
     }
 
     public User register(RegisterDto request) {

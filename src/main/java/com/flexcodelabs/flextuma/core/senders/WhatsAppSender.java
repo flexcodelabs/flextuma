@@ -6,6 +6,7 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.services.SmsSendResult;
 import com.flexcodelabs.flextuma.core.services.SmsSender;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -17,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** WhatsApp Cloud API text-message sender. The connector key is a Meta access token. */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WhatsAppSender implements SmsSender {
@@ -53,6 +55,28 @@ public class WhatsAppSender implements SmsSender {
         } catch (Exception e) {
             return SmsSendResult.failure("Failed to send WhatsApp message: " + e.getMessage(), "SEND_ERROR",
                     Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** Tells Meta a message was read, so the sender sees blue double-ticks. Never throws --
+     * this is best-effort: Meta's API hiccuping shouldn't block marking a message read locally. */
+    public boolean markAsRead(SmsConnector config, String providerMessageId) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(config.getKey());
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("messaging_product", "whatsapp");
+            body.put("status", "read");
+            body.put("message_id", providerMessageId);
+
+            ResponseEntity<Map> response = restTemplate.postForEntity(messageUrl(config),
+                    new HttpEntity<>(body, headers), Map.class);
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            log.warn("Failed to send WhatsApp read receipt for message [{}]: {}", providerMessageId, e.getMessage());
+            return false;
         }
     }
 

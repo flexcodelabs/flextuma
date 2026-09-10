@@ -9,6 +9,7 @@ import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
+import com.flexcodelabs.flextuma.core.senders.WhatsAppSender;
 import com.flexcodelabs.flextuma.modules.sms.services.SmsLogService;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppConversationDTO;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppTenantStorageUsageDTO;
@@ -35,10 +36,13 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,6 +59,9 @@ class WhatsAppInboxMessageServiceTest {
 
     @Mock
     private SmsLogService smsLogService;
+
+    @Mock
+    private WhatsAppSender whatsAppSender;
 
     @InjectMocks
     private WhatsAppInboxMessageService service;
@@ -228,6 +235,50 @@ class WhatsAppInboxMessageServiceTest {
         when(mediaService.download(message.getConfig(), "wamid.stored")).thenReturn(Optional.empty());
 
         assertThrows(ResponseStatusException.class, () -> service.getMedia(message.getId()));
+    }
+
+    @Test
+    void markAsRead_shouldSendReadReceiptToMeta_whenConnectorResolves() {
+        WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
+        config.setId(UUID.randomUUID());
+        SmsConnector connector = new SmsConnector();
+        connector.setKey("meta-token");
+        connector.setUrl("https://graph.facebook.com/v22.0");
+
+        WhatsAppInboxMessage message = message(config, "255700000001", "Hello", LocalDateTime.now(), false);
+        message.setProviderMessageId("wamid.abc123");
+        when(repository.findOne(any(Specification.class))).thenReturn(Optional.of(message));
+        when(repository.save(any(WhatsAppInboxMessage.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(mediaService.resolveConnector(config)).thenReturn(connector);
+
+        service.markAsRead(message.getId());
+
+        verify(whatsAppSender).markAsRead(connector, "wamid.abc123");
+    }
+
+    @Test
+    void markAsRead_shouldNotSendReadReceiptAgain_whenAlreadyRead() {
+        WhatsAppInboxMessage message = message(new WhatsAppWebhookConfig(), "255700000001", "Hello", LocalDateTime.now(), true);
+        when(repository.findOne(any(Specification.class))).thenReturn(Optional.of(message));
+
+        service.markAsRead(message.getId());
+
+        verify(whatsAppSender, never()).markAsRead(any(), any());
+    }
+
+    @Test
+    void markAsRead_shouldSkipReadReceipt_whenNoConnectorResolves() {
+        WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
+        config.setId(UUID.randomUUID());
+        WhatsAppInboxMessage message = message(config, "255700000001", "Hello", LocalDateTime.now(), false);
+        when(repository.findOne(any(Specification.class))).thenReturn(Optional.of(message));
+        when(repository.save(any(WhatsAppInboxMessage.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(mediaService.resolveConnector(config)).thenReturn(null);
+
+        WhatsAppInboxMessage result = service.markAsRead(message.getId());
+
+        assertNotNull(result.getReadAt());
+        verify(whatsAppSender, never()).markAsRead(any(), any());
     }
 
     @Test

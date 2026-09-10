@@ -16,7 +16,14 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles LEFT JOIN FETCH u.roles.privileges WHERE u.username = :username")
     Optional<User> findByUsername(@Param("username") String username);
 
+    // Mirrors findByUsername's eager fetch: login() needs roles+privileges loaded before the
+    // transaction closes (spring.jpa.open-in-view=false), whichever of the two this resolves via.
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles LEFT JOIN FETCH u.roles.privileges WHERE u.email = :email")
+    Optional<User> findByEmailWithRoles(@Param("email") String email);
+
     Optional<User> findByEmail(String email);
 
     Optional<User> findByPhoneNumber(String phoneNumber);
+
+    boolean existsByUsername(String username);
 }
