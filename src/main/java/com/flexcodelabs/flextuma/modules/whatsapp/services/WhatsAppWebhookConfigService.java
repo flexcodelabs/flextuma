@@ -199,6 +199,14 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
                 health.put(config.getId(), "PAUSED");
                 continue;
             }
+            // A connector is optional (only needed to download inbound media), so its absence
+            // isn't a problem -- but a linked connector that's been deactivated will silently
+            // fail every media download, and nothing else here would ever surface that.
+            SmsConnector connector = config.getConnector();
+            if (connector != null && !Boolean.TRUE.equals(connector.getActive())) {
+                health.put(config.getId(), "DISCONNECTED");
+                continue;
+            }
             List<WhatsAppRelayDelivery> configDeliveries = deliveriesByConfig.getOrDefault(config.getId(), List.of());
             boolean retrying = configDeliveries.stream().anyMatch(d ->
                     d.getStatus() == WhatsAppRelayStatus.PENDING || d.getStatus() == WhatsAppRelayStatus.PROCESSING
