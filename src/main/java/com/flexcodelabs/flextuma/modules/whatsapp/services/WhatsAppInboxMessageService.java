@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service @RequiredArgsConstructor
@@ -56,14 +57,29 @@ public class WhatsAppInboxMessageService extends BaseService<WhatsAppInboxMessag
         throw new ResponseStatusException(HttpStatus.METHOD_NOT_ALLOWED, "Inbox messages cannot be updated manually");
     }
 
+    /** Serves the cached copy of the message's media, re-downloading it from Meta on the fly if
+     * it was never successfully cached (e.g. the connector token was briefly unusable at
+     * ingestion time) or the cached file has since gone missing from disk. */
+    @Transactional
     public MediaContent getMedia(UUID id) {
         WhatsAppInboxMessage message = findAccessibleById(id);
-        if (message.getMediaPath() == null) {
+        if (message.getMediaId() == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "This message has no stored media");
         }
-        byte[] bytes = mediaService.read(message.getMediaPath())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Media file is no longer available"));
-        return new MediaContent(bytes, message.getMimeType());
+        Optional<byte[]> bytes = message.getMediaPath() != null
+                ? mediaService.read(message.getMediaPath())
+                : Optional.empty();
+        if (bytes.isEmpty()) {
+            bytes = mediaService.download(message.getConfig(), message.getMediaId()).flatMap(downloaded -> {
+                message.setMediaPath(downloaded.path());
+                message.setMediaSize(downloaded.size());
+                repository.save(message);
+                return mediaService.read(downloaded.path());
+            });
+        }
+        return new MediaContent(
+                bytes.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Media file is no longer available")),
+                message.getMimeType());
     }
 
     /** WhatsApp media storage usage. SUPER_ADMIN sees the breakdown across every tenant

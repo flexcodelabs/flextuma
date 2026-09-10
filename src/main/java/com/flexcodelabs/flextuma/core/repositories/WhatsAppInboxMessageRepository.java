@@ -4,11 +4,13 @@ import com.flexcodelabs.flextuma.core.entities.auth.Organisation;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppTenantStorageUsageDTO;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,6 +18,12 @@ import java.util.UUID;
 public interface WhatsAppInboxMessageRepository extends BaseRepository<WhatsAppInboxMessage, UUID>,
         JpaSpecificationExecutor<WhatsAppInboxMessage> {
     boolean existsByProviderMessageId(String providerMessageId);
+
+    /** Candidates for {@code WhatsAppMediaBackfillWorker}: messages that carry a Meta media id
+     * but never got a cached copy on disk, bounded to recent messages since Meta's CDN only
+     * keeps media retrievable for a limited window. */
+    List<WhatsAppInboxMessage> findByMediaIdIsNotNullAndMediaPathIsNullAndReceivedAtAfter(
+            LocalDateTime receivedAfter, Pageable pageable);
 
     /** Bytes of WhatsApp media stored for one tenant: everyone in {@code organisation} when it
      * is non-null, otherwise just {@code user} (the org-less-account fallback). */
