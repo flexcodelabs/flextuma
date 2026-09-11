@@ -2,10 +2,13 @@ package com.flexcodelabs.flextuma.core.services;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.flexcodelabs.flextuma.core.exceptions.MissingSeedConfigurationException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -18,6 +21,15 @@ public class DataSeederService {
 
         private final JdbcTemplate jdbcTemplate;
         private final PasswordEncoder passwordEncoder;
+
+        // No default on purpose: a fresh deployment must supply these before its first boot, so a
+        // public checkout of this repo can never ship a working default credential. Once the
+        // account exists, later boots don't re-check the property (see seedUserIfAbsent).
+        @Value("${flextuma.admin-seed.password:}")
+        private String adminSeedPassword;
+
+        @Value("${flextuma.system-seed.password:}")
+        private String systemSeedPassword;
 
         @Transactional
         public void seedSystemData() {
@@ -50,10 +62,12 @@ public class DataSeederService {
 
                         seedReadPrivileges();
 
-                        seedUser(roleId, "admin", "admin@flextuma.com", "Admin123", roleId);
+                        seedUserIfAbsent(roleId, "admin", "admin@flextuma.com", adminSeedPassword,
+                                        roleId, "FLEXTUMA_ADMIN_SEED_PASSWORD");
 
-                        seedUser(UUID.fromString("7269df24-68a0-4776-bd89-4015521bc19d"), "SYSTEM",
-                                        "system@flextuma.com", "system_secret_key", roleId);
+                        seedUserIfAbsent(UUID.fromString("7269df24-68a0-4776-bd89-4015521bc19d"), "SYSTEM",
+                                        "system@flextuma.com", systemSeedPassword, roleId,
+                                        "FLEXTUMA_SYSTEM_SEED_PASSWORD");
 
                         log.info("✅✅✅ System seeding via JDBC completed successfully. ✅✅✅");
                 } catch (Exception e) {
@@ -79,6 +93,25 @@ public class DataSeederService {
                                                                         "ON CONFLICT (value) DO NOTHING",
                                                         id, value.replace('_', ' '), value);
                                 });
+        }
+
+        /** Only the first-ever boot for a given userId needs the password: once the row exists,
+         * later restarts skip straight past the property check (ON CONFLICT already makes the
+         * insert itself idempotent, but checking here avoids demanding the env var forever). */
+        private void seedUserIfAbsent(UUID userId, String username, String email, String pass, UUID roleId,
+                        String requiredEnvVarName) {
+                Boolean exists = jdbcTemplate.queryForObject(
+                                "SELECT EXISTS(SELECT 1 FROM \"user\" WHERE id = ?)", Boolean.class, userId);
+                if (Boolean.TRUE.equals(exists)) {
+                        log.info("👤 User {} already seeded, skipping.", username);
+                        return;
+                }
+                if (pass == null || pass.isBlank()) {
+                        throw new MissingSeedConfigurationException(
+                                        requiredEnvVarName + " must be set before the initial '" + username
+                                                        + "' account can be created.");
+                }
+                seedUser(userId, username, email, pass, roleId);
         }
 
         private void seedUser(UUID userId, String username, String email, String pass, UUID roleId) {
