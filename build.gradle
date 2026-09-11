@@ -8,7 +8,7 @@ plugins {
 }
 
 group = 'com.flexcodelabs'
-version = '0.0.72'
+version = '0.0.73'
 description = 'Flextuma App'
 
 java {

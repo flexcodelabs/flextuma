@@ -151,7 +151,8 @@ public class UserService extends BaseService<User> {
      * validation. When taken, suggests alternatives so the caller isn't left to guess one --
      * built from the email's local part (before '@') when an email was passed and it's still
      * free, since that's more likely to read as "theirs" than a random suffix. */
-    public UsernameAvailabilityDto checkUsernameAvailability(String rawUsername, String rawEmail) {
+    public UsernameAvailabilityDto checkUsernameAvailability(String rawUsername, String rawEmail,
+            String rawPhoneNumber) {
         String username = rawUsername == null ? "" : rawUsername.trim();
         if (username.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username is required");
@@ -171,6 +172,9 @@ public class UserService extends BaseService<User> {
             }
         }
 
+        String phoneNumber = rawPhoneNumber == null ? "" : rawPhoneNumber.trim();
+        Boolean phoneAvailable = phoneNumber.isBlank() ? null : !repository.existsByPhoneNumber(phoneNumber);
+
         boolean available = !repository.existsByUsername(username);
         List<String> suggestions;
         if (available) {
@@ -181,7 +185,7 @@ public class UserService extends BaseService<User> {
                     : username;
             suggestions = generateAvailableUsernames(suggestionBase);
         }
-        return new UsernameAvailabilityDto(username, available, suggestions, emailAvailable);
+        return new UsernameAvailabilityDto(username, available, suggestions, emailAvailable, phoneAvailable);
     }
 
     private List<String> generateAvailableUsernames(String requested) {
@@ -212,6 +216,12 @@ public class UserService extends BaseService<User> {
             repository.findByEmail(request.getEmail()).ifPresent(u -> {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "User with email " + request.getEmail() + " already exists");
+            });
+        }
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank()) {
+            repository.findByPhoneNumber(request.getPhoneNumber()).ifPresent(u -> {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "User with phone number " + request.getPhoneNumber() + " already exists");
             });
         }
 

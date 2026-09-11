@@ -41,6 +41,8 @@ Create a `.env` file in the root directory or export the variables in your shell
 | `SMS_PRICE_PER_SEGMENT` | ❌ | `20.0` | Price per SMS segment (in TZS) |
 | `FLEXTUMA_SMS_BEEM_DELIVERY_POLL_INTERVAL_MS` | ❌ | `60000` | Beem delivery-report polling interval in milliseconds |
 | `FLEXTUMA_SMS_BEEM_DELIVERY_MINIMUM_DELAY_MINUTES` | ❌ | `5` | Minimum delay before the first Beem delivery lookup |
+| `FLEXTUMA_ADMIN_SEED_PASSWORD` | ✅ (first boot only) | — | Password for the seeded `admin` account. Only required until that account exists; ignored on later restarts |
+| `FLEXTUMA_SYSTEM_SEED_PASSWORD` | ✅ (first boot only) | — | Password for the seeded `SYSTEM` account. Only required until that account exists; ignored on later restarts |
 
 ### 3. Build the application
 
@@ -699,7 +701,7 @@ This is enforced in `BaseService.buildTenantSpec()` — all subclass services be
 
 ## Data Seeding
 
-On startup, `DataInitializer` runs `DataSeederService.seedSystemData()`, which executes `seed.sql` via JDBC to ensure system-level data (privileges, default roles, system user) is present before the application accepts requests.
+On startup, `DataInitializer` runs `DataSeederService.seedSystemData()`, which issues the seeding SQL directly via `JdbcTemplate` to ensure system-level data (privileges, default roles, the `admin` and `SYSTEM` accounts) is present before the application accepts requests. The `admin`/`SYSTEM` accounts are only created on a deployment's first-ever boot and require `FLEXTUMA_ADMIN_SEED_PASSWORD`/`FLEXTUMA_SYSTEM_SEED_PASSWORD` to be set at that point — startup fails fast if either account doesn't exist yet and its password isn't configured.
 
 ---
 

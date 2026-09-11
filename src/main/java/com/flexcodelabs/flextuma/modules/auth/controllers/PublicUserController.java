@@ -38,6 +38,7 @@ public class PublicUserController {
     public ResponseEntity<UsernameAvailabilityDto> checkUsernameAvailability(
             @RequestBody UsernameAvailabilityRequestDto request, HttpServletRequest httpRequest) {
         rateLimitService.checkAndRecord(USERNAME_AVAILABILITY_BUCKET, httpRequest, maxRequestsPerWindow, windowSeconds);
-        return ResponseEntity.ok(userService.checkUsernameAvailability(request.username(), request.email()));
+        return ResponseEntity.ok(userService.checkUsernameAvailability(
+                request.username(), request.email(), request.phoneNumber()));
     }
 }

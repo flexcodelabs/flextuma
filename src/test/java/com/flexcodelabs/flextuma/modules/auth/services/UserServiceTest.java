@@ -137,11 +137,12 @@ class UserServiceTest {
     void checkUsernameAvailability_shouldReportAvailable_withNoSuggestions_whenUsernameIsFree() {
         when(repository.existsByUsername("newname")).thenReturn(false);
 
-        var result = service.checkUsernameAvailability("newname", null);
+        var result = service.checkUsernameAvailability("newname", null, null);
 
         assertTrue(result.available());
         assertEquals(List.of(), result.suggestions());
         assertNull(result.emailAvailable());
+        assertNull(result.phoneAvailable());
     }
 
     @Test
@@ -150,7 +151,7 @@ class UserServiceTest {
         when(repository.existsByUsername(argThat(candidate -> candidate.startsWith("jane") && !candidate.equals("jane"))))
                 .thenReturn(false);
 
-        var result = service.checkUsernameAvailability("jane", null);
+        var result = service.checkUsernameAvailability("jane", null, null);
 
         assertFalse(result.available());
         assertEquals(5, result.suggestions().size());
@@ -165,7 +166,7 @@ class UserServiceTest {
         when(repository.existsByUsername(argThat(candidate -> candidate.startsWith("janedoe") && !candidate.equals("janedoe"))))
                 .thenReturn(false);
 
-        var result = service.checkUsernameAvailability("jane", "jane.doe@example.com");
+        var result = service.checkUsernameAvailability("jane", "jane.doe@example.com", null);
 
         assertFalse(result.available());
         assertTrue(result.emailAvailable());
@@ -180,7 +181,7 @@ class UserServiceTest {
         when(repository.existsByUsername(argThat(candidate -> candidate.startsWith("jane") && !candidate.equals("jane"))))
                 .thenReturn(false);
 
-        var result = service.checkUsernameAvailability("jane", "jane@example.com");
+        var result = service.checkUsernameAvailability("jane", "jane@example.com", null);
 
         assertFalse(result.available());
         assertFalse(result.emailAvailable());
@@ -188,8 +189,19 @@ class UserServiceTest {
     }
 
     @Test
+    void checkUsernameAvailability_shouldReportPhoneAvailability_whenPhoneNumberPassed() {
+        when(repository.existsByUsername("jane")).thenReturn(false);
+        when(repository.existsByPhoneNumber("+255700000000")).thenReturn(true);
+
+        var result = service.checkUsernameAvailability("jane", null, "+255700000000");
+
+        assertTrue(result.available());
+        assertFalse(result.phoneAvailable());
+    }
+
+    @Test
     void checkUsernameAvailability_shouldThrow_whenUsernameBlank() {
-        assertThrows(ResponseStatusException.class, () -> service.checkUsernameAvailability("   ", null));
+        assertThrows(ResponseStatusException.class, () -> service.checkUsernameAvailability("   ", null, null));
     }
 
     @Test

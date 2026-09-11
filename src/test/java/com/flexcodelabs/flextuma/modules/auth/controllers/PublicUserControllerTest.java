@@ -49,8 +49,8 @@ class PublicUserControllerTest {
 
     @Test
     void checkUsernameAvailability_shouldRecordAgainstRateLimiter_beforeReturningResult() throws Exception {
-        when(userService.checkUsernameAvailability("jane", null))
-                .thenReturn(new UsernameAvailabilityDto("jane", true, List.of(), null));
+        when(userService.checkUsernameAvailability("jane", null, null))
+                .thenReturn(new UsernameAvailabilityDto("jane", true, List.of(), null, null));
 
         mockMvc.perform(post("/api/public/users/username-availability")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -71,6 +71,6 @@ class PublicUserControllerTest {
                         .content("{\"username\":\"jane\"}"))
                 .andExpect(status().isTooManyRequests());
 
-        verify(userService, never()).checkUsernameAvailability(any(), any());
+        verify(userService, never()).checkUsernameAvailability(any(), any(), any());
     }
 }
