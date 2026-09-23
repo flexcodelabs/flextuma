@@ -1,5 +1,6 @@
 package com.flexcodelabs.flextuma.core.entities.auth;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.flexcodelabs.flextuma.core.entities.base.BaseEntity;
@@ -36,6 +37,7 @@ public class PersonalAccessToken extends BaseEntity {
     private String name;
 
     @Column(nullable = false, unique = true)
+    @JsonIgnore
     private String token;
 
     @ManyToOne(fetch = FetchType.LAZY)
