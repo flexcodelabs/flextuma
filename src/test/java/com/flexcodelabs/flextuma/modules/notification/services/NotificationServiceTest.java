@@ -4,14 +4,18 @@ import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppTemplate;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.enums.SmsTemplateStatus;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppTemplateRepository;
+import com.flexcodelabs.flextuma.core.senders.WhatsAppSender;
 import com.flexcodelabs.flextuma.core.services.EntityAssociationReferenceResolver;
 import com.flexcodelabs.flextuma.core.services.EntityResponseInitializer;
+import com.flexcodelabs.flextuma.core.services.SmsSendResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,6 +74,12 @@ class NotificationServiceTest {
 
         @Mock
         private EntityAssociationReferenceResolver entityAssociationReferenceResolver;
+
+        @Mock
+        private WhatsAppTemplateRepository whatsAppTemplateRepository;
+
+        @Mock
+        private WhatsAppSender whatsAppSender;
 
         @InjectMocks
         private NotificationService notificationService;
@@ -252,6 +262,118 @@ class NotificationServiceTest {
 
                 ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> notificationService.queueRawSms(payload, "testuser"));
                 assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+                verifyNoInteractions(walletService);
+        }
+
+        private Map<String, Object> validTemplatePayload() {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("phoneNumber", "+255700000000");
+                payload.put("templateName", "farm_alert");
+                payload.put("templateLanguage", "en");
+                payload.put("components", java.util.List.of(
+                                Map.of("type", "body", "parameters", java.util.List.of(Map.of("type", "text", "text", "Feed is low")))));
+                return payload;
+        }
+
+        @Test
+        void queueWhatsAppTemplate_shouldRejectWhenNoSyncedTemplateMatches() {
+                SmsConnector connector = new SmsConnector();
+                connector.setProvider("WHATSAPP");
+                connector.setCreatedBy(testUser);
+
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "WHATSAPP"))
+                                .thenReturn(Optional.of(connector));
+                when(whatsAppTemplateRepository.findByNameAndLanguageAndConnectorAndCreatedBy("farm_alert", "en",
+                                connector, testUser)).thenReturn(Optional.empty());
+
+                ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                                () -> notificationService.queueWhatsAppTemplate(validTemplatePayload(), "testuser"));
+
+                assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+                verifyNoInteractions(whatsAppSender);
+        }
+
+        @Test
+        void queueWhatsAppTemplate_shouldRejectWhenTemplateNotApproved() {
+                SmsConnector connector = new SmsConnector();
+                connector.setProvider("WHATSAPP");
+                connector.setCreatedBy(testUser);
+
+                WhatsAppTemplate template = new WhatsAppTemplate();
+                template.setStatus("PENDING");
+
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "WHATSAPP"))
+                                .thenReturn(Optional.of(connector));
+                when(whatsAppTemplateRepository.findByNameAndLanguageAndConnectorAndCreatedBy("farm_alert", "en",
+                                connector, testUser)).thenReturn(Optional.of(template));
+
+                ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                                () -> notificationService.queueWhatsAppTemplate(validTemplatePayload(), "testuser"));
+
+                assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+                assertTrue(ex.getReason().contains("not approved"));
+                verifyNoInteractions(whatsAppSender);
+        }
+
+        @Test
+        void queueWhatsAppTemplate_shouldSendAndSaveSentLogOnSuccess() {
+                SmsConnector connector = new SmsConnector();
+                connector.setProvider("WHATSAPP");
+                connector.setCreatedBy(testUser);
+
+                WhatsAppTemplate template = new WhatsAppTemplate();
+                template.setStatus("APPROVED");
+
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "WHATSAPP"))
+                                .thenReturn(Optional.of(connector));
+                when(whatsAppTemplateRepository.findByNameAndLanguageAndConnectorAndCreatedBy("farm_alert", "en",
+                                connector, testUser)).thenReturn(Optional.of(template));
+                when(whatsAppSender.sendTemplate(eq(connector), eq("+255700000000"), eq("farm_alert"), eq("en"), any()))
+                                .thenReturn(SmsSendResult.success("accepted", "wamid.123", Map.of("messages", "ok")));
+                when(logRepository.save(any(SmsLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                SmsLog result = notificationService.queueWhatsAppTemplate(validTemplatePayload(), "testuser");
+
+                verify(logRepository).save(smsLogCaptor.capture());
+                SmsLog capturedLog = smsLogCaptor.getValue();
+                assertEquals(SmsLogStatus.SENT, capturedLog.getStatus());
+                assertEquals("+255700000000", capturedLog.getRecipient());
+                assertEquals("wamid.123", capturedLog.getProviderMessageId());
+                assertTrue(capturedLog.getContent().contains("farm_alert/en"));
+                assertTrue(capturedLog.getContent().contains("Feed is low"));
+                assertNotNull(result);
+                // Not a system connector, so no wallet debit is expected either way.
+                verifyNoInteractions(walletService);
+        }
+
+        @Test
+        void queueWhatsAppTemplate_shouldSaveFailedLogWhenSenderFails() {
+                SmsConnector connector = new SmsConnector();
+                connector.setProvider("WHATSAPP");
+                connector.setCreatedBy(testUser);
+
+                WhatsAppTemplate template = new WhatsAppTemplate();
+                template.setStatus("APPROVED");
+
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "WHATSAPP"))
+                                .thenReturn(Optional.of(connector));
+                when(whatsAppTemplateRepository.findByNameAndLanguageAndConnectorAndCreatedBy("farm_alert", "en",
+                                connector, testUser)).thenReturn(Optional.of(template));
+                when(whatsAppSender.sendTemplate(eq(connector), eq("+255700000000"), eq("farm_alert"), eq("en"), any()))
+                                .thenReturn(SmsSendResult.failure("Meta rejected the template", "131047", Map.of()));
+                when(logRepository.save(any(SmsLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                SmsLog result = notificationService.queueWhatsAppTemplate(validTemplatePayload(), "testuser");
+
+                verify(logRepository).save(smsLogCaptor.capture());
+                SmsLog capturedLog = smsLogCaptor.getValue();
+                assertEquals(SmsLogStatus.FAILED, capturedLog.getStatus());
+                assertEquals("Meta rejected the template", capturedLog.getError());
+                assertNotNull(result);
                 verifyNoInteractions(walletService);
         }
 }

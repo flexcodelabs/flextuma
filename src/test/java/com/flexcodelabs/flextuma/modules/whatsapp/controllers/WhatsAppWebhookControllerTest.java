@@ -9,6 +9,7 @@ import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppRelayDeliveryRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
 import com.flexcodelabs.flextuma.modules.whatsapp.services.WhatsAppMediaService;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +49,9 @@ class WhatsAppWebhookControllerTest {
     private WhatsAppRelayDeliveryRepository relayDeliveryRepository;
 
     @Mock
+    private WhatsAppTemplateRepository templateRepository;
+
+    @Mock
     private WhatsAppMediaService mediaService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -60,7 +64,7 @@ class WhatsAppWebhookControllerTest {
     }
 
     private WhatsAppWebhookController controller() {
-        return new WhatsAppWebhookController(configRepository, smsLogRepository, inboxMessageRepository, relayDeliveryRepository, mediaService, objectMapper);
+        return new WhatsAppWebhookController(configRepository, smsLogRepository, inboxMessageRepository, relayDeliveryRepository, templateRepository, mediaService, objectMapper);
     }
 
     private WhatsAppWebhookConfig activeConfig() {
@@ -144,6 +148,55 @@ class WhatsAppWebhookControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(config.getLastEventAt());
         verify(configRepository).save(config);
+    }
+
+    @Test
+    void receiveGeneratedCallback_shouldUpdateTemplateStatusAndStillRelay_whenEventIsTemplateStatusUpdate() {
+        WhatsAppWebhookConfig config = activeConfig();
+        when(configRepository.findByCallbackTokenAndActiveTrue("callback-token")).thenReturn(Optional.of(config));
+
+        com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppTemplate template =
+                new com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppTemplate();
+        template.setMetaTemplateId("META_TEMPLATE_ID");
+        template.setStatus("PENDING");
+        when(templateRepository.findFirstByMetaTemplateId("META_TEMPLATE_ID")).thenReturn(Optional.of(template));
+
+        String payload = "{\"entry\":[{\"changes\":[{\"field\":\"message_template_status_update\",\"value\":{"
+                + "\"event\":\"APPROVED\",\"message_template_id\":\"META_TEMPLATE_ID\","
+                + "\"message_template_name\":\"farm_alert\",\"message_template_language\":\"en\"}}]}]}";
+
+        ResponseEntity<Void> response = controller().receiveGeneratedCallback("callback-token", payload, null);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("APPROVED", template.getStatus());
+        verify(templateRepository).save(template);
+
+        // Meta template-status events carry no phone_number_id, so relay must still fire via the
+        // callback-token-scoped config rather than being skipped for lack of a phone match.
+        ArgumentCaptor<WhatsAppRelayDelivery> relayCaptor = ArgumentCaptor.forClass(WhatsAppRelayDelivery.class);
+        verify(relayDeliveryRepository).save(relayCaptor.capture());
+        assertEquals(config, relayCaptor.getValue().getConfig());
+    }
+
+    @Test
+    void receiveGeneratedCallback_shouldFallBackToNameAndLanguage_whenTemplateIdMissing() {
+        WhatsAppWebhookConfig config = activeConfig();
+        when(configRepository.findByCallbackTokenAndActiveTrue("callback-token")).thenReturn(Optional.of(config));
+
+        com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppTemplate template =
+                new com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppTemplate();
+        template.setName("farm_alert");
+        template.setLanguage("en");
+        template.setStatus("PENDING");
+        when(templateRepository.findFirstByNameAndLanguage("farm_alert", "en")).thenReturn(Optional.of(template));
+
+        String payload = "{\"entry\":[{\"changes\":[{\"field\":\"message_template_status_update\",\"value\":{"
+                + "\"event\":\"REJECTED\",\"message_template_name\":\"farm_alert\",\"message_template_language\":\"en\"}}]}]}";
+
+        controller().receiveGeneratedCallback("callback-token", payload, null);
+
+        assertEquals("REJECTED", template.getStatus());
+        verify(templateRepository).save(template);
     }
 
     @Test

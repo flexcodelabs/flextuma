@@ -223,6 +223,12 @@ POST /api/notifications/whatsapp
 
 The message is queued and tracked in `/api/smsLogs` alongside SMS; WhatsApp delivery IDs and delivered/read/failed events update that log.
 
+Only free-text messages are supported today — there is no Meta-approved
+WhatsApp Business template support, so Meta will reject this call for any
+business-initiated message sent outside the 24-hour customer-service window.
+See [`docs/whatsapp-templates.md`](docs/whatsapp-templates.md) for the gap
+and an implementation guide to add it.
+
 #### Shared system connectors and safe use
 
 When a customer does not have an active connector for the selected provider, Flextuma can intentionally fall back to a matching `{PROVIDER}_SYSTEM` connector. This is Flextuma's paid shared infrastructure, not access to another customer's credentials. The send is always attributed to the authenticated user and must debit that user's wallet before a message log is queued. The charge is the configured per-segment price multiplied by the actual segment count.

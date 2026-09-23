@@ -11,6 +11,7 @@ import com.flexcodelabs.flextuma.modules.dashboard.dtos.DashboardNotificationDTO
 import com.flexcodelabs.flextuma.modules.dashboard.services.DashboardService;
 import com.flexcodelabs.flextuma.modules.notification.services.NotificationService;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -50,11 +51,21 @@ public class NotificationController {
         return ResponseEntity.ok(log);
     }
 
-    /** Queues a WhatsApp Cloud API text message using the caller's WHATSAPP connector. */
+    /** Queues a WhatsApp Cloud API message using the caller's WHATSAPP connector. When
+     * {@code templateName} is present, sends a Meta-approved Business template (the only kind of
+     * business-initiated message Meta accepts outside the 24h customer-service window); otherwise
+     * behaves exactly as before and sends free-form text. */
     @PostMapping("/whatsapp")
-    public ResponseEntity<SmsLog> sendWhatsApp(@RequestBody Map<String, String> payload,
+    public ResponseEntity<SmsLog> sendWhatsApp(@RequestBody Map<String, Object> payload,
             java.security.Principal principal) {
-        payload.put("provider", "WHATSAPP");
-        return ResponseEntity.ok(notificationService.queueRawSms(payload, principal.getName()));
+        Object templateName = payload.get("templateName");
+        if (templateName != null && !templateName.toString().isBlank()) {
+            return ResponseEntity.ok(notificationService.queueWhatsAppTemplate(payload, principal.getName()));
+        }
+
+        Map<String, String> textPayload = new LinkedHashMap<>();
+        payload.forEach((key, value) -> textPayload.put(key, value == null ? null : value.toString()));
+        textPayload.put("provider", "WHATSAPP");
+        return ResponseEntity.ok(notificationService.queueRawSms(textPayload, principal.getName()));
     }
 }

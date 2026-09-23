@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** WhatsApp Cloud API text-message sender. The connector key is a Meta access token. */
@@ -54,6 +55,48 @@ public class WhatsAppSender implements SmsSender {
                     String.valueOf(response.getStatusCode().value()), responseBody);
         } catch (Exception e) {
             return SmsSendResult.failure("Failed to send WhatsApp message: " + e.getMessage(), "SEND_ERROR",
+                    Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** Sends a Meta-approved WhatsApp Business template message (type: "template"), the only kind
+     * of business-initiated message Meta accepts outside the 24h customer-service window. This is
+     * intentionally not on the shared {@link SmsSender} interface: no other provider has an
+     * equivalent concept, and the caller (WhatsAppTemplateSendService-style code) already knows
+     * it's talking to WhatsApp specifically. {@code components} is the raw Meta components array
+     * (header/body text or media parameters, dynamic-URL button parameters) -- passed through
+     * as-is, not built here. */
+    public SmsSendResult sendTemplate(SmsConnector config, String to, String templateName, String languageCode,
+            List<Map<String, Object>> components) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(config.getKey());
+
+            Map<String, Object> template = new LinkedHashMap<>();
+            template.put("name", templateName);
+            template.put("language", Map.of("code", languageCode));
+            if (components != null && !components.isEmpty()) {
+                template.put("components", components);
+            }
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("messaging_product", "whatsapp");
+            body.put("to", normaliseRecipient(to));
+            body.put("type", "template");
+            body.put("template", template);
+
+            ResponseEntity<Map> response = restTemplate.postForEntity(messageUrl(config),
+                    new HttpEntity<>(body, headers), Map.class);
+            Map<String, Object> responseBody = objectMapper.convertValue(response.getBody(), new TypeReference<>() {});
+            String messageId = extractMessageId(responseBody);
+            if (response.getStatusCode().is2xxSuccessful() && messageId != null) {
+                return SmsSendResult.success("WhatsApp template message accepted", messageId, responseBody);
+            }
+            return SmsSendResult.failure("WhatsApp API did not return a message id",
+                    String.valueOf(response.getStatusCode().value()), responseBody);
+        } catch (Exception e) {
+            return SmsSendResult.failure("Failed to send WhatsApp template message: " + e.getMessage(), "SEND_ERROR",
                     Map.of("error", e.getMessage()));
         }
     }
