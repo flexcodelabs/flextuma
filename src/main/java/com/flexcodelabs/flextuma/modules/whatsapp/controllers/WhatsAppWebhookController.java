@@ -114,7 +114,7 @@ public class WhatsAppWebhookController {
         if (config.isEmpty()) { log.warn("Ignoring WhatsApp webhook with no active configuration"); return ResponseEntity.ok().build(); }
         if (!validMetaSignature(config.get(), rawPayload, signature)) { log.warn("Rejecting WhatsApp webhook with an invalid Meta signature for config [{}]", config.get().getId()); return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build(); }
         markEventReceived(config.get());
-        updateDeliveryStatus(payload); ingestInboundMessages(config.get(), payload); updateTemplateStatus(payload); relay(config.get(), payload);
+        updateDeliveryStatus(payload); ingestInboundMessages(config.get(), payload); updateTemplateStatus(config.get(), payload); relay(config.get(), payload);
         log.info("Processed WhatsApp webhook for config [{}]: {} change(s)", config.get().getId(), changes(payload).size());
         return ResponseEntity.ok().build();
     }
@@ -141,9 +141,12 @@ public class WhatsAppWebhookController {
      * WhatsAppTemplate.status (by metaTemplateId, falling back to name+language) so an
      * approval/rejection shows up in GET /api/whatsappTemplates immediately instead of waiting
      * for the next manual sync. Runs before relay() so the tenant's own callbackUrl still gets
-     * the raw event either way. */
+     * the raw event either way. Both lookups are scoped to config's owner -- metaTemplateId and
+     * name+language are each only unique per (value, creator), so an unscoped lookup could match
+     * a different tenant's template of the same id or the same common name (e.g.
+     * "otp_verification"), corrupting their approval status instead. */
     @SuppressWarnings("unchecked")
-    private void updateTemplateStatus(Map<String, Object> payload) {
+    private void updateTemplateStatus(WhatsAppWebhookConfig config, Map<String, Object> payload) {
         for (Map<String, Object> change : changes(payload)) {
             if (!"message_template_status_update".equals(change.get("field"))) continue;
             Map<String, Object> value = nestedMap(change, "value");
@@ -152,13 +155,14 @@ public class WhatsAppWebhookController {
 
             Object templateId = value.get("message_template_id");
             Optional<WhatsAppTemplate> template = templateId != null
-                    ? templateRepository.findFirstByMetaTemplateId(templateId.toString())
+                    ? templateRepository.findFirstByMetaTemplateIdAndCreatedBy(templateId.toString(), config.getCreatedBy())
                     : Optional.empty();
             if (template.isEmpty()) {
                 Object name = value.get("message_template_name");
                 Object language = value.get("message_template_language");
                 if (name != null && language != null) {
-                    template = templateRepository.findFirstByNameAndLanguage(name.toString(), language.toString());
+                    template = templateRepository.findFirstByNameAndLanguageAndCreatedBy(name.toString(),
+                            language.toString(), config.getCreatedBy());
                 }
             }
             template.ifPresent(t -> {

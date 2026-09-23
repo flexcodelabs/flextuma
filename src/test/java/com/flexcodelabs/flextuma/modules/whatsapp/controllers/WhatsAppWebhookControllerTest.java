@@ -159,7 +159,8 @@ class WhatsAppWebhookControllerTest {
                 new com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppTemplate();
         template.setMetaTemplateId("META_TEMPLATE_ID");
         template.setStatus("PENDING");
-        when(templateRepository.findFirstByMetaTemplateId("META_TEMPLATE_ID")).thenReturn(Optional.of(template));
+        when(templateRepository.findFirstByMetaTemplateIdAndCreatedBy("META_TEMPLATE_ID", config.getCreatedBy()))
+                .thenReturn(Optional.of(template));
 
         String payload = "{\"entry\":[{\"changes\":[{\"field\":\"message_template_status_update\",\"value\":{"
                 + "\"event\":\"APPROVED\",\"message_template_id\":\"META_TEMPLATE_ID\","
@@ -188,7 +189,8 @@ class WhatsAppWebhookControllerTest {
         template.setName("farm_alert");
         template.setLanguage("en");
         template.setStatus("PENDING");
-        when(templateRepository.findFirstByNameAndLanguage("farm_alert", "en")).thenReturn(Optional.of(template));
+        when(templateRepository.findFirstByNameAndLanguageAndCreatedBy("farm_alert", "en", config.getCreatedBy()))
+                .thenReturn(Optional.of(template));
 
         String payload = "{\"entry\":[{\"changes\":[{\"field\":\"message_template_status_update\",\"value\":{"
                 + "\"event\":\"REJECTED\",\"message_template_name\":\"farm_alert\",\"message_template_language\":\"en\"}}]}]}";
@@ -197,6 +199,28 @@ class WhatsAppWebhookControllerTest {
 
         assertEquals("REJECTED", template.getStatus());
         verify(templateRepository).save(template);
+    }
+
+    @Test
+    void receiveGeneratedCallback_shouldNotUpdateAnotherTenantsTemplate_whenNameAndLanguageCollide() {
+        // Two tenants can each sync a template with the same common name/language (e.g.
+        // "otp_verification"/"en"). A status update for tenant A's webhook config must not be
+        // able to touch tenant B's row of the same name+language -- the lookup is scoped to
+        // config.getCreatedBy(), so stubbing only the caller's own owner leaves tenant B
+        // untouched without needing a second mock to prove it.
+        WhatsAppWebhookConfig config = activeConfig();
+        when(configRepository.findByCallbackTokenAndActiveTrue("callback-token")).thenReturn(Optional.of(config));
+        when(templateRepository.findFirstByNameAndLanguageAndCreatedBy(any(), any(), any())).thenReturn(Optional.empty());
+
+        // No message_template_id in this payload, matching real Meta events that omit it --
+        // exercises the name+language fallback path this test is actually about.
+        String payload = "{\"entry\":[{\"changes\":[{\"field\":\"message_template_status_update\",\"value\":{"
+                + "\"event\":\"APPROVED\",\"message_template_name\":\"otp_verification\",\"message_template_language\":\"en\"}}]}]}";
+
+        controller().receiveGeneratedCallback("callback-token", payload, null);
+
+        verify(templateRepository).findFirstByNameAndLanguageAndCreatedBy("otp_verification", "en", config.getCreatedBy());
+        verify(templateRepository, never()).save(any());
     }
 
     @Test

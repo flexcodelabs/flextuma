@@ -19,10 +19,13 @@ public interface WhatsAppTemplateRepository extends BaseRepository<WhatsAppTempl
     Optional<WhatsAppTemplate> findByNameAndLanguageAndConnectorAndCreatedBy(String name, String language,
             SmsConnector connector, User createdBy);
 
-    /** Used by the webhook's message_template_status_update handler, which has no tenant context
-     * of its own -- metaTemplateId is unique per (id, creator), so findFirst is safe here. */
-    Optional<WhatsAppTemplate> findFirstByMetaTemplateId(String metaTemplateId);
+    /** Used by the webhook's message_template_status_update handler, scoped to the webhook
+     * config's owner -- metaTemplateId is only unique per (id, creator), so an unscoped lookup
+     * could match a different tenant's row of the same Meta template id. */
+    Optional<WhatsAppTemplate> findFirstByMetaTemplateIdAndCreatedBy(String metaTemplateId, User createdBy);
 
-    /** Fallback lookup for a status update payload that omits message_template_id. */
-    Optional<WhatsAppTemplate> findFirstByNameAndLanguage(String name, String language);
+    /** Fallback lookup for a status update payload that omits message_template_id, scoped to the
+     * webhook config's owner so two tenants sharing a common template name/language (e.g.
+     * "otp_verification") can't have their status cross-contaminated. */
+    Optional<WhatsAppTemplate> findFirstByNameAndLanguageAndCreatedBy(String name, String language, User createdBy);
 }
