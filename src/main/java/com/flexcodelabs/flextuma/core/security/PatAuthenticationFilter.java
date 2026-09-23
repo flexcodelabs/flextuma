@@ -1,8 +1,11 @@
 package com.flexcodelabs.flextuma.core.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flexcodelabs.flextuma.core.dto.ErrorResponse;
 import com.flexcodelabs.flextuma.core.entities.auth.PersonalAccessToken;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.repositories.PersonalAccessTokenRepository;
+import com.flexcodelabs.flextuma.core.services.AuthRateLimitService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,6 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -28,7 +32,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PatAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final String RATE_LIMIT_SCOPE = "PAT";
+
     private final PersonalAccessTokenRepository patRepository;
+    private final AuthRateLimitService rateLimitService;
+    private final ObjectMapper objectMapper;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -37,8 +45,16 @@ public class PatAuthenticationFilter extends OncePerRequestFilter {
         String apiKey = request.getHeader("X-API-KEY");
 
         if (apiKey != null && !apiKey.isBlank()) {
+            if (rateLimitService.isBlocked(request, RATE_LIMIT_SCOPE)) {
+                writeTooManyRequests(response,
+                        rateLimitService.getBlockTimeRemainingSeconds(request, RATE_LIMIT_SCOPE));
+                return;
+            }
+
             String hashedToken = hashToken(apiKey);
             Optional<PersonalAccessToken> patOpt = patRepository.findByToken(hashedToken);
+
+            boolean authenticated = false;
 
             if (patOpt.isPresent()) {
                 PersonalAccessToken pat = patOpt.get();
@@ -64,11 +80,28 @@ public class PatAuthenticationFilter extends OncePerRequestFilter {
 
                     pat.setLastUsedAt(LocalDateTime.now());
                     patRepository.save(pat);
+                    authenticated = true;
                 }
+            }
+
+            if (authenticated) {
+                rateLimitService.recordSuccessfulAttempt(request, RATE_LIMIT_SCOPE);
+            } else {
+                rateLimitService.recordFailedAttempt(request, RATE_LIMIT_SCOPE);
             }
         }
 
         try { filterChain.doFilter(request, response); } finally { ApiTokenContext.clear(); }
+    }
+
+    private void writeTooManyRequests(HttpServletResponse response, long retryAfterSeconds) throws IOException {
+        ErrorResponse errorResponse = ErrorResponse.tooManyRequests(
+                "Too many invalid API key attempts. Try again in " + retryAfterSeconds + " seconds.");
+
+        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+        response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }
 
     private String hashToken(String token) {
