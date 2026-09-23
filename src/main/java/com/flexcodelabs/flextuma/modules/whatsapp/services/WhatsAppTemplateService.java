@@ -41,6 +41,17 @@ public class WhatsAppTemplateService extends BaseService<WhatsAppTemplate> {
         return repository;
     }
 
+    /** Closes BaseService#checkPermission's generic "ALL" bypass for ADD/UPDATE/DELETE -- without
+     * this override (the same one User/Role/Organisation/Privilege/Wallet/TenantFeature already
+     * use) any tenant user holding the common "ALL" authority could write template rows, e.g.
+     * self-declare status: APPROVED for a template Meta never approved. READ is unaffected: its
+     * permission constant is the literal "ALL" sentinel, satisfied by checkPermission's second
+     * clause regardless of this override. */
+    @Override
+    protected boolean isAdminEntity() {
+        return true;
+    }
+
     @Override
     protected String getReadPermission() {
         return WhatsAppTemplate.READ;
