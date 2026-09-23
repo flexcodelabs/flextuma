@@ -3,10 +3,14 @@ package com.flexcodelabs.flextuma.core.security;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Optional;
@@ -19,9 +23,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flexcodelabs.flextuma.core.entities.auth.PersonalAccessToken;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.repositories.PersonalAccessTokenRepository;
+import com.flexcodelabs.flextuma.core.services.AuthRateLimitService;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -33,6 +39,12 @@ class PatAuthenticationFilterTest {
 
     @Mock
     private PersonalAccessTokenRepository patRepository;
+
+    @Mock
+    private AuthRateLimitService rateLimitService;
+
+    @Mock
+    private ObjectMapper objectMapper;
 
     @Mock
     private HttpServletRequest request;
@@ -73,6 +85,7 @@ class PatAuthenticationFilterTest {
         assertNotNull(SecurityContextHolder.getContext().getAuthentication());
         assertEquals("testuser", SecurityContextHolder.getContext().getAuthentication().getPrincipal());
         verify(patRepository).save(pat);
+        verify(rateLimitService).recordSuccessfulAttempt(request, "PAT");
         verify(filterChain).doFilter(request, response);
     }
 
@@ -87,7 +100,25 @@ class PatAuthenticationFilterTest {
         filter.doFilterInternal(request, response, filterChain);
 
         assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(rateLimitService).recordFailedAttempt(request, "PAT");
         verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    void doFilterInternal_WhenRateLimited_RejectsWithoutLookup() throws ServletException, IOException {
+        when(request.getHeader("X-API-KEY")).thenReturn("some-token");
+        when(rateLimitService.isBlocked(request, "PAT")).thenReturn(true);
+        when(rateLimitService.getBlockTimeRemainingSeconds(request, "PAT")).thenReturn(42L);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(response.getWriter()).thenReturn(new PrintWriter(java.io.Writer.nullWriter()));
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(response).setStatus(429);
+        verify(response).setHeader("Retry-After", "42");
+        verify(patRepository, never()).findByToken(anyString());
+        verify(filterChain, never()).doFilter(request, response);
     }
 
     private String hashToken(String token) {

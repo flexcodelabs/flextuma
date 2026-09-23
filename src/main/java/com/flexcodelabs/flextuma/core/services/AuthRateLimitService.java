@@ -25,8 +25,14 @@ public class AuthRateLimitService {
     @Value("${flextuma.auth.window-minutes:5}")
     private int windowMinutes;
 
+    private static final String DEFAULT_SCOPE = "AUTH";
+
     public boolean isBlocked(HttpServletRequest request) {
-        String clientKey = getClientKey(request);
+        return isBlocked(request, DEFAULT_SCOPE);
+    }
+
+    public boolean isBlocked(HttpServletRequest request, String scope) {
+        String clientKey = getClientKey(request, scope);
 
         // Check if client is currently blocked
         LocalDateTime blockEndTime = blockTimestamps.get(clientKey);
@@ -45,7 +51,11 @@ public class AuthRateLimitService {
     }
 
     public void recordFailedAttempt(HttpServletRequest request) {
-        String clientKey = getClientKey(request);
+        recordFailedAttempt(request, DEFAULT_SCOPE);
+    }
+
+    public void recordFailedAttempt(HttpServletRequest request, String scope) {
+        String clientKey = getClientKey(request, scope);
         LocalDateTime now = LocalDateTime.now();
 
         // Clean up old attempts outside the window
@@ -71,7 +81,11 @@ public class AuthRateLimitService {
     }
 
     public void recordSuccessfulAttempt(HttpServletRequest request) {
-        String clientKey = getClientKey(request);
+        recordSuccessfulAttempt(request, DEFAULT_SCOPE);
+    }
+
+    public void recordSuccessfulAttempt(HttpServletRequest request, String scope) {
+        String clientKey = getClientKey(request, scope);
 
         // Clear all tracking on successful attempt
         attemptCounts.remove(clientKey);
@@ -80,7 +94,11 @@ public class AuthRateLimitService {
     }
 
     public int getRemainingAttempts(HttpServletRequest request) {
-        String clientKey = getClientKey(request);
+        return getRemainingAttempts(request, DEFAULT_SCOPE);
+    }
+
+    public int getRemainingAttempts(HttpServletRequest request, String scope) {
+        String clientKey = getClientKey(request, scope);
         AtomicInteger attempts = attemptCounts.get(clientKey);
         if (attempts == null)
             return maxAttempts;
@@ -89,7 +107,11 @@ public class AuthRateLimitService {
     }
 
     public long getBlockTimeRemainingSeconds(HttpServletRequest request) {
-        String clientKey = getClientKey(request);
+        return getBlockTimeRemainingSeconds(request, DEFAULT_SCOPE);
+    }
+
+    public long getBlockTimeRemainingSeconds(HttpServletRequest request, String scope) {
+        String clientKey = getClientKey(request, scope);
         LocalDateTime blockEndTime = blockTimestamps.get(clientKey);
         if (blockEndTime == null)
             return 0;
@@ -98,7 +120,11 @@ public class AuthRateLimitService {
         return Math.max(0L, secondsRemaining);
     }
 
-    private String getClientKey(HttpServletRequest request) {
+    private String getClientKey(HttpServletRequest request, String scope) {
+        return scope + ":" + getClientIp(request);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
             return xForwardedFor.split(",")[0].trim();
