@@ -12,6 +12,7 @@ import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppTemplate;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.enums.SmsTemplateStatus;
 import com.flexcodelabs.flextuma.core.helpers.SmsSegmentResult;
@@ -21,11 +22,16 @@ import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.SmsTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.UserRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppTemplateRepository;
+import com.flexcodelabs.flextuma.core.senders.WhatsAppSender;
 import com.flexcodelabs.flextuma.core.services.EntityAssociationReferenceResolver;
 import com.flexcodelabs.flextuma.core.services.EntityResponseInitializer;
+import com.flexcodelabs.flextuma.core.services.SmsSendResult;
 import com.flexcodelabs.flextuma.modules.finance.services.WalletService;
 import com.flexcodelabs.flextuma.core.services.RateLimiterService;
 import com.flexcodelabs.flextuma.core.security.ApiTokenContext;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -46,6 +52,8 @@ public class NotificationService {
         private final SmsSegmentCalculator segmentCalculator;
         private final EntityResponseInitializer entityResponseInitializer;
         private final EntityAssociationReferenceResolver entityAssociationReferenceResolver;
+        private final WhatsAppTemplateRepository whatsAppTemplateRepository;
+        private final WhatsAppSender whatsAppSender;
 
         @Value("${flextuma.sms.price-per-segment:1.0}")
         private BigDecimal pricePerSegment;
@@ -95,6 +103,117 @@ public class NotificationService {
                 SmsConnector connector = getConnector(currentUser, providerValue, payload.get("connectorId"));
 
                 return processAndSaveSms(currentUser, connector, phoneNumber, content, null, payload);
+        }
+
+        /** Sends a Meta-approved WhatsApp Business template message. Unlike {@link #queueRawSms},
+         * this calls {@link WhatsAppSender#sendTemplate} synchronously and records the outcome
+         * immediately -- there's no async dispatch path for it, since SmsDispatchWorker only knows
+         * the generic {@code SmsSender#sendSms(connector, to, message)} shape, not template
+         * components. */
+        @Transactional
+        public SmsLog queueWhatsAppTemplate(Map<String, Object> payload, String username) {
+                User currentUser = getUser(username);
+                checkRateLimit(currentUser);
+
+                String phoneNumber = getRequiredObjectField(payload, "phoneNumber");
+                String templateName = getRequiredObjectField(payload, "templateName");
+                String templateLanguage = getRequiredObjectField(payload, "templateLanguage");
+                List<Map<String, Object>> components = extractComponents(payload.get("components"));
+
+                SmsConnector connector = getConnector(currentUser, "WHATSAPP", stringOrNull(payload.get("connectorId")));
+
+                WhatsAppTemplate template = whatsAppTemplateRepository
+                                .findByNameAndLanguageAndConnectorAndCreatedBy(templateName, templateLanguage, connector,
+                                                connector.getCreatedBy())
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                                                "No synced WhatsApp template found for [" + templateName + "/" + templateLanguage
+                                                                + "] on this connector"));
+                if (!WhatsAppTemplate.STATUS_APPROVED.equalsIgnoreCase(template.getStatus())) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                        "Template [" + templateName + "] is not approved (status: " + template.getStatus() + ")");
+                }
+
+                if (isSystemConnector(connector)) {
+                        enforceSystemConnectorDailyLimit(currentUser, connector);
+                }
+
+                SmsSendResult result = whatsAppSender.sendTemplate(connector, phoneNumber, templateName, templateLanguage,
+                                components);
+
+                String renderedContent = renderTemplateForLog(templateName, templateLanguage, components);
+                SmsLog log = new SmsLog();
+                log.setRecipient(phoneNumber);
+                log.setContent(renderedContent);
+                log.setConnector(connector);
+                log.setStatus(result.isSuccess() ? SmsLogStatus.SENT : SmsLogStatus.FAILED);
+                log.setProviderResponse(result.getProviderResponse());
+                log.setProviderMessageId(result.getProviderMessageId());
+                if (!result.isSuccess()) {
+                        log.setError(result.getMessage());
+                }
+                log.setCreatedBy(currentUser);
+
+                // Unlike processAndSaveSms's text path (which debits before an async send even
+                // attempts), the send result is already known here -- so billing only a
+                // successfully-accepted template send avoids charging a tenant for a rejected send.
+                if (isSystemConnector(connector) && result.isSuccess()) {
+                        SmsSegmentResult segmentResult = segmentCalculator.calculate(renderedContent);
+                        BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
+                        walletService.debit(currentUser, cost,
+                                        "System connector WHATSAPP template send to " + phoneNumber, null);
+                }
+
+                entityAssociationReferenceResolver.resolve(log);
+                SmsLog savedLog = logRepository.save(log);
+                entityResponseInitializer.initialize(savedLog);
+                return savedLog;
+        }
+
+        private String getRequiredObjectField(Map<String, Object> data, String key) {
+                Object value = data.get(key);
+                if (value == null || value.toString().isBlank()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, key + " is missing");
+                }
+                return value.toString();
+        }
+
+        private String stringOrNull(Object value) {
+                return value == null ? null : value.toString();
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<Map<String, Object>> extractComponents(Object raw) {
+                if (!(raw instanceof List<?> list)) {
+                        return List.of();
+                }
+                List<Map<String, Object>> components = new ArrayList<>();
+                for (Object item : list) {
+                        if (item instanceof Map<?, ?> map) {
+                                components.add((Map<String, Object>) map);
+                        }
+                }
+                return components;
+        }
+
+        /** Human-readable rendering of a template send for the SmsLog dashboard -- there's no
+         * free-text "content" for a template message, so this reconstructs one from the template
+         * name/language plus any text parameter values supplied. */
+        @SuppressWarnings("unchecked")
+        private String renderTemplateForLog(String templateName, String templateLanguage,
+                        List<Map<String, Object>> components) {
+                StringBuilder sb = new StringBuilder("[Template: ").append(templateName).append("/")
+                                .append(templateLanguage).append("]");
+                for (Map<String, Object> component : components) {
+                        if (!(component.get("parameters") instanceof List<?> parameters)) {
+                                continue;
+                        }
+                        for (Object param : parameters) {
+                                if (param instanceof Map<?, ?> map && map.get("text") != null) {
+                                        sb.append(' ').append(map.get("text"));
+                                }
+                        }
+                }
+                return sb.toString();
         }
 
         private User getUser(String username) {

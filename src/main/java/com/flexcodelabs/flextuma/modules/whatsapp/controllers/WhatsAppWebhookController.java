@@ -4,12 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppRelayDelivery;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppTemplate;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.helpers.HmacUtil;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppRelayDeliveryRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
 import com.flexcodelabs.flextuma.modules.whatsapp.services.WhatsAppMediaService;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +42,7 @@ public class WhatsAppWebhookController {
     private final SmsLogRepository smsLogRepository;
     private final WhatsAppInboxMessageRepository inboxMessageRepository;
     private final WhatsAppRelayDeliveryRepository relayDeliveryRepository;
+    private final WhatsAppTemplateRepository templateRepository;
     private final WhatsAppMediaService mediaService;
     private final ObjectMapper objectMapper;
 
@@ -111,7 +114,7 @@ public class WhatsAppWebhookController {
         if (config.isEmpty()) { log.warn("Ignoring WhatsApp webhook with no active configuration"); return ResponseEntity.ok().build(); }
         if (!validMetaSignature(config.get(), rawPayload, signature)) { log.warn("Rejecting WhatsApp webhook with an invalid Meta signature for config [{}]", config.get().getId()); return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build(); }
         markEventReceived(config.get());
-        updateDeliveryStatus(payload); ingestInboundMessages(config.get(), payload); relay(config.get(), payload);
+        updateDeliveryStatus(payload); ingestInboundMessages(config.get(), payload); updateTemplateStatus(payload); relay(config.get(), payload);
         log.info("Processed WhatsApp webhook for config [{}]: {} change(s)", config.get().getId(), changes(payload).size());
         return ResponseEntity.ok().build();
     }
@@ -131,6 +134,38 @@ public class WhatsAppWebhookController {
                 Object id = raw.get("id"), value = raw.get("status");
                 if (id != null && value != null) smsLogRepository.findByProviderMessageId(id.toString()).ifPresent(log -> applyStatus(log, value.toString(), (Map<String, Object>) raw));
             }
+        }
+    }
+
+    /** Special-cases the message_template_status_update event: updates the matching local
+     * WhatsAppTemplate.status (by metaTemplateId, falling back to name+language) so an
+     * approval/rejection shows up in GET /api/whatsappTemplates immediately instead of waiting
+     * for the next manual sync. Runs before relay() so the tenant's own callbackUrl still gets
+     * the raw event either way. */
+    @SuppressWarnings("unchecked")
+    private void updateTemplateStatus(Map<String, Object> payload) {
+        for (Map<String, Object> change : changes(payload)) {
+            if (!"message_template_status_update".equals(change.get("field"))) continue;
+            Map<String, Object> value = nestedMap(change, "value");
+            Object event = value.get("event");
+            if (event == null) continue;
+
+            Object templateId = value.get("message_template_id");
+            Optional<WhatsAppTemplate> template = templateId != null
+                    ? templateRepository.findFirstByMetaTemplateId(templateId.toString())
+                    : Optional.empty();
+            if (template.isEmpty()) {
+                Object name = value.get("message_template_name");
+                Object language = value.get("message_template_language");
+                if (name != null && language != null) {
+                    template = templateRepository.findFirstByNameAndLanguage(name.toString(), language.toString());
+                }
+            }
+            template.ifPresent(t -> {
+                t.setStatus(event.toString());
+                t.setLastSyncedAt(LocalDateTime.now());
+                templateRepository.save(t);
+            });
         }
     }
 
