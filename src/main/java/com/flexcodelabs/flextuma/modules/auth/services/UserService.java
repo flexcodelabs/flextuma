@@ -255,13 +255,15 @@ public class UserService extends BaseService<User> {
     }
 
     public User changePassword(User user, String newPassword) {
-        User managedUser = repository.findById(user.getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        // Mutate the caller's already-loaded user rather than re-fetching via plain findById:
+        // that eager-loads roles/privileges (see UserRepository#findByUsername), while a plain
+        // findById would return a fresh instance with roles as an uninitialized lazy proxy --
+        // AuthController#changePassword serializes it via UserResponseDto.fromUser() right after
+        // this returns, outside any session (spring.jpa.open-in-view=false), which would 500.
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setChangePassword(false);
 
-        managedUser.setPassword(passwordEncoder.encode(newPassword));
-        managedUser.setChangePassword(false);
-
-        return repository.save(managedUser);
+        return repository.save(user);
     }
 
 }
