@@ -183,7 +183,7 @@ public abstract class BaseService<T extends BaseEntity> {
 	}
 
 	@SuppressWarnings("unchecked")
-	private Specification<T> buildTenantSpec() {
+	protected Specification<T> buildTenantSpec() {
 		Optional<com.flexcodelabs.flextuma.core.entities.auth.User> currentUser = currentUserResolver == null
 				? Optional.empty()
 				: Optional.ofNullable(currentUserResolver.getCurrentUser()).orElse(Optional.empty());
