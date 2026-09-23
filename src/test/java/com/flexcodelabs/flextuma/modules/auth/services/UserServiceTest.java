@@ -220,25 +220,27 @@ class UserServiceTest {
     }
 
     @Test
-    void changePassword_shouldEncodeAndSaveManagedUser() {
+    void changePassword_shouldEncodeAndSaveTheGivenUser_withoutRefetching() {
+        // The caller (AuthController) already loaded this user with roles/privileges eager-
+        // fetched (UserRepository#findByUsername) and serializes it right after this call
+        // returns, outside any transaction (spring.jpa.open-in-view=false). Re-fetching via a
+        // plain findById here would hand back a fresh instance with roles as an uninitialized
+        // lazy proxy, so this must mutate and save the given instance directly.
         UUID id = UUID.randomUUID();
-        User detachedUser = new User();
-        detachedUser.setId(id);
+        User user = new User();
+        user.setId(id);
+        user.setChangePassword(true);
 
-        User managedUser = new User();
-        managedUser.setId(id);
-        managedUser.setChangePassword(true);
-
-        when(repository.findById(id)).thenReturn(Optional.of(managedUser));
         when(passwordEncoder.encode("new-password")).thenReturn("encoded-password");
-        when(repository.save(managedUser)).thenReturn(managedUser);
+        when(repository.save(user)).thenReturn(user);
 
-        User result = service.changePassword(detachedUser, "new-password");
+        User result = service.changePassword(user, "new-password");
 
-        assertSame(managedUser, result);
-        assertEquals("encoded-password", managedUser.getPassword());
-        assertFalse(Boolean.TRUE.equals(managedUser.getChangePassword()));
-        verify(repository).save(managedUser);
+        assertSame(user, result);
+        assertEquals("encoded-password", user.getPassword());
+        assertFalse(Boolean.TRUE.equals(user.getChangePassword()));
+        verify(repository, never()).findById(any());
+        verify(repository).save(user);
     }
 
     private void mockPermissions(Set<String> permissions) {
