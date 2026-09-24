@@ -11,20 +11,12 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 
 /**
- * Read-only CRUD browsing for Meta-synced WhatsApp templates. READ uses the
- * "ALL" sentinel (open
- * to any tenant user, scoped to their own rows by BaseService's tenant
- * filtering), but ADD/UPDATE/
- * DELETE require a dedicated permission no tenant role is ever granted -- so,
- * unlike "ALL", those
- * aren't satisfied by the generic tenant-user bypass in
- * BaseService#checkPermission, and only
- * SUPER_ADMIN (or a future explicit grant) can hit them via the inherited
- * BaseController routes.
- * Writes in practice happen only through WhatsAppTemplateSyncService and the
- * webhook's
- * message_template_status_update handler, both of which save via the repository
- * directly.
+ * Read-only CRUD browsing for Meta-synced WhatsApp templates. READ uses the "ALL" sentinel (open
+ * to any tenant user, scoped to their own rows by BaseService's tenant filtering), but ADD/UPDATE/
+ * DELETE require a dedicated permission no tenant role is ever granted, so only SUPER_ADMIN (or a
+ * future explicit grant) can hit them via the inherited BaseController routes. Writes in practice
+ * happen only through WhatsAppTemplateSyncService and the webhook's
+ * message_template_status_update handler, both of which save via the repository directly.
  */
 @Service
 @RequiredArgsConstructor
@@ -44,12 +36,21 @@ public class WhatsAppTemplateService extends BaseService<WhatsAppTemplate> {
     /** Closes BaseService#checkPermission's generic "ALL" bypass for ADD/UPDATE/DELETE -- without
      * this override (the same one User/Role/Organisation/Privilege/Wallet/TenantFeature already
      * use) any tenant user holding the common "ALL" authority could write template rows, e.g.
-     * self-declare status: APPROVED for a template Meta never approved. READ is unaffected: its
-     * permission constant is the literal "ALL" sentinel, satisfied by checkPermission's second
-     * clause regardless of this override. */
+     * self-declare status: APPROVED for a template Meta never approved. */
     @Override
     protected boolean isAdminEntity() {
         return true;
+    }
+
+    /** isAdminEntity() also disables BaseService's "requiredPermission is the ALL sentinel" clause,
+     * which would lock ordinary tenant users out of READ. Let the READ sentinel through explicitly;
+     * rows are still scoped to the caller by BaseService's tenant filtering. */
+    @Override
+    protected void checkPermission(String requiredPermission) {
+        if (WhatsAppTemplate.READ.equals(requiredPermission)) {
+            return;
+        }
+        super.checkPermission(requiredPermission);
     }
 
     @Override
