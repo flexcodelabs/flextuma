@@ -74,7 +74,8 @@ public class WhatsAppTemplateSyncService {
         if (businessAccountId == null || businessAccountId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Connector [" + connector.getId()
-                            + "] has no businessAccountId configured in extraSettings");
+                            + "] has no businessAccountId configured in extraSettings. Edit the connector and set"
+                            + " Extra settings to {\"businessAccountId\": \"<your WhatsApp Business Account ID>\"}");
         }
 
         List<Map<String, Object>> fetched = fetchAllTemplates(connector, businessAccountId);
