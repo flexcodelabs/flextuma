@@ -325,7 +325,10 @@ public class GlobalExceptionHandler {
         body.put("message", message != null ? capitalize(message) : "No message available");
 
         if (!UNLOGGED_STATUSES.contains(status)) {
-            if (ex != null) {
+            if (status.is4xxClientError()) {
+                // Client mistakes (bad input, missing resource) -- the stack trace adds nothing.
+                log.warn("Request failed with {}: {}", status, message);
+            } else if (ex != null) {
                 log.error("Request failed with {}: {}", status, message, ex);
             } else {
                 log.error("Request failed with {}: {}", status, message);
