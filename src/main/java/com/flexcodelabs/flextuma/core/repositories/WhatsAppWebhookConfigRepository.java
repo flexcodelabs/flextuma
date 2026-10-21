@@ -2,9 +2,11 @@ package com.flexcodelabs.flextuma.core.repositories;
 
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,12 +18,21 @@ public interface WhatsAppWebhookConfigRepository extends BaseRepository<WhatsApp
     // config.getConnector() (to pick the right Meta access token for media downloads) after
     // this lookup's own transaction has already closed (spring.jpa.open-in-view=false, no
     // @Transactional on the controller), so a lazy load at that point throws
-    // LazyInitializationException. connector is nullable, so LEFT JOIN FETCH.
-    @Query("SELECT c FROM WhatsAppWebhookConfig c JOIN FETCH c.createdBy LEFT JOIN FETCH c.connector WHERE c.phoneNumberId = :phoneNumberId AND c.active = true")
+    // LazyInitializationException. connector and metaApp (whose app secret validates the
+    // signature) are nullable, so LEFT JOIN FETCH.
+    @Query("SELECT c FROM WhatsAppWebhookConfig c JOIN FETCH c.createdBy LEFT JOIN FETCH c.connector LEFT JOIN FETCH c.metaApp WHERE c.phoneNumberId = :phoneNumberId AND c.active = true")
     Optional<WhatsAppWebhookConfig> findByPhoneNumberIdAndActiveTrue(@Param("phoneNumberId") String phoneNumberId);
 
     Optional<WhatsAppWebhookConfig> findByVerifyTokenAndActiveTrue(String verifyToken);
 
-    @Query("SELECT c FROM WhatsAppWebhookConfig c JOIN FETCH c.createdBy LEFT JOIN FETCH c.connector WHERE c.callbackToken = :callbackToken AND c.active = true")
+    @Query("SELECT c FROM WhatsAppWebhookConfig c JOIN FETCH c.createdBy LEFT JOIN FETCH c.connector LEFT JOIN FETCH c.metaApp WHERE c.callbackToken = :callbackToken AND c.active = true")
     Optional<WhatsAppWebhookConfig> findByCallbackTokenAndActiveTrue(@Param("callbackToken") String callbackToken);
+
+    /** Every active config sharing a Meta app's callback URL, with the same eager fetches as above. */
+    @Query("SELECT c FROM WhatsAppWebhookConfig c JOIN FETCH c.createdBy LEFT JOIN FETCH c.connector WHERE c.metaApp.id = :metaAppId AND c.active = true")
+    List<WhatsAppWebhookConfig> findAllActiveByMetaAppId(@Param("metaAppId") UUID metaAppId);
+
+    @Modifying
+    @Query("UPDATE WhatsAppWebhookConfig c SET c.metaApp = null WHERE c.metaApp.id = :metaAppId")
+    int detachMetaApp(@Param("metaAppId") UUID metaAppId);
 }

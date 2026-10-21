@@ -1,68 +1,174 @@
 package com.flexcodelabs.flextuma.modules.whatsapp.controllers;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
-import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
-import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppRelayDelivery;
-import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppTemplate;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppMetaApp;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
-import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
-import com.flexcodelabs.flextuma.core.helpers.HmacUtil;
-import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
-import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
-import com.flexcodelabs.flextuma.core.repositories.WhatsAppRelayDeliveryRepository;
-import com.flexcodelabs.flextuma.core.repositories.WhatsAppTemplateRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppMetaAppRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
-import com.flexcodelabs.flextuma.modules.whatsapp.services.WhatsAppMediaService;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.webhook.WhatsAppPayloads;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.webhook.WhatsAppSharedWebhookRouter;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.webhook.WhatsAppWebhookProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.*;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
-/** Meta Cloud API webhook endpoint. Events are queued for relay to the owning user's callback URL. */
+/**
+ * Meta Cloud API webhook endpoints. Events are processed for the owning configuration and queued
+ * for relay to its callback URL. Three URL shapes are accepted:
+ * <ul>
+ *   <li>{@code /{callbackToken}} -- one configuration (one phone number);</li>
+ *   <li>{@code /apps/{callbackToken}} -- a Meta app's shared URL, routed per phone number / WABA;</li>
+ *   <li>the bare path -- legacy, resolved by verify token and phone_number_id.</li>
+ * </ul>
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/webhooks/whatsapp")
 @RequiredArgsConstructor
 public class WhatsAppWebhookController {
-    private static final Set<String> MEDIA_MESSAGE_TYPES = Set.of("image", "document", "audio", "video", "sticker");
+    private static final String SUBSCRIBE_MODE = "subscribe";
+    private static final String MODE_PARAM = "hub.mode";
+    private static final String VERIFY_TOKEN_PARAM = "hub.verify_token";
+    private static final String CHALLENGE_PARAM = "hub.challenge";
+    private static final String SIGNATURE_HEADER = "X-Hub-Signature-256";
+    private static final TypeReference<Map<String, Object>> PAYLOAD_TYPE = new TypeReference<>() {
+    };
 
     private final WhatsAppWebhookConfigRepository configRepository;
-    private final SmsLogRepository smsLogRepository;
-    private final WhatsAppInboxMessageRepository inboxMessageRepository;
-    private final WhatsAppRelayDeliveryRepository relayDeliveryRepository;
-    private final WhatsAppTemplateRepository templateRepository;
-    private final WhatsAppMediaService mediaService;
+    private final WhatsAppMetaAppRepository metaAppRepository;
+    private final WhatsAppWebhookProcessor processor;
+    private final WhatsAppSharedWebhookRouter sharedRouter;
     private final ObjectMapper objectMapper;
 
     @GetMapping
-    public ResponseEntity<String> verify(@RequestParam("hub.mode") String mode,
-            @RequestParam("hub.verify_token") String verifyToken,
-            @RequestParam("hub.challenge") String challenge) {
+    public ResponseEntity<String> verify(@RequestParam(MODE_PARAM) String mode,
+            @RequestParam(VERIFY_TOKEN_PARAM) String verifyToken, @RequestParam(CHALLENGE_PARAM) String challenge) {
         Optional<WhatsAppWebhookConfig> config = configRepository.findByVerifyTokenAndActiveTrue(verifyToken);
-        if ("subscribe".equals(mode) && config.isPresent()) { markVerified(config.get()); return ResponseEntity.ok(challenge); }
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        if (!SUBSCRIBE_MODE.equals(mode) || config.isEmpty()) {
+            return forbidden();
+        }
+        markVerified(config.get());
+        return ResponseEntity.ok(challenge);
     }
 
     @GetMapping("/{callbackToken}")
     public ResponseEntity<String> verifyGeneratedCallback(@PathVariable String callbackToken,
-            @RequestParam("hub.mode") String mode, @RequestParam("hub.verify_token") String verifyToken,
-            @RequestParam("hub.challenge") String challenge) {
-        Optional<WhatsAppWebhookConfig> config = configRepository.findByCallbackTokenAndActiveTrue(callbackToken);
-        if (config.isPresent() && "subscribe".equals(mode) && MessageDigest.isEqual(
-                config.get().getVerifyToken().getBytes(StandardCharsets.UTF_8), verifyToken.getBytes(StandardCharsets.UTF_8))) { markVerified(config.get()); return ResponseEntity.ok(challenge); }
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            @RequestParam(MODE_PARAM) String mode, @RequestParam(VERIFY_TOKEN_PARAM) String verifyToken,
+            @RequestParam(CHALLENGE_PARAM) String challenge) {
+        Optional<WhatsAppWebhookConfig> config = configRepository.findByCallbackTokenAndActiveTrue(callbackToken)
+                .filter(found -> isSubscription(mode, found.getVerifyToken(), verifyToken));
+        if (config.isEmpty()) {
+            return forbidden();
+        }
+        markVerified(config.get());
+        return ResponseEntity.ok(challenge);
+    }
+
+    @GetMapping("/apps/{callbackToken}")
+    public ResponseEntity<String> verifySharedCallback(@PathVariable String callbackToken,
+            @RequestParam(MODE_PARAM) String mode, @RequestParam(VERIFY_TOKEN_PARAM) String verifyToken,
+            @RequestParam(CHALLENGE_PARAM) String challenge) {
+        Optional<WhatsAppMetaApp> app = metaAppRepository.findByCallbackTokenAndActiveTrue(callbackToken)
+                .filter(found -> isSubscription(mode, found.getVerifyToken(), verifyToken));
+        if (app.isEmpty()) {
+            return forbidden();
+        }
+        app.get().setLastVerifiedAt(LocalDateTime.now());
+        metaAppRepository.save(app.get());
+        return ResponseEntity.ok(challenge);
+    }
+
+    @PostMapping
+    public ResponseEntity<Void> receive(@RequestBody String rawPayload,
+            @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature) {
+        Optional<Map<String, Object>> payload = parse(rawPayload);
+        if (payload.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        Optional<WhatsAppWebhookConfig> config = WhatsAppPayloads.phoneNumberIdOfPayload(payload.get())
+                .flatMap(configRepository::findByPhoneNumberIdAndActiveTrue);
+        return handle(payload.get(), rawPayload, signature, config);
+    }
+
+    /** The callback token already scopes this request to exactly one config (it's unique and
+     * unguessable), and the Meta signature is the real authenticity check. Meta delivers many event
+     * types (template status, account alerts, etc.) with no metadata.phone_number_id at all, so
+     * none is required here. */
+    @PostMapping("/{callbackToken}")
+    public ResponseEntity<Void> receiveGeneratedCallback(@PathVariable String callbackToken, @RequestBody String rawPayload,
+            @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature) {
+        Optional<Map<String, Object>> payload = parse(rawPayload);
+        if (payload.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        return handle(payload.get(), rawPayload, signature, configRepository.findByCallbackTokenAndActiveTrue(callbackToken));
+    }
+
+    @PostMapping("/apps/{callbackToken}")
+    public ResponseEntity<Void> receiveSharedCallback(@PathVariable String callbackToken, @RequestBody String rawPayload,
+            @RequestHeader(value = SIGNATURE_HEADER, required = false) String signature) {
+        Optional<Map<String, Object>> payload = parse(rawPayload);
+        if (payload.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        Optional<WhatsAppMetaApp> app = metaAppRepository.findByCallbackTokenAndActiveTrue(callbackToken);
+        if (app.isEmpty()) {
+            log.warn("Ignoring shared WhatsApp webhook with no active Meta app");
+            return ResponseEntity.ok().build();
+        }
+        if (!processor.validSignature(app.get(), rawPayload, signature)) {
+            log.warn("Rejecting shared WhatsApp webhook with an invalid Meta signature for app [{}]", app.get().getId());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        app.get().setLastEventAt(LocalDateTime.now());
+        metaAppRepository.save(app.get());
+        sharedRouter.route(app.get(), payload.get()).forEach(routed -> processor.process(routed.config(), routed.payload()));
+        return ResponseEntity.ok().build();
+    }
+
+    private ResponseEntity<Void> handle(Map<String, Object> payload, String rawPayload, String signature,
+            Optional<WhatsAppWebhookConfig> config) {
+        if (config.isEmpty()) {
+            log.warn("Ignoring WhatsApp webhook with no active configuration");
+            return ResponseEntity.ok().build();
+        }
+        if (!processor.validSignature(config.get(), rawPayload, signature)) {
+            log.warn("Rejecting WhatsApp webhook with an invalid Meta signature for config [{}]", config.get().getId());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        processor.process(config.get(), payload);
+        return ResponseEntity.ok().build();
+    }
+
+    private Optional<Map<String, Object>> parse(String rawPayload) {
+        try {
+            return Optional.ofNullable(objectMapper.readValue(rawPayload, PAYLOAD_TYPE));
+        } catch (JsonProcessingException e) {
+            log.warn("Rejecting WhatsApp webhook with unparsable JSON: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private static boolean isSubscription(String mode, String expectedToken, String verifyToken) {
+        return SUBSCRIBE_MODE.equals(mode) && expectedToken != null && MessageDigest.isEqual(
+                expectedToken.getBytes(StandardCharsets.UTF_8), verifyToken.getBytes(StandardCharsets.UTF_8));
     }
 
     private void markVerified(WhatsAppWebhookConfig config) {
@@ -70,261 +176,7 @@ public class WhatsAppWebhookController {
         configRepository.save(config);
     }
 
-    private void markEventReceived(WhatsAppWebhookConfig config) {
-        config.setLastEventAt(LocalDateTime.now());
-        configRepository.save(config);
-    }
-
-    @PostMapping
-    public ResponseEntity<Void> receive(@RequestBody String rawPayload,
-            @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature) {
-        Map<String, Object> payload;
-        try {
-            payload = objectMapper.readValue(rawPayload, Map.class);
-        } catch (Exception e) {
-            log.warn("Rejecting WhatsApp webhook with unparsable JSON: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
-        }
-        try {
-            return handle(payload, rawPayload, signature, phoneNumberId(payload).flatMap(configRepository::findByPhoneNumberIdAndActiveTrue));
-        } catch (RuntimeException e) {
-            log.error("WhatsApp webhook processing failed", e);
-            throw e;
-        }
-    }
-
-    @PostMapping("/{callbackToken}")
-    public ResponseEntity<Void> receiveGeneratedCallback(@PathVariable String callbackToken, @RequestBody String rawPayload,
-            @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature) {
-        try {
-            Map<String, Object> payload = objectMapper.readValue(rawPayload, Map.class);
-            // The callback token itself already scopes this request to exactly one config (it's
-            // unique and unguessable), and validMetaSignature() is the real authenticity check.
-            // Meta delivers many event types (template status, account alerts, etc.) that carry no
-            // metadata.phone_number_id at all, so requiring one here rejected legitimate events.
-            Optional<WhatsAppWebhookConfig> config = configRepository.findByCallbackTokenAndActiveTrue(callbackToken);
-            return handle(payload, rawPayload, signature, config);
-        } catch (Exception e) {
-            log.error("WhatsApp webhook processing failed for callback token [{}]", callbackToken, e);
-            return ResponseEntity.badRequest().build();
-        }
-    }
-
-    private ResponseEntity<Void> handle(Map<String, Object> payload, String rawPayload, String signature, Optional<WhatsAppWebhookConfig> config) {
-        if (config.isEmpty()) { log.warn("Ignoring WhatsApp webhook with no active configuration"); return ResponseEntity.ok().build(); }
-        if (!validMetaSignature(config.get(), rawPayload, signature)) { log.warn("Rejecting WhatsApp webhook with an invalid Meta signature for config [{}]", config.get().getId()); return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build(); }
-        markEventReceived(config.get());
-        updateDeliveryStatus(payload); ingestInboundMessages(config.get(), payload); updateTemplateStatus(config.get(), payload); relay(config.get(), payload);
-        log.info("Processed WhatsApp webhook for config [{}]: {} change(s)", config.get().getId(), changes(payload).size());
-        return ResponseEntity.ok().build();
-    }
-
-    private Optional<String> phoneNumberId(Map<String, Object> payload) {
-        return changes(payload).stream().map(change -> nestedMap(change, "value"))
-                .map(value -> nestedMap(value, "metadata")).map(metadata -> metadata.get("phone_number_id"))
-                .filter(value -> value != null && !value.toString().isBlank()).map(Object::toString).findFirst();
-    }
-
-    private void updateDeliveryStatus(Map<String, Object> payload) {
-        for (Map<String, Object> change : changes(payload)) {
-            Object statuses = nestedMap(change, "value").get("statuses");
-            if (!(statuses instanceof List<?> list)) continue;
-            for (Object status : list) {
-                if (!(status instanceof Map<?, ?> raw)) continue;
-                Object id = raw.get("id"), value = raw.get("status");
-                if (id != null && value != null) smsLogRepository.findByProviderMessageId(id.toString()).ifPresent(log -> applyStatus(log, value.toString(), (Map<String, Object>) raw));
-            }
-        }
-    }
-
-    /** Special-cases the message_template_status_update event: updates the matching local
-     * WhatsAppTemplate.status (by metaTemplateId, falling back to name+language) so an
-     * approval/rejection shows up in GET /api/whatsappTemplates immediately instead of waiting
-     * for the next manual sync. Runs before relay() so the tenant's own callbackUrl still gets
-     * the raw event either way. Both lookups are scoped to config's owner -- metaTemplateId and
-     * name+language are each only unique per (value, creator), so an unscoped lookup could match
-     * a different tenant's template of the same id or the same common name (e.g.
-     * "otp_verification"), corrupting their approval status instead. */
-    @SuppressWarnings("unchecked")
-    private void updateTemplateStatus(WhatsAppWebhookConfig config, Map<String, Object> payload) {
-        for (Map<String, Object> change : changes(payload)) {
-            if (!"message_template_status_update".equals(change.get("field"))) continue;
-            Map<String, Object> value = nestedMap(change, "value");
-            Object event = value.get("event");
-            if (event == null) continue;
-
-            Object templateId = value.get("message_template_id");
-            Optional<WhatsAppTemplate> template = templateId != null
-                    ? templateRepository.findFirstByMetaTemplateIdAndCreatedBy(templateId.toString(), config.getCreatedBy())
-                    : Optional.empty();
-            if (template.isEmpty()) {
-                Object name = value.get("message_template_name");
-                Object language = value.get("message_template_language");
-                if (name != null && language != null) {
-                    template = templateRepository.findFirstByNameAndLanguageAndCreatedBy(name.toString(),
-                            language.toString(), config.getCreatedBy());
-                }
-            }
-            template.ifPresent(t -> {
-                t.setStatus(event.toString());
-                t.setLastSyncedAt(LocalDateTime.now());
-                templateRepository.save(t);
-            });
-        }
-    }
-
-    // sent < delivered < read: Meta's status callbacks can arrive out of order (or duplicated),
-    // and without this a late "delivered" retry could visibly regress an already-READ message's
-    // blue ticks back to gray. FAILED isn't in this progression -- it's a terminal outcome, not
-    // a step past it.
-    private static final List<SmsLogStatus> DELIVERY_PROGRESSION = List.of(SmsLogStatus.SENT, SmsLogStatus.DELIVERED, SmsLogStatus.READ);
-
-    @SuppressWarnings("unchecked")
-    private void applyStatus(SmsLog logEntry, String status, Map<String, Object> raw) {
-        SmsLogStatus next;
-        if ("read".equalsIgnoreCase(status)) next = SmsLogStatus.READ;
-        else if ("delivered".equalsIgnoreCase(status)) next = SmsLogStatus.DELIVERED;
-        else if ("failed".equalsIgnoreCase(status)) next = SmsLogStatus.FAILED;
-        else if ("sent".equalsIgnoreCase(status)) next = SmsLogStatus.SENT;
-        else return;
-
-        if (next != SmsLogStatus.FAILED && isDeliveryRegression(logEntry.getStatus(), next)) return;
-
-        logEntry.setStatus(next);
-        if (next == SmsLogStatus.FAILED) logEntry.setError(extractErrorMessage(raw));
-        smsLogRepository.save(logEntry);
-    }
-
-    private boolean isDeliveryRegression(SmsLogStatus current, SmsLogStatus next) {
-        // List.of(...)'s indexOf() throws NPE on a null argument (unlike ArrayList's, which just
-        // returns -1) -- and current is null for a log whose status hasn't been set yet, so this
-        // must short-circuit before reaching DELIVERY_PROGRESSION.indexOf(current) below.
-        if (current == null) {
-            return false;
-        }
-        int currentIndex = DELIVERY_PROGRESSION.indexOf(current);
-        int nextIndex = DELIVERY_PROGRESSION.indexOf(next);
-        return currentIndex >= 0 && nextIndex >= 0 && nextIndex < currentIndex;
-    }
-
-    private String extractErrorMessage(Map<String, Object> raw) {
-        Object errors = raw.get("errors");
-        if (!(errors instanceof List<?> list) || list.isEmpty() || !(list.get(0) instanceof Map<?, ?> first)) return null;
-        Object message = first.get("message"), title = first.get("title"), code = first.get("code");
-        String text = message != null ? message.toString() : title != null ? title.toString() : "WhatsApp delivery failed";
-        return code != null ? "[" + code + "] " + text : text;
-    }
-
-    @SuppressWarnings("unchecked")
-    private void ingestInboundMessages(WhatsAppWebhookConfig config, Map<String, Object> payload) {
-        for (Map<String, Object> change : changes(payload)) {
-            Map<String, Object> value = nestedMap(change, "value");
-            Object messages = value.get("messages");
-            if (!(messages instanceof List<?> list)) continue;
-            Map<String, String> contactNames = contactNamesByWaId(value);
-            for (Object item : list) {
-                if (!(item instanceof Map<?, ?> raw)) continue;
-                saveInboundMessage(config, (Map<String, Object>) raw, contactNames);
-            }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, String> contactNamesByWaId(Map<String, Object> value) {
-        Object contacts = value.get("contacts");
-        if (!(contacts instanceof List<?> list)) return Map.of();
-        Map<String, String> names = new HashMap<>();
-        for (Object item : list) {
-            if (!(item instanceof Map<?, ?> raw)) continue;
-            Object waId = raw.get("wa_id");
-            Object name = nestedMap((Map<String, Object>) raw, "profile").get("name");
-            if (waId != null && name != null) names.put(waId.toString(), name.toString());
-        }
-        return names;
-    }
-
-    private void saveInboundMessage(WhatsAppWebhookConfig config, Map<String, Object> raw, Map<String, String> contactNames) {
-        Object idObj = raw.get("id"), fromObj = raw.get("from"), typeObj = raw.get("type");
-        if (idObj == null || fromObj == null) return;
-        String providerMessageId = idObj.toString();
-        if (inboxMessageRepository.existsByProviderMessageId(providerMessageId)) return;
-        String type = typeObj != null ? typeObj.toString() : "unknown";
-        WhatsAppInboxMessage message = new WhatsAppInboxMessage();
-        message.setConfig(config);
-        message.setCreatedBy(config.getCreatedBy());
-        message.setFromNumber(fromObj.toString());
-        message.setContactName(contactNames.get(fromObj.toString()));
-        message.setProviderMessageId(providerMessageId);
-        message.setMessageType(type);
-        message.setReceivedAt(parseTimestamp(raw.get("timestamp")));
-
-        if (MEDIA_MESSAGE_TYPES.contains(type)) {
-            attachMedia(message, config, nestedMap(raw, type));
-        } else {
-            message.setContent(extractInboundContent(raw, type));
-        }
-
-        try {
-            inboxMessageRepository.save(message);
-        } catch (DataIntegrityViolationException e) {
-            log.debug("Duplicate WhatsApp inbound message [{}] ignored", providerMessageId);
-        }
-    }
-
-    private void attachMedia(WhatsAppInboxMessage message, WhatsAppWebhookConfig config, Map<String, Object> media) {
-        Object mediaId = media.get("id"), mimeType = media.get("mime_type"), caption = media.get("caption");
-        message.setContent(caption != null ? caption.toString() : null);
-        if (mediaId == null) {
-            return;
-        }
-        message.setMediaId(mediaId.toString());
-        message.setMimeType(mimeType != null ? mimeType.toString() : null);
-        message.setCaption(caption != null ? caption.toString() : null);
-        mediaService.download(config, mediaId.toString()).ifPresent(downloaded -> {
-            message.setMediaPath(downloaded.path());
-            message.setMediaSize(downloaded.size());
-        });
-    }
-
-    private String extractInboundContent(Map<String, Object> raw, String type) {
-        if ("text".equals(type)) {
-            Object body = nestedMap(raw, "text").get("body");
-            if (body != null) return body.toString();
-        }
-        return "[" + type + "]";
-    }
-
-    private LocalDateTime parseTimestamp(Object timestamp) {
-        try {
-            return LocalDateTime.ofEpochSecond(Long.parseLong(timestamp.toString()), 0, ZoneOffset.UTC);
-        } catch (Exception e) {
-            return LocalDateTime.now();
-        }
-    }
-
-    private void relay(WhatsAppWebhookConfig config, Map<String, Object> payload) {
-        if (config.getCallbackUrl() == null || config.getCallbackUrl().isBlank()) return;
-        try {
-            WhatsAppRelayDelivery delivery = new WhatsAppRelayDelivery();
-            delivery.setConfig(config);
-            delivery.setCreatedBy(config.getCreatedBy());
-            delivery.setPayload(objectMapper.writeValueAsString(payload));
-            relayDeliveryRepository.save(delivery);
-        } catch (Exception e) { log.warn("Unable to queue WhatsApp relay for config [{}]: {}", config.getId(), e.getMessage()); }
-    }
-
-    private boolean validMetaSignature(WhatsAppWebhookConfig config, String rawPayload, String signature) {
-        if (config.getAppSecret() == null || config.getAppSecret().isBlank()) return true;
-        if (signature == null || !signature.startsWith("sha256=")) return false;
-        try {
-            String expected = "sha256=" + HmacUtil.sha256Hex(rawPayload, config.getAppSecret());
-            return MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII), signature.getBytes(StandardCharsets.US_ASCII));
-        } catch (Exception e) { return false; }
-    }
-
-    @SuppressWarnings("unchecked") private Map<String, Object> nestedMap(Map<String, Object> source, String key) { Object value = source.get(key); return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of(); }
-    @SuppressWarnings("unchecked") private List<Map<String, Object>> changes(Map<String, Object> payload) {
-        Object entries = payload.get("entry"); if (!(entries instanceof List<?> entryList)) return List.of();
-        return entryList.stream().filter(Map.class::isInstance).flatMap(entry -> { Object values = ((Map<String, Object>) entry).get("changes"); return values instanceof List<?> list ? list.stream() : java.util.stream.Stream.empty(); }).filter(Map.class::isInstance).map(item -> (Map<String, Object>) item).toList();
+    private static ResponseEntity<String> forbidden() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 }

@@ -105,15 +105,15 @@ public class WhatsAppMediaService {
     }
 
     /** Prefers the webhook config's explicitly linked connector; falls back to the owner's
-     * first active WhatsApp connector for configs that predate that link (ambiguous if the
-     * owner has more than one). Package-private: also reused by WhatsAppInboxMessageService to
+     * preferred active WhatsApp connector (isDefault first, then oldest) for configs without one.
+     * Package-private: also reused by WhatsAppInboxMessageService to
      * resolve the connector needed to send Meta read receipts. */
     SmsConnector resolveConnector(WhatsAppWebhookConfig config) {
         if (config.getConnector() != null) {
             return config.getConnector();
         }
         return smsConnectorRepository
-                .findByCreatedByAndProviderAndActiveTrue(config.getCreatedBy(), WHATSAPP_PROVIDER)
+                .findPreferredActiveConnector(config.getCreatedBy(), WHATSAPP_PROVIDER)
                 .orElse(null);
     }
 

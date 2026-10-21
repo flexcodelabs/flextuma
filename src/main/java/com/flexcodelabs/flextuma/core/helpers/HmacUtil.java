@@ -3,13 +3,14 @@ package com.flexcodelabs.flextuma.core.helpers;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 
 public final class HmacUtil {
 
     private HmacUtil() {
     }
 
-    public static String sha256Hex(String payload, String secret) throws Exception {
+    public static String sha256Hex(String payload, String secret) throws GeneralSecurityException {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         StringBuilder result = new StringBuilder();

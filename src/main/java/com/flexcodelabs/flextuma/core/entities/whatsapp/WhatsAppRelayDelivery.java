@@ -43,6 +43,10 @@ public class WhatsAppRelayDelivery extends Owner {
     @Column(nullable = false)
     private int retries = 0;
 
+    /** When the next automatic retry is due; null when none is scheduled. */
+    @Column(name = "next_retry_at")
+    private LocalDateTime nextRetryAt;
+
     @Column(name = "last_attempt_at")
     private LocalDateTime lastAttemptAt;
 

@@ -104,9 +104,18 @@ public class SmsLogService extends BaseService<SmsLog> {
         if (log.getStatus() != SmsLogStatus.FAILED) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only failed messages can be retried");
         }
+        if (log.getWhatsappTemplate() == null && log.getContent() != null && log.getContent().startsWith("[Template: ")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "This template message was sent before resend support and cannot be resent; send the template again");
+        }
 
+        // Like replaying from a Kafka DLT: the message re-enters the queue with a fresh
+        // backoff budget, while `retries` keeps the lifetime count.
         log.setStatus(SmsLogStatus.PENDING);
         log.setRetries(log.getRetries() + 1);
+        log.setDeliveryAttempts(0);
+        log.setNextRetryAt(null);
+        log.setRetryWindowStartedAt(null);
         log.setError(null);
         log.setProviderResponse(null);
 

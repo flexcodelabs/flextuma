@@ -252,6 +252,25 @@ To deliver inbound WhatsApp messages and status events into a user's system, cre
 
 Set `FLEXTUMA_PUBLIC_BASE_URL` to Flextuma's public HTTPS origin before creating configurations. On creation, Flextuma generates and persists a random `verifyToken` and a unique `metaCallbackUrl`. Copy these two returned values directly into WhatsApp Cloud's callback URL and verify-token fields; users do not need to create or manage secrets for Meta verification. The generated URL binds Meta's request to that user's configuration, and Flextuma also checks the configured `phoneNumberId`. Flextuma validates Meta's `X-Hub-Signature-256` whenever `appSecret` is set, then forwards the original JSON to the owning user's `callbackUrl`. When `signingSecret` is supplied, the forwarded request includes `X-Flextuma-Signature-256: sha256=<HMAC-SHA256(raw-body)>` and `X-Flextuma-Event: whatsapp`. Callback URLs must be HTTPS. The callback endpoint must return quickly with a 2xx response; failed relays are logged and do not trigger a Meta retry, preventing duplicate downstream processing.
 
+#### Multiple WhatsApp numbers and shared callback URLs
+
+An account can hold several WhatsApp connectors, one per Meta phone number (`senderId`), all on the same Graph API `url`; connectors are unique per provider, URL, sender ID and owner. When a send does not pass `connectorId`, the owner's active connector with `isDefault: true` is used (the oldest one wins if several are flagged). Create one `/api/whatsappWebhookConfigs` record per phone number and link each to its connector.
+
+Meta sets the webhook callback URL **once per Meta app** (App Dashboard → WhatsApp → Configuration). Every WhatsApp Business Account subscribed to that app (`POST /{WABA_ID}/subscribed_apps`), and every phone number in it, delivers to that one URL, signed with the app secret. Optional overrides can be set per WABA (`override_callback_uri` on `subscribed_apps`) or per phone number (`webhook_configuration.override_callback_uri` on `POST /{PHONE_NUMBER_ID}`). Meta checks the phone-number override first, then the WABA override, then the app URL. To support this, create a shared Meta app:
+
+```json
+POST /api/whatsappMetaApps
+{ "name": "Main business app", "metaAppId": "1234567890", "appSecret": "Meta App Secret", "verifyToken": "optional" }
+```
+
+The response includes a generated `metaCallbackUrl` (`/api/webhooks/whatsapp/apps/{token}`). Paste it, with the verify token, into the Meta app once. Then link each phone number's webhook configuration to the app:
+
+```json
+{ "phoneNumberId": "META_PHONE_NUMBER_ID", "connector": { "id": "…" }, "metaApp": { "id": "…" }, "businessAccountId": "WABA_ID" }
+```
+
+Events on the shared URL are checked against the app secret. Each change is then routed to the configuration whose `phoneNumberId` matches `value.metadata.phone_number_id`. WABA-level changes carry no phone number (template status, account updates); they go to every linked configuration whose `businessAccountId` matches `entry[].id`, or to the app's only configuration if there is just one. Only configurations linked to that app can receive its events. Each configuration keeps its own per-number `metaCallbackUrl` for use as a phone-number override. When a linked configuration has no `appSecret` of its own, the app's secret validates that URL too. Deleting a Meta app detaches its configurations, which keep working on their own URLs.
+
 ### Planned: Flextuma-managed Meta Tech Provider onboarding
 
 The configuration above is the current **bring-your-own-Meta** integration: customers supply their Cloud API credentials and phone-number ID. The planned Tech Provider mode will offer a branded **Connect WhatsApp** flow through Meta Embedded Signup, so customers do not manually handle access tokens, app secrets, callback URLs, or verification tokens.
