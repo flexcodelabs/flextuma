@@ -47,6 +47,10 @@ public class WhatsAppWebhookConfig extends Owner {
     @Column(name = "display_phone_number")
     private String displayPhoneNumber;
 
+    /** Business name Meta shows customers for this number (verified_name), read from Meta at setup. */
+    @Column(name = "verified_name")
+    private String verifiedName;
+
     /**
      * The WHATSAPP-provider SmsConnector whose Meta access token is used to download inbound
      * media for this webhook. Optional: when unset, WhatsAppMediaService falls back to the

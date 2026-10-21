@@ -9,7 +9,9 @@ import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.enums.WhatsAppRelayStatus;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppMetaAppRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppRelayDeliveryRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppWebhookOverviewDTO;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +59,12 @@ class WhatsAppWebhookConfigServiceTest {
 
     @Mock
     private WhatsAppMetaAppRepository metaAppRepository;
+
+    @Mock
+    private WhatsAppInboxMessageRepository inboxMessageRepository;
+
+    @Mock
+    private WhatsAppRelayDeliveryRepository relayDeliveryRepository;
 
     @Spy
     private WhatsAppEventRetentionPolicy eventRetentionPolicy = new WhatsAppEventRetentionPolicy(30, 90);
@@ -266,5 +274,22 @@ class WhatsAppWebhookConfigServiceTest {
         entity.setEventRetentionDays(91);
 
         assertThrows(IllegalArgumentException.class, () -> service.onPreSave(entity));
+    }
+
+    @Test
+    void validateDelete_shouldRefuse_whenNumberHasMessageHistory() {
+        WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
+        config.setId(UUID.randomUUID());
+        when(inboxMessageRepository.existsByConfigId(config.getId())).thenReturn(true);
+
+        assertThrows(IllegalStateException.class, () -> service.validateDelete(config));
+    }
+
+    @Test
+    void validateDelete_shouldAllow_whenNumberHasNoHistory() {
+        WhatsAppWebhookConfig config = new WhatsAppWebhookConfig();
+        config.setId(UUID.randomUUID());
+
+        assertDoesNotThrow(() -> service.validateDelete(config));
     }
 }
