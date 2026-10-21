@@ -1,12 +1,15 @@
 package com.flexcodelabs.flextuma.modules.sms.services;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Service;
 
+import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
+import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 
@@ -17,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 public class SmsConnectorService extends BaseService<SmsConnector> {
 
     private final SmsConnectorRepository repository;
+    private final CurrentUserResolver userResolver;
 
     @Override
     protected JpaRepository<SmsConnector, UUID> getRepository() {
@@ -70,7 +74,34 @@ public class SmsConnectorService extends BaseService<SmsConnector> {
 
     @Override
     protected void onPreSave(SmsConnector entity) {
+        reuseSavedKey(entity);
         validateProviderConfig(entity);
+    }
+
+    private void reuseSavedKey(SmsConnector entity) {
+        if (entity.getReuseKeyFrom() == null) {
+            return;
+        }
+        SmsConnector source = repository.findById(entity.getReuseKeyFrom())
+                .filter(found -> found.getProvider() != null && found.getProvider().equalsIgnoreCase(entity.getProvider()))
+                .filter(this::isOwnedByCurrentUser)
+                .orElseThrow(() -> new IllegalArgumentException("The saved credentials to reuse were not found"));
+        entity.setKey(source.getKey());
+        if (isBlank(entity.getSecret())) {
+            entity.setSecret(source.getSecret());
+        }
+        if (isBlank(entity.getUrl())) {
+            entity.setUrl(source.getUrl());
+        }
+    }
+
+    private boolean isOwnedByCurrentUser(SmsConnector connector) {
+        Optional<User> user = userResolver.getCurrentUser();
+        return user.isPresent() && connector.getCreatedBy() != null && connector.getCreatedBy().getId().equals(user.get().getId());
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     @Override

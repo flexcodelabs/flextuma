@@ -9,7 +9,9 @@ import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.enums.WhatsAppRelayStatus;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppMetaAppRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppRelayDeliveryRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppActivityItemDTO;
@@ -46,6 +48,8 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
     private final WhatsAppRelayDeliveryService relayDeliveryService;
     private final SmsConnectorRepository smsConnectorRepository;
     private final WhatsAppMetaAppRepository metaAppRepository;
+    private final WhatsAppInboxMessageRepository inboxMessageRepository;
+    private final WhatsAppRelayDeliveryRepository relayDeliveryRepository;
     private final CurrentUserResolver currentUserResolver;
     private final WhatsAppEventRetentionPolicy eventRetentionPolicy;
     @Value("${flextuma.public-base-url:}") private String publicBaseUrl;
@@ -77,6 +81,15 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
         if (entity.getAppSecret() != null && entity.getAppSecret().contains("****")) entity.setAppSecret(old.getAppSecret());
         WhatsAppWebhookConfig merged = super.onPreUpdate(entity, old); validate(merged); return merged;
     }
+    // Inbox messages and relay deliveries reference their config without a cascade, so deleting
+    // a number that has history would fail on the foreign key with an unhelpful database error.
+    @Override
+    protected void validateDelete(WhatsAppWebhookConfig entity) {
+        if (inboxMessageRepository.existsByConfigId(entity.getId()) || relayDeliveryRepository.existsByConfigId(entity.getId())) {
+            throw new IllegalStateException("This number has message history, so it can't be removed. Pause it instead.");
+        }
+    }
+
     private void provisionMetaCallback(WhatsAppWebhookConfig entity) {
         if (publicBaseUrl == null || publicBaseUrl.isBlank()) throw new IllegalStateException("FLEXTUMA_PUBLIC_BASE_URL must be configured before WhatsApp webhooks can be created");
         // A caller may supply their own verifyToken (so they know the value to paste into Meta);

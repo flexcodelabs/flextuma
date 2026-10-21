@@ -19,6 +19,8 @@ public interface WhatsAppInboxMessageRepository extends BaseRepository<WhatsAppI
         JpaSpecificationExecutor<WhatsAppInboxMessage> {
     boolean existsByProviderMessageId(String providerMessageId);
 
+    boolean existsByConfigId(UUID configId);
+
     /** Candidates for {@code WhatsAppMediaBackfillWorker}: messages that carry a Meta media id
      * but never got a cached copy on disk, bounded to recent messages since Meta's CDN only
      * keeps media retrievable for a limited window. */

@@ -254,7 +254,7 @@ Set `FLEXTUMA_PUBLIC_BASE_URL` to Flextuma's public HTTPS origin before creating
 
 #### Multiple WhatsApp numbers and shared callback URLs
 
-An account can hold several WhatsApp connectors, one per Meta phone number (`senderId`), all on the same Graph API `url`; connectors are unique per provider, URL, sender ID and owner. When a send does not pass `connectorId`, the owner's active connector with `isDefault: true` is used (the oldest one wins if several are flagged). Create one `/api/whatsappWebhookConfigs` record per phone number and link each to its connector.
+An account can hold several WhatsApp connectors, one per Meta phone number (`senderId`), all on the same Graph API `url`; connectors are unique per provider, URL, sender ID and owner. When a send does not pass `connectorId`, the owner's active connector with `isDefault: true` is used (the oldest one wins if several are flagged). Create one `/api/whatsappWebhookConfigs` record per phone number and link each to its connector. To add another number that uses a token you already saved, create the connector with `"reuseKeyFrom": "<connector id>"` and no `key`. Flextuma copies the key, secret and URL from that connector server-side; it must be yours and use the same provider. `POST /api/whatsappMeta/check` with `{ "connectorId", "tokenOnly": true, "businessAccountId" }` lists that account's numbers using the saved token.
 
 Meta sets the webhook callback URL **once per Meta app** (App Dashboard → WhatsApp → Configuration). Every WhatsApp Business Account subscribed to that app (`POST /{WABA_ID}/subscribed_apps`), and every phone number in it, delivers to that one URL, signed with the app secret. Optional overrides can be set per WABA (`override_callback_uri` on `subscribed_apps`) or per phone number (`webhook_configuration.override_callback_uri` on `POST /{PHONE_NUMBER_ID}`). Meta checks the phone-number override first, then the WABA override, then the app URL. To support this, create a shared Meta app:
 
@@ -270,6 +270,10 @@ The response includes a generated `metaCallbackUrl` (`/api/webhooks/whatsapp/app
 ```
 
 Events on the shared URL are checked against the app secret. Each change is then routed to the configuration whose `phoneNumberId` matches `value.metadata.phone_number_id`. WABA-level changes carry no phone number (template status, account updates); they go to every linked configuration whose `businessAccountId` matches `entry[].id`, or to the app's only configuration if there is just one. Only configurations linked to that app can receive its events. Each configuration keeps its own per-number `metaCallbackUrl` for use as a phone-number override. When a linked configuration has no `appSecret` of its own, the app's secret validates that URL too. Deleting a Meta app detaches its configurations, which keep working on their own URLs.
+
+#### Checking credentials with Meta
+
+`POST /api/whatsappMeta/check` validates WhatsApp credentials against the Graph API before (or after) they are saved. It takes `{ "accessToken", "graphApiUrl", "businessAccountId" }` for a number not yet saved, or `{ "connectorId" }` to reuse a saved connector's token; that token never leaves the server. The response returns `ok` (or a readable `error` for expired tokens, missing permissions or unknown IDs), the WABA's `phoneNumbers` (display number, verified name, quality rating), the requested `phoneNumber`, and `subscribedApps` (the Meta apps receiving the WABA's webhooks). `POST /api/whatsappMeta/subscribe` calls `POST /{WABA_ID}/subscribed_apps` for the token's app and returns the refreshed check. Only `https://graph.facebook.com` is called, and IDs must be numeric.
 
 ### Planned: Flextuma-managed Meta Tech Provider onboarding
 

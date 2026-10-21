@@ -58,6 +58,15 @@ public class SmsConnector extends Owner {
     @Column(columnDefinition = "TEXT", name = "extrasettings", nullable = true)
     private String extraSettings;
 
+    /**
+     * Create-only: copy key/secret (and url, if blank) from this other connector of the same owner
+     * and provider, so one stored credential -- e.g. a Meta System User token shared by several
+     * WhatsApp numbers -- can be reused without ever being sent back to the browser.
+     */
+    @Transient
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private java.util.UUID reuseKeyFrom;
+
     @JsonProperty("key")
     public String getMaskedKey() {
         return MaskingUtil.mask(this.key);

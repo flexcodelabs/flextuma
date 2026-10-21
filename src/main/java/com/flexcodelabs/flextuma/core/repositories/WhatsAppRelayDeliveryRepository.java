@@ -16,6 +16,8 @@ import java.util.UUID;
 @Repository
 public interface WhatsAppRelayDeliveryRepository extends BaseRepository<WhatsAppRelayDelivery, UUID>,
         JpaSpecificationExecutor<WhatsAppRelayDelivery> {
+    boolean existsByConfigId(UUID configId);
+
 
     @Query("SELECT d FROM WhatsAppRelayDelivery d WHERE d.status = :status"
             + " AND (d.nextRetryAt IS NULL OR d.nextRetryAt <= :now) ORDER BY d.created ASC")
