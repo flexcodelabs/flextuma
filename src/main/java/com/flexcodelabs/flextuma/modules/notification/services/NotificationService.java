@@ -54,6 +54,7 @@ public class NotificationService {
         private final EntityAssociationReferenceResolver entityAssociationReferenceResolver;
         private final WhatsAppTemplateRepository whatsAppTemplateRepository;
         private final WhatsAppSender whatsAppSender;
+        private final MessageRetryPolicy retryPolicy;
 
         @Value("${flextuma.sms.price-per-segment:1.0}")
         private BigDecimal pricePerSegment;
@@ -106,10 +107,9 @@ public class NotificationService {
         }
 
         /** Sends a Meta-approved WhatsApp Business template message. Unlike {@link #queueRawSms},
-         * this calls {@link WhatsAppSender#sendTemplate} synchronously and records the outcome
-         * immediately -- there's no async dispatch path for it, since SmsDispatchWorker only knows
-         * the generic {@code SmsSender#sendSms(connector, to, message)} shape, not template
-         * components. */
+         * the first attempt is made synchronously so the caller sees the outcome immediately. The
+         * template payload is stored on the log, so a transient failure falls through to
+         * SmsDispatchWorker's backoff retries (and a manual resend) with the real template. */
         @Transactional
         public SmsLog queueWhatsAppTemplate(Map<String, Object> payload, String username) {
                 User currentUser = getUser(username);
@@ -141,32 +141,41 @@ public class NotificationService {
                                 components);
 
                 String renderedContent = renderTemplateForLog(templateName, templateLanguage, components);
+                Map<String, Object> templatePayload = new java.util.LinkedHashMap<>();
+                templatePayload.put("name", templateName);
+                templatePayload.put("language", templateLanguage);
+                templatePayload.put("components", components);
+
                 SmsLog log = new SmsLog();
                 log.setRecipient(phoneNumber);
                 log.setContent(renderedContent);
                 log.setConnector(connector);
-                log.setStatus(result.isSuccess() ? SmsLogStatus.SENT : SmsLogStatus.FAILED);
-                log.setProviderResponse(result.getProviderResponse());
-                log.setProviderMessageId(result.getProviderMessageId());
-                if (!result.isSuccess()) {
-                        log.setError(result.getMessage());
-                }
+                log.setWhatsappTemplate(templatePayload);
+                log.setDeliveryAttempts(1);
                 log.setCreatedBy(currentUser);
-
-                // Unlike processAndSaveSms's text path (which debits before an async send even
-                // attempts), the send result is already known here -- so billing only a
-                // successfully-accepted template send avoids charging a tenant for a rejected send.
-                if (isSystemConnector(connector) && result.isSuccess()) {
-                        SmsSegmentResult segmentResult = segmentCalculator.calculate(renderedContent);
-                        BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
-                        walletService.debit(currentUser, cost,
-                                        "System connector WHATSAPP template send to " + phoneNumber, null);
+                if (result.isSuccess()) {
+                        log.setStatus(SmsLogStatus.SENT);
+                        log.setProviderResponse(result.getProviderResponse());
+                        log.setProviderMessageId(result.getProviderMessageId());
+                        chargeTemplateSend(currentUser, connector, renderedContent, phoneNumber);
+                } else {
+                        retryPolicy.onFailure(log, result);
                 }
 
                 entityAssociationReferenceResolver.resolve(log);
                 SmsLog savedLog = logRepository.save(log);
                 entityResponseInitializer.initialize(savedLog);
                 return savedLog;
+        }
+
+        /** Bills a WhatsApp template send on a system connector. Unlike processAndSaveSms's text path
+         * (which debits before an async send even attempts), this runs only once Meta has accepted
+         * the template, so a tenant is never charged for a rejected send. */
+        public void chargeTemplateSend(User user, SmsConnector connector, String renderedContent, String phoneNumber) {
+                if (!isSystemConnector(connector)) return;
+                SmsSegmentResult segmentResult = segmentCalculator.calculate(renderedContent);
+                BigDecimal cost = pricePerSegment.multiply(BigDecimal.valueOf(segmentResult.segments()));
+                walletService.debit(user, cost, "System connector WHATSAPP template send to " + phoneNumber, null);
         }
 
         private String getRequiredObjectField(Map<String, Object> data, String key) {
@@ -256,7 +265,7 @@ public class NotificationService {
                         enforceTokenConnectorGrant(connector);
                         return connector;
                 }
-                Optional<SmsConnector> connector = connectorRepository.findByCreatedByAndProviderAndActiveTrue(user,
+                Optional<SmsConnector> connector = connectorRepository.findPreferredActiveConnector(user,
                                 provider);
                 if (connector.isPresent()) {
                         enforceTokenConnectorGrant(connector.get());

@@ -55,7 +55,7 @@ public class WhatsAppSender implements SmsSender {
                     String.valueOf(response.getStatusCode().value()), responseBody);
         } catch (Exception e) {
             return SmsSendResult.failure("Failed to send WhatsApp message: " + e.getMessage(), "SEND_ERROR",
-                    Map.of("error", e.getMessage()));
+                    Map.of("error", String.valueOf(e.getMessage())));
         }
     }
 
@@ -97,7 +97,7 @@ public class WhatsAppSender implements SmsSender {
                     String.valueOf(response.getStatusCode().value()), responseBody);
         } catch (Exception e) {
             return SmsSendResult.failure("Failed to send WhatsApp template message: " + e.getMessage(), "SEND_ERROR",
-                    Map.of("error", e.getMessage()));
+                    Map.of("error", String.valueOf(e.getMessage())));
         }
     }
 

@@ -6,12 +6,20 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppRelayDelivery;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookEvent;
 import com.flexcodelabs.flextuma.core.repositories.SmsLogRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppInboxMessageRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppRelayDeliveryRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppTemplateRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookEventRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppMetaAppRepository;
 import com.flexcodelabs.flextuma.modules.whatsapp.services.WhatsAppMediaService;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.webhook.WhatsAppInboundMessageIngestor;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.webhook.WhatsAppSharedWebhookRouter;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.webhook.WhatsAppStatusUpdater;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.webhook.WhatsAppWebhookEventRecorder;
+import com.flexcodelabs.flextuma.modules.whatsapp.services.webhook.WhatsAppWebhookProcessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,6 +64,12 @@ class WhatsAppWebhookControllerTest {
     @Mock
     private WhatsAppMediaService mediaService;
 
+    @Mock
+    private WhatsAppWebhookEventRepository eventRepository;
+
+    @Mock
+    private WhatsAppMetaAppRepository metaAppRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
@@ -64,7 +80,12 @@ class WhatsAppWebhookControllerTest {
     }
 
     private WhatsAppWebhookController controller() {
-        return new WhatsAppWebhookController(configRepository, smsLogRepository, inboxMessageRepository, relayDeliveryRepository, templateRepository, mediaService, objectMapper);
+        WhatsAppWebhookProcessor processor = new WhatsAppWebhookProcessor(configRepository, relayDeliveryRepository,
+                new WhatsAppWebhookEventRecorder(eventRepository, objectMapper),
+                new WhatsAppStatusUpdater(smsLogRepository, templateRepository),
+                new WhatsAppInboundMessageIngestor(inboxMessageRepository, mediaService), objectMapper);
+        return new WhatsAppWebhookController(configRepository, metaAppRepository, processor,
+                new WhatsAppSharedWebhookRouter(configRepository), objectMapper);
     }
 
     private WhatsAppWebhookConfig activeConfig() {
@@ -389,5 +410,84 @@ class WhatsAppWebhookControllerTest {
         ArgumentCaptor<SmsLog> captor = ArgumentCaptor.forClass(SmsLog.class);
         verify(smsLogRepository).save(captor.capture());
         assertNull(captor.getValue().getError());
+    }
+
+    @Test
+    void receiveGeneratedCallback_shouldRecordEvent_forTemplateStatusUpdate() {
+        WhatsAppWebhookConfig config = activeConfig();
+        config.setCallbackUrl(null);
+        when(configRepository.findByCallbackTokenAndActiveTrue("callback-token")).thenReturn(Optional.of(config));
+
+        String payload = "{\"entry\":[{\"changes\":[{\"field\":\"message_template_status_update\",\"value\":{"
+                + "\"event\":\"REJECTED\",\"message_template_id\":\"123\",\"reason\":\"INVALID_FORMAT\","
+                + "\"message_template_name\":\"farm_alert\",\"message_template_language\":\"en\"}}]}]}";
+
+        controller().receiveGeneratedCallback("callback-token", payload, null);
+
+        ArgumentCaptor<WhatsAppWebhookEvent> captor = ArgumentCaptor.forClass(WhatsAppWebhookEvent.class);
+        verify(eventRepository).save(captor.capture());
+        WhatsAppWebhookEvent event = captor.getValue();
+        assertEquals(config, event.getConfig());
+        assertEquals(config.getCreatedBy(), event.getCreatedBy());
+        assertEquals("message_template_status_update", event.getField());
+        assertEquals("template.REJECTED", event.getEventType());
+        assertEquals("farm_alert (en) REJECTED: INVALID_FORMAT", event.getSummary());
+        assertNotNull(event.getPayload());
+        assertNotNull(event.getReceivedAt());
+    }
+
+    @Test
+    void receive_shouldRecordOneEventPerChange_withMaskedNumbers() {
+        WhatsAppWebhookConfig config = activeConfig();
+        when(configRepository.findByPhoneNumberIdAndActiveTrue("104725069208652")).thenReturn(Optional.of(config));
+
+        String payload = "{\"entry\":[{\"changes\":["
+                + "{\"field\":\"messages\",\"value\":{\"metadata\":{\"phone_number_id\":\"104725069208652\"},"
+                + "\"statuses\":[{\"id\":\"wamid.X\",\"status\":\"delivered\",\"recipient_id\":\"255712345678\"}]}},"
+                + "{\"field\":\"account_alerts\",\"value\":{\"entity_type\":\"WABA\"}}"
+                + "]}]}";
+
+        controller().receive(payload, null);
+
+        ArgumentCaptor<WhatsAppWebhookEvent> captor = ArgumentCaptor.forClass(WhatsAppWebhookEvent.class);
+        verify(eventRepository, times(2)).save(captor.capture());
+        List<WhatsAppWebhookEvent> events = captor.getAllValues();
+        assertEquals("status.delivered", events.get(0).getEventType());
+        assertEquals("Message to •••• 5678 delivered", events.get(0).getSummary());
+        assertEquals("account_alerts", events.get(1).getEventType());
+    }
+
+    @Test
+    void receive_shouldStillProcessDelivery_whenRecordingEventFails() {
+        WhatsAppWebhookConfig config = activeConfig();
+        when(configRepository.findByPhoneNumberIdAndActiveTrue("104725069208652")).thenReturn(Optional.of(config));
+        when(eventRepository.save(any())).thenThrow(new RuntimeException("db down"));
+
+        SmsLog log = new SmsLog();
+        log.setProviderMessageId("wamid.SENT");
+        when(smsLogRepository.findByProviderMessageId("wamid.SENT")).thenReturn(Optional.of(log));
+
+        String payload = "{\"entry\":[{\"changes\":[{\"field\":\"messages\",\"value\":{"
+                + "\"metadata\":{\"phone_number_id\":\"104725069208652\"},"
+                + "\"statuses\":[{\"id\":\"wamid.SENT\",\"status\":\"sent\"}]}}]}]}";
+
+        ResponseEntity<Void> response = controller().receive(payload, null);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        verify(smsLogRepository).save(log);
+    }
+
+    @Test
+    void receive_shouldNotRecordEvent_whenSignatureIsInvalid() {
+        WhatsAppWebhookConfig config = activeConfig();
+        config.setAppSecret("app-secret");
+        when(configRepository.findByPhoneNumberIdAndActiveTrue("104725069208652")).thenReturn(Optional.of(config));
+
+        String payload = "{\"entry\":[{\"changes\":[{\"field\":\"messages\",\"value\":{"
+                + "\"metadata\":{\"phone_number_id\":\"104725069208652\"}}}]}]}";
+
+        controller().receive(payload, "sha256=bogus");
+
+        verify(eventRepository, never()).save(any());
     }
 }

@@ -2,6 +2,7 @@ package com.flexcodelabs.flextuma.core.entities.whatsapp;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.flexcodelabs.flextuma.core.entities.base.Owner;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.helpers.MaskingUtil;
@@ -37,14 +38,39 @@ public class WhatsAppWebhookConfig extends Owner {
     @Column(name = "phone_number_id", nullable = false)
     private String phoneNumberId;
 
+    /** Optional human label for this number, e.g. "Support line". */
+    @Column(name = "label")
+    private String label;
+
+    /** The number customers see (e.g. "+255 700 000 000"). Entered by the user, or filled in from
+     * value.metadata.display_phone_number the first time Meta delivers an event for this number. */
+    @Column(name = "display_phone_number")
+    private String displayPhoneNumber;
+
     /**
      * The WHATSAPP-provider SmsConnector whose Meta access token is used to download inbound
      * media for this webhook. Optional: when unset, WhatsAppMediaService falls back to the
-     * owner's first active WhatsApp connector, which is ambiguous if they have more than one.
+     * owner's preferred WhatsApp connector (isDefault first) -- set it when the owner has several.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "connector")
     private SmsConnector connector;
+
+    /**
+     * Optional shared Meta app. When set, Meta can deliver this phone number's events to the
+     * app's shared callback URL (one URL for every number in the same Meta business app), and
+     * the app's secret validates them. The config's own metaCallbackUrl keeps working too, e.g.
+     * as a phone-number-level override_callback_uri.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "meta_app")
+    @JsonIgnoreProperties({ "createdBy", "updatedBy" })
+    private WhatsAppMetaApp metaApp;
+
+    /** WhatsApp Business Account (WABA) id. Routes WABA-level events on a shared callback URL
+     * (template status, account updates) that carry no phone_number_id; Meta sends it as entry[].id. */
+    @Column(name = "business_account_id")
+    private String businessAccountId;
 
     @Column(name = "callback_url", columnDefinition = "TEXT")
     private String callbackUrl;
@@ -81,6 +107,11 @@ public class WhatsAppWebhookConfig extends Owner {
     /** Set when Meta last delivered a signature-valid event to this webhook. */
     @Column(name = "last_event_at")
     private LocalDateTime lastEventAt;
+
+    /** Days to keep this webhook's event log. Null or 0 = inherit the account's setting (or the
+     * platform default); values above the platform maximum are capped (see WhatsAppEventRetentionPolicy). */
+    @Column(name = "event_retention_days")
+    private Integer eventRetentionDays;
 
     @JsonProperty("verifyToken") public String getMaskedVerifyToken() { return MaskingUtil.mask(verifyToken); }
     @JsonProperty("signingSecret") public String getMaskedSigningSecret() { return MaskingUtil.mask(signingSecret); }

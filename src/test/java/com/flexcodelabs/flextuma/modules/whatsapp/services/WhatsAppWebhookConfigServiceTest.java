@@ -9,6 +9,7 @@ import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.enums.WhatsAppRelayStatus;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppMetaAppRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppWebhookOverviewDTO;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -52,6 +54,12 @@ class WhatsAppWebhookConfigServiceTest {
 
     @Mock
     private CurrentUserResolver currentUserResolver;
+
+    @Mock
+    private WhatsAppMetaAppRepository metaAppRepository;
+
+    @Spy
+    private WhatsAppEventRetentionPolicy eventRetentionPolicy = new WhatsAppEventRetentionPolicy(30, 90);
 
     @InjectMocks
     private WhatsAppWebhookConfigService service;
@@ -240,5 +248,23 @@ class WhatsAppWebhookConfigServiceTest {
         entity.setPhoneNumberId("104725069208652");
 
         assertDoesNotThrow(() -> service.onPreSave(entity));
+    }
+
+    @Test
+    void onPreSave_shouldAcceptEventRetentionWithinPlatformMaximum() {
+        WhatsAppWebhookConfig entity = new WhatsAppWebhookConfig();
+        entity.setPhoneNumberId("104725069208652");
+        entity.setEventRetentionDays(90);
+
+        assertDoesNotThrow(() -> service.onPreSave(entity));
+    }
+
+    @Test
+    void onPreSave_shouldRejectEventRetentionAbovePlatformMaximum() {
+        WhatsAppWebhookConfig entity = new WhatsAppWebhookConfig();
+        entity.setPhoneNumberId("104725069208652");
+        entity.setEventRetentionDays(91);
+
+        assertThrows(IllegalArgumentException.class, () -> service.onPreSave(entity));
     }
 }

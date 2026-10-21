@@ -71,7 +71,7 @@ class WhatsAppMediaServiceTest {
 
     @Test
     void download_shouldFetchMetadataThenBytesAndWriteToDisk_viaOwnerFallback() {
-        when(smsConnectorRepository.findByCreatedByAndProviderAndActiveTrue(owner, "WHATSAPP"))
+        when(smsConnectorRepository.findPreferredActiveConnector(owner, "WHATSAPP"))
                 .thenReturn(Optional.of(connector));
         when(restTemplate.exchange(eq("https://graph.facebook.com/v21.0/media-123"), eq(HttpMethod.GET),
                 any(HttpEntity.class), eq(Map.class)))
@@ -96,7 +96,7 @@ class WhatsAppMediaServiceTest {
         Organisation organisation = new Organisation();
         organisation.setId(UUID.randomUUID());
         owner.setOrganisation(organisation);
-        when(smsConnectorRepository.findByCreatedByAndProviderAndActiveTrue(owner, "WHATSAPP"))
+        when(smsConnectorRepository.findPreferredActiveConnector(owner, "WHATSAPP"))
                 .thenReturn(Optional.of(connector));
         when(restTemplate.exchange(eq("https://graph.facebook.com/v21.0/media-123"), eq(HttpMethod.GET),
                 any(HttpEntity.class), eq(Map.class)))
@@ -126,12 +126,12 @@ class WhatsAppMediaServiceTest {
         Optional<DownloadedMedia> stored = service.download(config, "media-123");
 
         assertTrue(stored.isPresent());
-        verify(smsConnectorRepository, never()).findByCreatedByAndProviderAndActiveTrue(any(), any());
+        verify(smsConnectorRepository, never()).findPreferredActiveConnector(any(), any());
     }
 
     @Test
     void download_shouldReturnEmpty_whenOwnerHasNoActiveWhatsAppConnector() {
-        when(smsConnectorRepository.findByCreatedByAndProviderAndActiveTrue(owner, "WHATSAPP"))
+        when(smsConnectorRepository.findPreferredActiveConnector(owner, "WHATSAPP"))
                 .thenReturn(Optional.empty());
 
         Optional<DownloadedMedia> stored = service.download(config, "media-123");
@@ -141,7 +141,7 @@ class WhatsAppMediaServiceTest {
 
     @Test
     void download_shouldReturnEmpty_whenMetadataHasNoUrl() {
-        when(smsConnectorRepository.findByCreatedByAndProviderAndActiveTrue(owner, "WHATSAPP"))
+        when(smsConnectorRepository.findPreferredActiveConnector(owner, "WHATSAPP"))
                 .thenReturn(Optional.of(connector));
         when(restTemplate.exchange(eq("https://graph.facebook.com/v21.0/media-123"), eq(HttpMethod.GET),
                 any(HttpEntity.class), eq(Map.class)))
@@ -154,7 +154,7 @@ class WhatsAppMediaServiceTest {
 
     @Test
     void download_shouldReturnEmpty_whenHttpCallThrows() {
-        when(smsConnectorRepository.findByCreatedByAndProviderAndActiveTrue(owner, "WHATSAPP"))
+        when(smsConnectorRepository.findPreferredActiveConnector(owner, "WHATSAPP"))
                 .thenReturn(Optional.of(connector));
         when(restTemplate.exchange(any(String.class), eq(HttpMethod.GET), any(HttpEntity.class), eq(Map.class)))
                 .thenThrow(new RuntimeException("network error"));

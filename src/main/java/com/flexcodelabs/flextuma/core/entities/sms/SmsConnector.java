@@ -9,8 +9,10 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 @Entity
+// senderid is part of the key so one account can hold several connectors on the same provider
+// endpoint -- e.g. one WhatsApp connector per Meta phone number, all on graph.facebook.com.
 @Table(name = "smsconnector", uniqueConstraints = {
-        @UniqueConstraint(name = "unique_provider_url", columnNames = { "provider", "url", "creator" })
+        @UniqueConstraint(name = "unique_provider_url_sender", columnNames = { "provider", "url", "senderid", "creator" })
 })
 @Getter
 @Setter

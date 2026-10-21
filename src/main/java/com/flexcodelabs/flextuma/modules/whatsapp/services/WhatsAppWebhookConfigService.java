@@ -4,10 +4,12 @@ import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppInboxMessage;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppRelayDelivery;
+import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppMetaApp;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppWebhookConfig;
 import com.flexcodelabs.flextuma.core.enums.WhatsAppRelayStatus;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
+import com.flexcodelabs.flextuma.core.repositories.WhatsAppMetaAppRepository;
 import com.flexcodelabs.flextuma.core.repositories.WhatsAppWebhookConfigRepository;
 import com.flexcodelabs.flextuma.core.services.BaseService;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppActivityItemDTO;
@@ -43,7 +45,9 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
     private final WhatsAppInboxMessageService inboxMessageService;
     private final WhatsAppRelayDeliveryService relayDeliveryService;
     private final SmsConnectorRepository smsConnectorRepository;
+    private final WhatsAppMetaAppRepository metaAppRepository;
     private final CurrentUserResolver currentUserResolver;
+    private final WhatsAppEventRetentionPolicy eventRetentionPolicy;
     @Value("${flextuma.public-base-url:}") private String publicBaseUrl;
     protected JpaRepository<WhatsAppWebhookConfig, UUID> getRepository() { return repository; }
     protected JpaSpecificationExecutor<WhatsAppWebhookConfig> getRepositoryAsExecutor() { return repository; }
@@ -86,6 +90,8 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
     private void validate(WhatsAppWebhookConfig entity) {
         validateCallbackUrl(entity);
         validateConnector(entity);
+        validateMetaApp(entity);
+        eventRetentionPolicy.validateOverride(entity.getEventRetentionDays());
     }
 
     private void validateCallbackUrl(WhatsAppWebhookConfig entity) {
@@ -115,6 +121,26 @@ public class WhatsAppWebhookConfigService extends BaseService<WhatsAppWebhookCon
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only link your own WhatsApp connector");
         }
         entity.setConnector(connector);
+    }
+
+    // A shared Meta app's secret validates every event routed to this config, so -- like the
+    // connector -- it must belong to the current user.
+    private void validateMetaApp(WhatsAppWebhookConfig entity) {
+        if (entity.getMetaApp() == null || entity.getMetaApp().getId() == null) {
+            return;
+        }
+        WhatsAppMetaApp app = metaAppRepository.findByIdAndActiveTrue(entity.getMetaApp().getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Meta app not found or inactive"));
+        if (!isOwnedByCurrentUser(app.getCreatedBy())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only link your own Meta app");
+        }
+        entity.setMetaApp(app);
+    }
+
+    private boolean isOwnedByCurrentUser(User owner) {
+        User currentUser = currentUserResolver.getCurrentUser()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated"));
+        return owner != null && owner.getId().equals(currentUser.getId());
     }
 
     private static final int OVERVIEW_SCAN_LIMIT = 5000;

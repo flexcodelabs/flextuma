@@ -63,6 +63,9 @@ class SmsLogServiceTest {
             utils.when(com.flexcodelabs.flextuma.core.security.SecurityUtils::getCurrentUserAuthorities)
                     .thenReturn(Set.of("SUPER_ADMIN"));
 
+            smsLog.setDeliveryAttempts(5);
+            smsLog.setNextRetryAt(java.time.LocalDateTime.now());
+            smsLog.setRetryWindowStartedAt(java.time.LocalDateTime.now().minusHours(13));
             when(smsLogRepository.findById(logId)).thenReturn(Optional.of(smsLog));
             when(smsLogRepository.save(any(SmsLog.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -71,6 +74,9 @@ class SmsLogServiceTest {
             assertNotNull(retriedLog);
             assertEquals(SmsLogStatus.PENDING, retriedLog.getStatus());
             assertEquals(2, retriedLog.getRetries());
+            assertEquals(0, retriedLog.getDeliveryAttempts());
+            assertNull(retriedLog.getNextRetryAt());
+            assertNull(retriedLog.getRetryWindowStartedAt());
             assertNull(retriedLog.getError());
             assertNull(retriedLog.getProviderResponse());
 

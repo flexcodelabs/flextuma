@@ -25,6 +25,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.InjectMocks;
+import org.mockito.Spy;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -80,6 +81,9 @@ class NotificationServiceTest {
 
         @Mock
         private WhatsAppSender whatsAppSender;
+
+        @Spy
+        private MessageRetryPolicy retryPolicy = new MessageRetryPolicy(10_000, 2.0, 3_600_000, 43_200_000);
 
         @InjectMocks
         private NotificationService notificationService;
@@ -178,7 +182,7 @@ class NotificationServiceTest {
 
                 when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
                 when(templateRepository.findByCreatedByAndCode(testUser, "WELCOME")).thenReturn(Optional.of(template));
-                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "Twilio"))
+                when(connectorRepository.findPreferredActiveConnector(testUser, "Twilio"))
                                 .thenReturn(Optional.empty());
 
                 ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -199,7 +203,7 @@ class NotificationServiceTest {
 
                 when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
                 when(templateRepository.findByCreatedByAndCode(testUser, "WELCOME")).thenReturn(Optional.of(template));
-                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "Twilio"))
+                when(connectorRepository.findPreferredActiveConnector(testUser, "Twilio"))
                                 .thenReturn(Optional.of(connector));
 
                 SmsSegmentResult mockSegmentResult = new SmsSegmentResult(1, true, 14, 146, BigDecimal.ONE,
@@ -236,7 +240,7 @@ class NotificationServiceTest {
                 systemConnector.setCode("BEEM_SYSTEM");
 
                 when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "BEEM")).thenReturn(Optional.empty());
+                when(connectorRepository.findPreferredActiveConnector(testUser, "BEEM")).thenReturn(Optional.empty());
                 when(connectorRepository.findByProviderAndCode("BEEM", "BEEM_SYSTEM")).thenReturn(Optional.of(systemConnector));
                 when(segmentCalculator.calculate(anyString())).thenReturn(new SmsSegmentResult(2, true, 0, 0, BigDecimal.ONE, BigDecimal.ONE));
                 when(logRepository.save(any(SmsLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -282,7 +286,7 @@ class NotificationServiceTest {
                 connector.setCreatedBy(testUser);
 
                 when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "WHATSAPP"))
+                when(connectorRepository.findPreferredActiveConnector(testUser, "WHATSAPP"))
                                 .thenReturn(Optional.of(connector));
                 when(whatsAppTemplateRepository.findByNameAndLanguageAndConnectorAndCreatedBy("farm_alert", "en",
                                 connector, testUser)).thenReturn(Optional.empty());
@@ -304,7 +308,7 @@ class NotificationServiceTest {
                 template.setStatus("PENDING");
 
                 when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "WHATSAPP"))
+                when(connectorRepository.findPreferredActiveConnector(testUser, "WHATSAPP"))
                                 .thenReturn(Optional.of(connector));
                 when(whatsAppTemplateRepository.findByNameAndLanguageAndConnectorAndCreatedBy("farm_alert", "en",
                                 connector, testUser)).thenReturn(Optional.of(template));
@@ -327,7 +331,7 @@ class NotificationServiceTest {
                 template.setStatus("APPROVED");
 
                 when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "WHATSAPP"))
+                when(connectorRepository.findPreferredActiveConnector(testUser, "WHATSAPP"))
                                 .thenReturn(Optional.of(connector));
                 when(whatsAppTemplateRepository.findByNameAndLanguageAndConnectorAndCreatedBy("farm_alert", "en",
                                 connector, testUser)).thenReturn(Optional.of(template));
@@ -349,8 +353,8 @@ class NotificationServiceTest {
                 verifyNoInteractions(walletService);
         }
 
-        @Test
-        void queueWhatsAppTemplate_shouldSaveFailedLogWhenSenderFails() {
+            @Test
+        void queueWhatsAppTemplate_shouldScheduleBackoffRetryWhenSenderFails() {
                 SmsConnector connector = new SmsConnector();
                 connector.setProvider("WHATSAPP");
                 connector.setCreatedBy(testUser);
@@ -358,22 +362,28 @@ class NotificationServiceTest {
                 WhatsAppTemplate template = new WhatsAppTemplate();
                 template.setStatus("APPROVED");
 
+                SmsSendResult failure = SmsSendResult.failure("Meta rejected the template", "131047", Map.of());
+
                 when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-                when(connectorRepository.findByCreatedByAndProviderAndActiveTrue(testUser, "WHATSAPP"))
+                when(connectorRepository.findPreferredActiveConnector(testUser, "WHATSAPP"))
                                 .thenReturn(Optional.of(connector));
                 when(whatsAppTemplateRepository.findByNameAndLanguageAndConnectorAndCreatedBy("farm_alert", "en",
                                 connector, testUser)).thenReturn(Optional.of(template));
                 when(whatsAppSender.sendTemplate(eq(connector), eq("+255700000000"), eq("farm_alert"), eq("en"), any()))
-                                .thenReturn(SmsSendResult.failure("Meta rejected the template", "131047", Map.of()));
+                                .thenReturn(failure);
                 when(logRepository.save(any(SmsLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-                SmsLog result = notificationService.queueWhatsAppTemplate(validTemplatePayload(), "testuser");
+                notificationService.queueWhatsAppTemplate(validTemplatePayload(), "testuser");
 
                 verify(logRepository).save(smsLogCaptor.capture());
                 SmsLog capturedLog = smsLogCaptor.getValue();
-                assertEquals(SmsLogStatus.FAILED, capturedLog.getStatus());
+                assertEquals(SmsLogStatus.PENDING, capturedLog.getStatus());
+                assertEquals(1, capturedLog.getDeliveryAttempts());
+                assertEquals(1, capturedLog.getRetries());
+                assertNotNull(capturedLog.getNextRetryAt());
                 assertEquals("Meta rejected the template", capturedLog.getError());
-                assertNotNull(result);
+                assertEquals("farm_alert", capturedLog.getWhatsappTemplate().get("name"));
+                assertEquals("en", capturedLog.getWhatsappTemplate().get("language"));
                 verifyNoInteractions(walletService);
         }
 }
