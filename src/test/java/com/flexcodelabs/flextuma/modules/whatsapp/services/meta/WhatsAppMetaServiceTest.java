@@ -52,7 +52,7 @@ class WhatsAppMetaServiceTest {
     @BeforeEach
     void setUp() {
         ObjectMapper objectMapper = new ObjectMapper();
-        service = new WhatsAppMetaService(new MetaGraphClient(restTemplate, objectMapper), connectorRepository, currentUserResolver, objectMapper);
+        service = new WhatsAppMetaService(new MetaGraphClient(restTemplate, objectMapper), connectorRepository, currentUserResolver);
     }
 
     private void stubGet(String path, Map<String, Object> body) {

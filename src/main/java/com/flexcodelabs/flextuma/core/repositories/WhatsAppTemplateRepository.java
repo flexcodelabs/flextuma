@@ -14,7 +14,13 @@ import java.util.UUID;
 public interface WhatsAppTemplateRepository extends BaseRepository<WhatsAppTemplate, UUID>,
         JpaSpecificationExecutor<WhatsAppTemplate> {
 
-    List<WhatsAppTemplate> findByConnectorAndCreatedBy(SmsConnector connector, User createdBy);
+    /** Every template the user has, across all WhatsApp Business Accounts (metaTemplateId is unique
+     * per creator), so a sync can update rows first synced through another number. */
+    List<WhatsAppTemplate> findByCreatedBy(User createdBy);
+
+    /** Send-time lookup: any number in the account can send the account's templates. */
+    Optional<WhatsAppTemplate> findFirstByNameAndLanguageAndBusinessAccountIdAndCreatedBy(String name, String language,
+            String businessAccountId, User createdBy);
 
     Optional<WhatsAppTemplate> findByNameAndLanguageAndConnectorAndCreatedBy(String name, String language,
             SmsConnector connector, User createdBy);

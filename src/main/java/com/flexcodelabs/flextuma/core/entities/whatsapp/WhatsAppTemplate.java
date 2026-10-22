@@ -73,9 +73,16 @@ public class WhatsAppTemplate extends Owner {
     @Column(columnDefinition = "TEXT")
     private String placeholdersJson;
 
+    /** The connector the template was last synced through. Templates belong to the WhatsApp
+     * Business Account, not one number, so any number in {@link #businessAccountId} can send it. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "connector", nullable = false)
     private SmsConnector connector;
+
+    /** WhatsApp Business Account (WABA) the template lives in. Null only on rows synced before
+     * this column existed; the next sync fills it in. */
+    @Column(name = "business_account_id")
+    private String businessAccountId;
 
     @Column(name = "last_synced_at")
     private LocalDateTime lastSyncedAt;

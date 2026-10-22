@@ -299,6 +299,35 @@ class NotificationServiceTest {
         }
 
         @Test
+        void queueWhatsAppTemplate_shouldSendFromAnyNumberInTheTemplatesAccount() {
+                SmsConnector secondNumber = new SmsConnector();
+                secondNumber.setProvider("WHATSAPP");
+                secondNumber.setSenderId("222");
+                secondNumber.setExtraSettings("{\"businessAccountId\":\"999888777\"}");
+                secondNumber.setCreatedBy(testUser);
+
+                // Synced through another number of the same WhatsApp Business Account.
+                WhatsAppTemplate template = new WhatsAppTemplate();
+                template.setStatus("APPROVED");
+                template.setBusinessAccountId("999888777");
+
+                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+                when(connectorRepository.findPreferredActiveConnector(testUser, "WHATSAPP"))
+                                .thenReturn(Optional.of(secondNumber));
+                when(whatsAppTemplateRepository.findFirstByNameAndLanguageAndBusinessAccountIdAndCreatedBy("farm_alert", "en",
+                                "999888777", testUser)).thenReturn(Optional.of(template));
+                when(whatsAppSender.sendTemplate(eq(secondNumber), eq("+255700000000"), eq("farm_alert"), eq("en"), any()))
+                                .thenReturn(SmsSendResult.success("accepted", "wamid.456", Map.of("messages", "ok")));
+                when(logRepository.save(any(SmsLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                notificationService.queueWhatsAppTemplate(validTemplatePayload(), "testuser");
+
+                verify(logRepository).save(smsLogCaptor.capture());
+                assertEquals(SmsLogStatus.SENT, smsLogCaptor.getValue().getStatus());
+                verify(whatsAppTemplateRepository, never()).findByNameAndLanguageAndConnectorAndCreatedBy(any(), any(), any(), any());
+        }
+
+        @Test
         void queueWhatsAppTemplate_shouldRejectWhenTemplateNotApproved() {
                 SmsConnector connector = new SmsConnector();
                 connector.setProvider("WHATSAPP");
