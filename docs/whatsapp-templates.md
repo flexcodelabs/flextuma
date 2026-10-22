@@ -164,6 +164,18 @@ Expose it as `POST /api/whatsappTemplates/sync` (tenant-scoped: only syncs
 templates for the caller's own connector(s)), mirroring flexfarm-core's own
 `POST /api/whatsappTemplates/sync` endpoint one-for-one.
 
+#### Multiple numbers and accounts (as implemented)
+
+Templates belong to a WhatsApp Business Account (WABA), not to a phone number. `POST /api/whatsappTemplates/sync` therefore:
+
+- groups the caller's active WhatsApp connectors by `extraSettings.businessAccountId` and fetches each account **once**, trying each number's token in turn if one has been revoked;
+- stores the WABA on every template (`business_account_id`) and upserts by `(metaTemplateId, creator)`, so a template first synced through one number is updated, not duplicated, when synced through another;
+- marks REMOVED only templates of the account being synced;
+- reports each account separately in `{ synced, removed, accounts: [{ businessAccountId, phoneNumberIds, synced, removed, error }] }`. An expired token or a number with no WABA id produces an `error` for that account without stopping the others;
+- accepts `?businessAccountId=` to sync a single account.
+
+When sending, the template is looked up in the sending number's WABA, so **any number in the account can send any of its templates**. Rows synced before the WABA column existed fall back to matching the connector they were synced through.
+
 ### 3. Sending a template message
 
 Add a template-send path alongside the existing free-text path, without

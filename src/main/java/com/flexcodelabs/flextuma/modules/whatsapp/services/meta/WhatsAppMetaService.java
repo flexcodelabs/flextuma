@@ -1,10 +1,9 @@
 package com.flexcodelabs.flextuma.modules.whatsapp.services.meta;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flexcodelabs.flextuma.core.entities.auth.User;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.helpers.CurrentUserResolver;
+import com.flexcodelabs.flextuma.core.helpers.WhatsAppConnectorSettings;
 import com.flexcodelabs.flextuma.core.repositories.SmsConnectorRepository;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppMetaCheckRequest;
 import com.flexcodelabs.flextuma.modules.whatsapp.dtos.WhatsAppMetaCheckResult;
@@ -31,7 +30,6 @@ public class WhatsAppMetaService {
     private final MetaGraphClient graph;
     private final SmsConnectorRepository connectorRepository;
     private final CurrentUserResolver currentUserResolver;
-    private final ObjectMapper objectMapper;
 
     record Credentials(String baseUrl, String token, String businessAccountId, String phoneNumberId) {
     }
@@ -118,7 +116,7 @@ public class WhatsAppMetaService {
                 .filter(found -> "WHATSAPP".equalsIgnoreCase(found.getProvider()) && isOwnedByCurrentUser(found))
                 .orElseThrow(() -> new MetaGraphException("NOT_FOUND", "WhatsApp connector not found."));
         boolean tokenOnly = Boolean.TRUE.equals(request.tokenOnly());
-        String waba = Optional.ofNullable(blankToNull(request.businessAccountId())).orElseGet(() -> tokenOnly ? null : businessAccountIdOf(connector));
+        String waba = Optional.ofNullable(blankToNull(request.businessAccountId())).orElseGet(() -> tokenOnly ? null : WhatsAppConnectorSettings.businessAccountIdOf(connector));
         String phone = Optional.ofNullable(blankToNull(request.phoneNumberId())).orElse(tokenOnly ? null : connector.getSenderId());
         return new Credentials(MetaGraphClient.validatedBaseUrl(connector.getUrl()), connector.getKey(),
                 metaId(waba, "WhatsApp Business Account ID"), metaId(phone, "Phone number ID"));
@@ -127,17 +125,6 @@ public class WhatsAppMetaService {
     private boolean isOwnedByCurrentUser(SmsConnector connector) {
         Optional<User> user = currentUserResolver.getCurrentUser();
         return user.isPresent() && connector.getCreatedBy() != null && connector.getCreatedBy().getId().equals(user.get().getId());
-    }
-
-    private String businessAccountIdOf(SmsConnector connector) {
-        if (connector.getExtraSettings() == null || connector.getExtraSettings().isBlank()) {
-            return null;
-        }
-        try {
-            return WhatsAppPayloads.textOr(objectMapper.readValue(connector.getExtraSettings(), Map.class).get("businessAccountId"), null);
-        } catch (JsonProcessingException e) {
-            return null;
-        }
     }
 
     /** IDs go into the request path, so anything but digits is rejected rather than escaped. */

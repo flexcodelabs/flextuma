@@ -13,6 +13,7 @@ import com.flexcodelabs.flextuma.core.entities.sms.SmsConnector;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsLog;
 import com.flexcodelabs.flextuma.core.entities.sms.SmsTemplate;
 import com.flexcodelabs.flextuma.core.entities.whatsapp.WhatsAppTemplate;
+import com.flexcodelabs.flextuma.core.helpers.WhatsAppConnectorSettings;
 import com.flexcodelabs.flextuma.core.enums.SmsLogStatus;
 import com.flexcodelabs.flextuma.core.enums.SmsTemplateStatus;
 import com.flexcodelabs.flextuma.core.helpers.SmsSegmentResult;
@@ -122,12 +123,10 @@ public class NotificationService {
 
                 SmsConnector connector = getConnector(currentUser, "WHATSAPP", stringOrNull(payload.get("connectorId")));
 
-                WhatsAppTemplate template = whatsAppTemplateRepository
-                                .findByNameAndLanguageAndConnectorAndCreatedBy(templateName, templateLanguage, connector,
-                                                connector.getCreatedBy())
+                WhatsAppTemplate template = findTemplateForConnector(templateName, templateLanguage, connector)
                                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                                                 "No synced WhatsApp template found for [" + templateName + "/" + templateLanguage
-                                                                + "] on this connector"));
+                                                                + "] in this number's WhatsApp Business Account"));
                 if (!WhatsAppTemplate.STATUS_APPROVED.equalsIgnoreCase(template.getStatus())) {
                         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                         "Template [" + templateName + "] is not approved (status: " + template.getStatus() + ")");
@@ -166,6 +165,18 @@ public class NotificationService {
                 SmsLog savedLog = logRepository.save(log);
                 entityResponseInitializer.initialize(savedLog);
                 return savedLog;
+        }
+
+        /** Templates belong to the WhatsApp Business Account, so any number in the account can send
+         * them; rows synced before business_account_id existed are still matched by connector. */
+        private Optional<WhatsAppTemplate> findTemplateForConnector(String name, String language, SmsConnector connector) {
+                String businessAccountId = WhatsAppConnectorSettings.businessAccountIdOf(connector);
+                Optional<WhatsAppTemplate> inAccount = businessAccountId == null ? Optional.empty()
+                                : whatsAppTemplateRepository.findFirstByNameAndLanguageAndBusinessAccountIdAndCreatedBy(name,
+                                                language, businessAccountId, connector.getCreatedBy());
+                return inAccount.isPresent() ? inAccount
+                                : whatsAppTemplateRepository.findByNameAndLanguageAndConnectorAndCreatedBy(name, language,
+                                                connector, connector.getCreatedBy());
         }
 
         /** Bills a WhatsApp template send on a system connector. Unlike processAndSaveSms's text path
